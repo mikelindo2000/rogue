@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rogue: DungeonMaster</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+        #ui-container {
+            width: 920px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        #ui-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        #ui-equipment {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            background: #0a0a0a;
+            padding: 5px;
+            border: 1px solid #222;
+        }
+        #ui-equipment div {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        select, button {
+            background: #111;
+            color: #0f0;
+            border: 1px solid #555;
+            font-family: monospace;
+            padding: 2px;
+            font-size: 12px;
+            max-width: 120px;
+            cursor: pointer;
+            margin-top: 2px;
+        }
+        select:focus, button:focus { outline: none; }
+        canvas {
+            border: 2px solid #555;
+            background-color: #050505;
+        }
+        #message-log {
+            width: 920px;
+            height: 60px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
+            overflow: hidden;
+            border-top: 1px solid #333;
+            padding-top: 5px;
+        }
+        #xp-container {
+            width: 920px;
+            margin-top: 8px;
+            background: #141414;
+            border: 1px solid #444;
+            height: 20px;
+            position: relative;
+            text-align: center;
+            font-size: 12px;
+            line-height: 20px;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 2px;
+            box-shadow: inset 0 0 5px #000;
+        }
+        #xp-bar {
+            background: linear-gradient(90deg, #4b0082, #8a2be2);
+            width: 0%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: width 0.3s ease;
+        }
+        #xp-text {
+            position: relative;
+            z-index: 10;
+            text-shadow: 1px 1px 2px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div id="ui-stats">
+            <span id="stat-floor">Floor: 1/20</span>
+            <span id="stat-level">Level: 1</span>
+            <span id="stat-hp">HP: 30/30</span>
+            <span id="stat-gold">Gold: 0</span>
+            <span id="stat-defense">Total DEF: 1</span>
+            <span id="stat-hunger">Hunger: Satiated</span>
+        </div>
+        <div id="ui-equipment">
+            <div><label>Main Hand</label><select id="sel-main" onchange="equipItem('mainHand', this.value)"></select></div>
+            <div><label>Off-Hand</label><select id="sel-off" onchange="equipItem('offHand', this.value)"></select></div>
+            <div><label>Helm</label><select id="sel-helm" onchange="equipItem('helm', this.value)"></select></div>
+            <div><label>Chest</label><select id="sel-chest" onchange="equipItem('chest', this.value)"></select></div>
+            <div><label>Legs</label><select id="sel-legs" onchange="equipItem('legs', this.value)"></select></div>
+            <div><label>Gauntlets</label><select id="sel-gauntlets" onchange="equipItem('gauntlets', this.value)"></select></div>
+            <div><label>Boots</label><select id="sel-boots" onchange="equipItem('boots', this.value)"></select></div>
+            <div><label style="color:#0ff;font-weight:bold;">Potions</label><select id="sel-potions" onchange="usePotion(this.value)"></select></div>
+            <div><label style="color:#ff9900;font-weight:bold;">Food (<span id="ui-food">0</span>/4)</label><button onclick="consumeFood()" style="color:#ff9900; width: 60px;">Eat</button></div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="920" height="580"></canvas>
+    
+    <div id="message-log"></div>
+
+    <div id="xp-container">
+        <div id="xp-bar"></div>
+        <span id="xp-text">0 / 1400 XP</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const logBox = document.getElementById('message-log');
+
+        const COLS = 46, ROWS = 29, TILE_SIZE = 20;
+        const TILE_WALL = '#', TILE_FLOOR = '.', TILE_STAIRS = '>';
+        const VISION_RADIUS = 6;
+
+        let map = [], explored = [], visible = [];
+        let monsters = [], items = [], dungeonFloor = 1, gameOver = false, gameWon = false, logs = [];
+
+        const RARITY_CONFIG = {
+            common: { name: "Common", color: "#ffffff", multiplier: 1.0 },
+            uncommon: { name: "Uncommon", color: "#1eff00", multiplier: 1.2 },
+            rare: { name: "Rare", color: "#0070dd", multiplier: 1.5 },
+            epic: { name: "Epic", color: "#a335ee", multiplier: 1.9 },
+            legendary: { name: "Legendary", color: "#ff8000", multiplier: 2.5 }
+        };
+
+        const XP_REQUIREMENTS = {
+            1: 1400, 2: 3600, 3: 6500, 4: 10100, 5: 14400,
+            6: 19400, 7: 25200, 8: 31700, 9: 38900, 10: 47400,
+            11: 58600, 12: 71600, 13: 85700, 14: 95800, 15: 111800,
+            16: 129100, 17: 147500, 18: 167100, 19: 187900, 20: 209800
+        };
+
+        const MONSTER_XP_TABLE = {
+            1: { "Brown Bat": 35, "Orc": 35 },
+            2: { "Brown Bat": 26, "Orc": 26, "Snake": 72 },
+            3: { "Brown Bat": 20, "Orc": 20, "Snake": 54, "Hobgoblin": 100 },
+            4: { "Brown Bat": 15, "Orc": 15, "Snake": 41, "Hobgoblin": 75, "Eagle": 126 },
+            5: { "Brown Bat": 0, "Orc": 0, "Snake": 30, "Hobgoblin": 56, "Eagle": 95, "Leprechaun": 180 },
+            6: { "Hobgoblin": 42, "Eagle": 71, "Leprechaun": 135, "Jungle Flesheater": 216, "King Cobra": 216, "Kalius King Cobra": 485 },
+            7: { "Eagle": 53, "Leprechaun": 101, "Jungle Flesheater": 162, "King Cobra": 162, "Kalius King Cobra": 364, "Indus Worm": 265 },
+            8: { "Leprechaun": 76, "Jungle Flesheater": 122, "King Cobra": 122, "Kalius King Cobra": 273, "Indus Worm": 199, "Pygmy": 317, "Pantier Pygmy King": 704 },
+            9: { "Jungle Flesheater": 92, "King Cobra": 92, "Kalius King Cobra": 205, "Indus Worm": 149, "Pygmy": 238, "Pantier Pygmy King": 528, "Nymph": 354 },
+            10: { "Indus Worm": 112, "Pygmy": 179, "Pantier Pygmy King": 396, "Nymph": 266, "Rabid Ostrich": 379 },
+            11: { "Pygmy": 134, "Pantier Pygmy King": 297, "Nymph": 200, "Rabid Ostrich": 284, "Minotaur": 469, "Michael the Minotaur": 1172 },
+            12: { "Nymph": 150, "Rabid Ostrich": 213, "Minotaur": 352, "Michael the Minotaur": 879, "Unicorn": 551 },
+            13: { "Rabid Ostrich": 160, "Minotaur": 264, "Michael the Minotaur": 660, "Unicorn": 413, "Yeti": 612 },
+            14: { "Minotaur": 198, "Michael the Minotaur": 495, "Unicorn": 310, "Yeti": 459, "Troll": 684, "Trogdor the Troll": 1597 },
+            15: { "Unicorn": 233, "Yeti": 356, "Troll": 513, "Trogdor the Troll": 1198, "Golem": 799, "Gary the Golem": 1863 },
+            16: { "Yeti": 267, "Troll": 385, "Trogdor the Troll": 899, "Golem": 599, "Gary the Golem": 1397, "Flying Serpent": 861 },
+            17: { "Troll": 289, "Trogdor the Troll": 674, "Golem": 449, "Gary the Golem": 1048, "Flying Serpent": 646, "Cyclops": 952, "Colossal Cyclops": 2682 },
+            18: { "Golem": 337, "Gary the Golem": 786, "Flying Serpent": 485, "Cyclops": 714, "Colossal Cyclops": 2012, "Quinotaur": 1044 },
+            19: { "Flying Serpent": 364, "Cyclops": 536, "Colossal Cyclops": 1509, "Quinotaur": 783, "Xelhua": 1139, "Zombie": 1139, "Zachary the Zombie": 3132 },
+            20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587.25, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349 }
+        };
+
+        const CHEST_GOLD_TABLE = {
+            1: 15, 2: 25, 3: 30, 4: 45, 5: 60, 6: 80, 7: 100, 8: 120, 9: 150, 10: 160,
+            11: 200, 12: 230, 13: 300, 14: 350, 15: 410, 16: 550, 17: 700, 18: 900, 19: 1000, 20: 1200
+        };
+
+        let player = {
+            x: 0, y: 0, hp: 30, maxHp: 30, gold: 0, hunger: 800, baseAtk: 2, regenTurns: 0, disarmedHits: 0, undeadFoods: 0,
+            level: 1, xp: 0,
+            inventory: {
+                food: 0,
+                weapons: [{ name: "Iron Dagger", type: "dagger", dmg: 2, rarity: "common" }],
+                shield: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
+                helm: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
+                chest: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }, { name: "Tattered Rags", def: 1, maxDef: 1, rarity: "common" }],
+                legs: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
+                gauntlets: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
+                boots: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
+                potions: []
+            },
+            equipped: { mainHand: 0, offHand: "none:0", helm: 0, chest: 1, legs: 0, gauntlets: 0, boots: 0 }
+        };
+
+        let statusEffects = { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0 };
+
+        const MONSTER_DATABASE = [
+            { symbol: 'O', name: 'Orc', hp: 24, atk: 1, color: '#556b2f', minFloor: 1 },
+            { symbol: 'B', name: 'Brown Bat', hp: 22, atk: 1, color: '#8b4513', minFloor: 1 },
+            { symbol: 'S', name: 'Snake', hp: 25, atk: 3, color: '#ff0000', minFloor: 2 },
+            { symbol: 'H', name: 'Hobgoblin', hp: 29, atk: 3, color: '#ffff00', minFloor: 3 },
+            { symbol: 'E', name: 'Eagle', hp: 33, atk: 5, color: '#d3d3d3', minFloor: 4 },
+            { symbol: 'L', name: 'Leprechaun', hp: 38, atk: 6, color: '#00ff00', minFloor: 5 },
+            { symbol: 'J', name: 'Jungle Flesheater', hp: 44, atk: 7, color: '#006400', minFloor: 6 },
+            { symbol: 'K', name: 'King Cobra', hp: 48, atk: 7, color: '#cd853f', minFloor: 6 },
+            { symbol: 'K↑', name: 'Kalius King Cobra', hp: 65, atk: 10, color: '#cd853f', minFloor: 6 },
+            { symbol: 'I', name: 'Indus Worm', hp: 51, atk: 8, color: '#f5f5dc', minFloor: 7 },
+            { symbol: 'P', name: 'Pygmy', hp: 58, atk: 9, color: '#d2b48c', minFloor: 8 },
+            { symbol: 'P↑', name: 'Pantier Pygmy King', hp: 72, atk: 13, color: '#d2b48c', minFloor: 8 },
+            { symbol: 'N', name: 'Nymph', hp: 67, atk: 10, color: '#e6e6fa', minFloor: 9 },
+            { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 12, color: '#d3d3d3', minFloor: 10 },
+            { symbol: 'M', name: 'Minotaur', hp: 89, atk: 13, color: '#8b4513', minFloor: 11 },
+            { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 17, color: '#8b4513', minFloor: 11 },
+            { symbol: 'U', name: 'Unicorn', hp: 102, atk: 14, color: '#ffffff', minFloor: 12 },
+            { symbol: 'Y', name: 'Yeti', hp: 117, atk: 15, color: '#ffffff', minFloor: 13 },
+            { symbol: 'T', name: 'Troll', hp: 135, atk: 16, color: '#00ff00', minFloor: 14 },
+            { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 20, color: '#00ff00', minFloor: 14 },
+            { symbol: 'G', name: 'Golem', hp: 155, atk: 17, color: '#d2b48c', minFloor: 15 },
+            { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 21, color: '#d2b48c', minFloor: 15 },
+            { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 18, color: '#39ff14', minFloor: 16 },
+            { symbol: 'C', name: 'Cyclops', hp: 205, atk: 20, color: '#ffdab9', minFloor: 17 },
+            { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 24, color: '#ffdab9', minFloor: 17 },
+            { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 21, color: '#ffff00', minFloor: 18 },
+            { symbol: 'V', name: 'Xelhua', hp: 271, atk: 22, color: '#ff0000', minFloor: 19 },
+            { symbol: 'Z', name: 'Zombie', hp: 275, atk: 22, color: '#00ff00', minFloor: 19 },
+            { symbol: 'Z↑', name: 'Zachary the Zombie', hp: 300, atk: 26, color: '#00ff00', minFloor: 19 },
+            { symbol: 'A', name: 'Apperation', hp: 312, atk: 23, color: '#556666', minFloor: 20 },
+            { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 27, color: '#556666', minFloor: 20 },
+            { symbol: 'D', name: 'Dragon', hp: 380, atk: 23, color: '#00ff00', minFloor: 20 },
+            { symbol: 'D↑', name: 'Dragon King', hp: 1050, atk: 27, color: '#00ff00', minFloor: 20, special: 'boss' },
+            { symbol: 'M*', name: 'Marcus the Brave', hp: 900, atk: 25, color: '#ffd700', minFloor: 20, special: 'boss' }
+        ];
+
+        const GEAR_POOL = {
+            helm: [ {name:"Leather Cap", def:1, maxDef:1}, {name:"Iron Helm", def:3, maxDef:3}, {name:"Dragon Visor", def:5, maxDef:5} ],
+            chest: [ {name:"Cloth Shirt", def:1, maxDef:1}, {name:"Chainmail", def:4, maxDef:4}, {name:"Platemail", def:8, maxDef:8} ],
+            legs: [ {name:"Leather Pants", def:1, maxDef:1}, {name:"Iron Greaves", def:3, maxDef:3}, {name:"Dragon Legs", def:5, maxDef:5} ],
+            gauntlets: [ {name:"Cloth Gloves", def:1, maxDef:1}, {name:"Iron Gauntlets", def:2, maxDef:2}, {name:"Mithril Fists", def:4, maxDef:4} ],
+            boots: [ {name:"Leather Shoes", def:1, maxDef:1}, {name:"Steel Sabatons", def:2, maxDef:2}, {name:"Winged Boots", def:4, maxDef:4} ],
+            shield: [ {name:"Buckler", def:2, maxDef:2}, {name:"Kite Shield", def:4, maxDef:4}, {name:"Tower Shield", def:7, maxDef:7} ],
+            dagger: [ {name:"Steel Dagger", dmg:3}, {name:"Assassin Dirk", dmg:5}, {name:"Void Blade", dmg:7} ],
+            '1h_sword': [ {name:"Shortsword", dmg:5}, {name:"Broadsword", dmg:8}, {name:"Rune Blade", dmg:12} ],
+            '2h_sword': [ {name:"Claymore", dmg:10}, {name:"Zweihander", dmg:16}, {name:"Dragon Slayer", dmg:22} ],
+            '1h_mace': [ {name:"Club", dmg:6}, {name:"Morningstar", dmg:9}, {name:"Meteor Hammer", dmg:13} ],
+            '2h_mace': [ {name:"Warhammer", dmg:12}, {name:"Earth Breaker", dmg:18}, {name:"Titan Maul", dmg:25} ],
+            staff: [ {name:"Fire Staff", dmg:4, magic:'fire'}, {name:"Frost Staff", dmg:4, magic:'frost'}, {name:"Arcane Staff", dmg:4, magic:'arcane'} ]
+        };
+
+        function init() {
+            logs = ["Welcome to the Dungeon! Move onto portals (>) to travel deeper."];
+            generateLevel();
+            updateDropdowns();
+            window.addEventListener('keydown', handleInput);
+        }
+
+        function addLog(msg) {
+            logs.push(msg);
+            if (logs.length > 3) logs.shift();
+            logBox.innerHTML = logs.map(l => `<div>> ${l}</div>`).join('');
+        }
+
+        function getStyledItemName(itemData) {
+            let rarity = itemData.rarity || 'common';
+            let color = RARITY_CONFIG[rarity].color;
+            let capRarity = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+            return `<span style="color: ${color}; font-weight: bold;">[${capRarity}] ${itemData.name}</span>`;
+        }
+
+        function rollLootRarity(floor) {
+            let rand = Math.random();
+            let epicChance = 0.03 + (floor * 0.006); 
+            let rareChance = 0.10 + (floor * 0.012); 
+            let uncommonChance = 0.25 + (floor * 0.01);
+
+            if (floor >= 12 && rand < 0.02) return 'legendary';
+            if (rand < epicChance) return 'epic';
+            if (rand < epicChance + rareChance) return 'rare';
+            if (rand < epicChance + rareChance + uncommonChance) return 'uncommon';
+            return 'common';
+        }
+
+        function gainXp(amount) {
+            if (player.level >= 20 || amount <= 0) return;
+            player.xp += amount;
+            let req = XP_REQUIREMENTS[player.level];
+            while (player.xp >= req && player.level < 20) {
+                player.xp -= req;
+                player.level++;
+                player.maxHp = Math.floor(player.maxHp * 1.15);
+                player.hp = statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp;
+                addLog(`LEVEL UP! You are now Level ${player.level}! Max HP increased!`);
+                req = XP_REQUIREMENTS[player.level];
+            }
+            updateUI();
+        }
+
+        function equipItem(slot, value) {
+            player.equipped[slot] = slot === 'offHand' ? value : parseInt(value);
+            updateDropdowns(); 
+            document.activeElement.blur(); 
+            updateUI();
+        }
+
+        function getTotalDef() {
+            let def = 0;
+            ['helm', 'chest', 'legs', 'gauntlets', 'boots'].forEach(slot => {
+                def += player.inventory[slot][player.equipped[slot]].def;
+            });
+            if (player.equipped.offHand.startsWith('shield:')) {
+                def += player.inventory.shield[parseInt(player.equipped.offHand.split(':')[1])].def;
+            }
+            if (statusEffects.armorTurns > 0) def += 100; 
+            return def;
+        }
+
+        function updateDropdowns() {
+            const selMain = document.getElementById('sel-main');
+            selMain.innerHTML = player.inventory.weapons.map((w, i) => {
+                let color = RARITY_CONFIG[w.rarity || 'common'].color;
+                return `<option value="${i}" ${player.equipped.mainHand === i ? 'selected' : ''} style="color:${color};">${w.name} (+${w.dmg})</option>`;
+            }).join('');
+            
+            let mainWep = player.inventory.weapons[player.equipped.mainHand];
+            let is2H = mainWep.type.startsWith('2h_') || mainWep.type === 'staff';
+
+            if (is2H && player.equipped.offHand !== "none:0") {
+                player.equipped.offHand = "none:0"; 
+                addLog("Off-hand unequipped (2-Handed weapon requirement).");
+            }
+
+            const selOff = document.getElementById('sel-off');
+            let offOptions = `<option value="none:0" ${player.equipped.offHand === 'none:0' ? 'selected' : ''}>None</option>`;
+            
+            if (is2H) {
+                offOptions = `<option value="none:0">Disabled (2H Weapon)</option>`;
+            } else {
+                player.inventory.shield.forEach((sh, i) => {
+                    if (i !== 0) {
+                        let val = 'shield:' + i;
+                        let color = RARITY_CONFIG[sh.rarity || 'common'].color;
+                        offOptions += `<option value="${val}" ${player.equipped.offHand === val ? 'selected' : ''} style="color:${color};">${sh.name} (${sh.def}/${sh.maxDef})</option>`;
+                    }
+                });
+                if (mainWep.type === 'dagger') {
+                    player.inventory.weapons.forEach((w, i) => {
+                        if (w.type === 'dagger' && i !== player.equipped.mainHand) {
+                            let val = 'weapon:' + i;
+                            let color = RARITY_CONFIG[w.rarity || 'common'].color;
+                            offOptions += `<option value="${val}" ${player.equipped.offHand === val ? 'selected' : ''} style="color:${color};">${w.name} (+${w.dmg})</option>`;
+                        }
+                    });
+                }
+            }
+            selOff.innerHTML = offOptions;
+
+            ['helm', 'chest', 'legs', 'gauntlets', 'boots'].forEach(slot => {
+                const el = document.getElementById(`sel-${slot}`);
+                el.innerHTML = player.inventory[slot].map((a, i) => {
+                    let color = RARITY_CONFIG[a.rarity || 'common'].color;
+                    return `<option value="${i}" ${player.equipped[slot] === i ? 'selected' : ''} style="color:${color};">${a.name} (${a.def}/${a.maxDef})</option>`;
+                }).join('');
+            });
+
+            const selPotions = document.getElementById('sel-potions');
+            let potOptions = `<option value="" selected disabled>Use Potion...</option>`;
+            player.inventory.potions.forEach((p, i) => {
+                let capitalized = p.charAt(0).toUpperCase() + p.slice(1);
+                potOptions += `<option value="${i}">${capitalized}</option>`;
+            });
+            selPotions.innerHTML = potOptions;
+
+            updateUI();
+        }
+
+        function usePotion(index) {
+            if (index === "" || index === undefined) return;
+            let idx = parseInt(index);
+            let pType = player.inventory.potions[idx];
+            
+            if (pType === 'healing') {
+                player.hp = Math.min(player.hp + 12, (statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp)); 
+                addLog("Drank Potion of Healing. Recouped some health.");
+            } else if (pType === 'strength') {
+                statusEffects.strengthTurns = 100;
+                addLog("Drank Potion of Strength! Attack power boosted by +10.");
+            } else if (pType === 'invisibility') {
+                statusEffects.invisTurns = 50;
+                addLog("Drank Potion of Invisibility! Monsters lose track of you.");
+            } else if (pType === 'armor') {
+                statusEffects.armorTurns = 100;
+                addLog("Drank Potion of Armor! Defenses boosted by +100.");
+            }
+            
+            player.inventory.potions.splice(idx, 1);
+            document.activeElement.blur();
+            processTurn(); 
+        }
+
+        function consumeFood() {
+            if (player.inventory.food > 0) {
+                player.inventory.food--;
+                if (player.undeadFoods > 0) { 
+                    player.undeadFoods--; 
+                    addLog("Undead virus rejects food."); 
+                } else { 
+                    player.hunger = Math.min(player.hunger + 300, 800); 
+                    addLog("Ate rations. Hunger restored."); 
+                }
+                updateUI();
+                processTurn();
+            } else {
+                addLog("You have no food to eat!");
+            }
+            document.activeElement.blur();
+        }
+
+        function updateFOV() {
+            visible = new Array(ROWS).fill(0).map(() => new Array(COLS).fill(false));
+            visible[player.y][player.x] = true;
+            explored[player.y][player.x] = true;
+
+            const numRays = 72; 
+            for (let i = 0; i < numRays; i++) {
+                let angle = (i * 5) * (Math.PI / 180);
+                let dx = Math.cos(angle), dy = Math.sin(angle);
+                let cx = player.x + 0.5, cy = player.y + 0.5;
+
+                for (let d = 0; d < VISION_RADIUS; d++) {
+                    cx += dx; cy += dy;
+                    let mapX = Math.floor(cx), mapY = Math.floor(cy);
+
+                    if (mapX < 0 || mapX >= COLS || mapY < 0 || mapY >= ROWS) break;
+
+                    visible[mapY][mapX] = true;
+                    explored[mapY][mapX] = true;
+                    if (map[mapY][mapX] === TILE_WALL) break;
+                }
+            }
+        }
+
+        function generateLevel() {
+            gameOver = false;
+            map = new Array(ROWS).fill(0).map(() => new Array(COLS).fill(TILE_WALL));
+            explored = new Array(ROWS).fill(0).map(() => new Array(COLS).fill(false));
+            visible = new Array(ROWS).fill(0).map(() => new Array(COLS).fill(false));
+            monsters = []; items = [];
+            let rooms = [];
+
+            let maxRooms = dungeonFloor === 20 ? 4 : 7; 
+            for (let roomAttempts = 0; roomAttempts < 35; roomAttempts++) {
+                if (rooms.length >= maxRooms) break;
+                let w = Math.floor(Math.random() * 6) + 5, h = Math.floor(Math.random() * 5) + 4;
+                let x = Math.floor(Math.random() * (COLS - w - 2)) + 1, y = Math.floor(Math.random() * (ROWS - h - 2)) + 1;
+                if (rooms.some(r => x < r.x1 + r.w && x + w > r.x1 && y < r.y1 + r.h && y + h > r.y1)) continue;
+
+                for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) map[r][c] = TILE_FLOOR;
+                let center = { x: Math.floor(x + w / 2), y: Math.floor(y + h / 2), x1: x, y1: y, w: w, h: h };
+                
+                if (rooms.length > 0) {
+                    let p = rooms[rooms.length - 1];
+                    let cx = p.x, cy = p.y;
+                    while (cx !== center.x) { map[cy][cx] = TILE_FLOOR; cx += (cx < center.x) ? 1 : -1; }
+                    while (cy !== center.y) { map[cy][cx] = TILE_FLOOR; cy += (cy < center.y) ? 1 : -1; }
+                }
+                rooms.push(center);
+            }
+
+            player.x = rooms[0].x; player.y = rooms[0].y;
+            if (dungeonFloor < 20) map[rooms[rooms.length - 1].y][rooms[rooms.length - 1].x] = TILE_STAIRS;
+
+            // TEST: Spawn Marcus the Brave in the starting room on Floor 1
+            if (dungeonFloor === 1) {
+                let marcus = MONSTER_DATABASE.find(m => m.name === 'Marcus the Brave');
+                if (marcus) {
+                    monsters.push({ x: rooms[0].x + 2, y: rooms[0].y, frozenTurns: 0, ...JSON.parse(JSON.stringify(marcus)) });
+                }
+            }
+
+            if (dungeonFloor === 20) {
+                let r = rooms[rooms.length - 1];
+                let bosses = MONSTER_DATABASE.filter(m => m.special === 'boss');
+                bosses.forEach((boss, index) => {
+                    monsters.push({ x: r.x + index, y: r.y, frozenTurns: 0, ...JSON.parse(JSON.stringify(boss)) });
+                });
+                let bossNames = bosses.map(b => b.name).join(" and ");
+                addLog(`${bossNames} await!`);
+                updateFOV(); draw(); return; 
+            }
+
+            for (let i = 1; i < rooms.length; i++) {
+                let room = rooms[i];
+                
+                if (Math.random() < 0.28) spawnItem(room, 'food', '%', '#ff9900');
+                
+                if (Math.random() < 0.65) {
+                    let rand = Math.random();
+                    if (rand < 0.25) spawnItem(room, 'gold', '$', '#ffff55');
+                    else if (rand < 0.65) {
+                        let potionPool = ['healing', 'strength', 'invisibility', 'armor'];
+                        let chosenP = potionPool[Math.floor(Math.random() * potionPool.length)];
+                        spawnItem(room, 'potion', '!', '#00ffff', { potionType: chosenP });
+                    }
+                    else if (rand < 0.85) spawnItem(room, 'scroll', '?', '#cc66ff');
+                    else spawnItem(room, 'repair_scroll', '?', '#ff00ff');
+                }
+
+                if (Math.random() < 0.45) {
+                    let categories = Object.keys(GEAR_POOL);
+                    let cat = categories[Math.floor(Math.random() * categories.length)];
+                    let template = JSON.parse(JSON.stringify(GEAR_POOL[cat][Math.floor(Math.random() * GEAR_POOL[cat].length)]));
+                    
+                    let rarity = rollLootRarity(dungeonFloor);
+                    let mult = RARITY_CONFIG[rarity].multiplier;
+                    template.rarity = rarity;
+
+                    if (template.dmg) {
+                        let baseBonus = Math.floor(dungeonFloor * 1.5);
+                        template.dmg = Math.round((template.dmg + baseBonus) * mult);
+                        template.name += ` +${baseBonus}`;
+                    }
+                    if (template.def) {
+                        let baseBonus = Math.floor(dungeonFloor * 1.0);
+                        template.def = Math.round((template.def + baseBonus) * mult);
+                        template.maxDef = template.def;
+                        template.name += ` +${baseBonus}`;
+                    }
+                    
+                    let sym = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff' ? ')' : '[';
+                    spawnItem(room, 'gear', sym, RARITY_CONFIG[rarity].color, { category: cat, ...template });
+                }
+
+                if (Math.random() < 0.82) {
+                    let validMobs = MONSTER_DATABASE.filter(m => 
+                        dungeonFloor >= m.minFloor && 
+                        player.level >= m.minFloor && 
+                        m.special !== 'boss'
+                    );
+                    if (validMobs.length > 0) {
+                        let tmpl = validMobs[Math.floor(Math.random() * validMobs.length)];
+                        let mx = room.x1 + 1, my = room.y1 + 1;
+                        monsters.push({ x: mx, y: my, frozenTurns: 0, ...JSON.parse(JSON.stringify(tmpl)) });
+                    }
+                }
+            }
+            updateFOV(); draw();
+        }
+
+        function spawnItem(room, type, sym, color, data = null) {
+            let rx = room.x1 + Math.floor(Math.random() * (room.w - 2)) + 1;
+            let ry = room.y1 + Math.floor(Math.random() * (room.h - 2)) + 1;
+            if (!items.some(it => it.x === rx && it.y === ry)) {
+                items.push({ x: rx, y: ry, type: type, symbol: sym, color: color, data: data ? JSON.parse(JSON.stringify(data)) : null });
+            }
+        }
+
+        function handleInput(e) {
+            if (gameOver || gameWon) { if (e.key === 'r') location.reload(); return; }
+            let dx = 0, dy = 0;
+            if (e.key === 'ArrowUp') dy = -1; else if (e.key === 'ArrowDown') dy = 1; else if (e.key === 'ArrowLeft') dx = -1; else if (e.key === 'ArrowRight') dx = 1; else return;
+            e.preventDefault(); 
+            
+            let tx = player.x + dx, ty = player.y + dy;
+            let m = monsters.find(m => m.x === tx && m.y === ty);
+            
+            if (m) { playerAttack(m); processTurn(); return; }
+            if (tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS && map[ty][tx] !== TILE_WALL && !monsters.some(o => o.x === tx && o.y === ty)) {
+                player.x = tx; player.y = ty;
+                checkItems();
+                if (map[ty][tx] === TILE_STAIRS) {
+                    dungeonFloor++; 
+                    generateLevel(); 
+                    addLog(`Traveled through portal to Floor ${dungeonFloor}!`);
+                    return; 
+                }
+                processTurn();
+            }
+        }
+
+        function executeStrike(monster, weapon) {
+            let dmgBase = player.baseAtk + weapon.dmg;
+            if (statusEffects.strengthTurns > 0) dmgBase += 10; 
+            if (player.disarmedHits > 0) { dmgBase = Math.floor(dmgBase / 2); player.disarmedHits--; }
+            
+            if (weapon.type === 'staff') {
+                if (weapon.magic === 'fire') { dmgBase += 3; addLog("Flames erupt!"); }
+                else if (weapon.magic === 'arcane') { player.hp = Math.min(player.maxHp, player.hp + 2); addLog("Siphoned health!"); }
+                else if (weapon.magic === 'frost' && Math.random() < 0.25) { monster.frozenTurns = 1; addLog(`${monster.name} frozen!`); }
+            }
+
+            let damage = Math.max(1, Math.floor(Math.random() * dmgBase) + 2);
+            monster.hp -= damage;
+            addLog(`You strike ${monster.name} for ${damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+        }
+
+        function playerAttack(monster) {
+            let mainWep = player.inventory.weapons[player.equipped.mainHand];
+            executeStrike(monster, mainWep);
+
+            if (monster.hp > 0 && player.equipped.offHand.startsWith('weapon:')) {
+                let offIdx = parseInt(player.equipped.offHand.split(':')[1]);
+                let offWep = player.inventory.weapons[offIdx];
+                executeStrike(monster, offWep);
+            }
+
+            if (monster.hp <= 0) {
+                addLog(`The ${monster.name} dies!`);
+                
+                let xpGained = 0;
+                if (MONSTER_XP_TABLE[player.level] && MONSTER_XP_TABLE[player.level][monster.name] !== undefined) {
+                    xpGained = MONSTER_XP_TABLE[player.level][monster.name];
+                }
+
+                if (xpGained > 0) {
+                    addLog(`Gained ${xpGained} Experience.`);
+                    gainXp(xpGained);
+                } else {
+                    addLog(`No experience gained (Level delta too high).`);
+                }
+
+                if (monster.special === 'boss') {
+                    addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
+                    let anyBossesLeft = monsters.some(m => m.special === 'boss' && m !== monster);
+                    if (!anyBossesLeft) {
+                        gameWon = true;
+                        addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
+                    }
+                }
+                monsters = monsters.filter(m => m !== monster);
+            }
+        }
+
+        function checkItems() {
+            let idx = items.findIndex(i => i.x === player.x && i.y === player.y);
+            if (idx !== -1) {
+                let item = items[idx];
+                let pickedUp = true; 
+                
+                if (item.type === 'gold') {
+                    let baseGold = CHEST_GOLD_TABLE[player.level] || 15;
+                    let minGold = Math.round(baseGold * 0.9);
+                    let maxGold = Math.round(baseGold * 1.1);
+                    let g = Math.floor(Math.random() * (maxGold - minGold + 1)) + minGold;
+                    
+                    if (statusEffects.midasTurns > 0) {
+                        g = Math.floor(g * 1.2);
+                    }
+                    
+                    player.gold += g;
+                    addLog(`Looted a Chest! Found +${g} Gold.`);
+                    
+                    if (player.level < 20) {
+                        addLog(`Gained +${g} Experience from the chest contents.`);
+                        gainXp(g);
+                    } else {
+                        addLog(`At Level 20, chests no longer provide bonus Experience.`);
+                    }
+                } else if (item.type === 'food') {
+                    if (player.inventory.food >= 4) {
+                        addLog("Backpack full! Cannot carry more food.");
+                        pickedUp = false; 
+                    } else {
+                        player.inventory.food++;
+                        addLog("Looted Rations. Added to inventory.");
+                    }
+                } else if (item.type === 'potion') {
+                    let pType = item.data ? item.data.potionType : 'healing';
+                    player.inventory.potions.push(pType);
+                    addLog(`Picked up a Potion of ${pType.charAt(0).toUpperCase() + pType.slice(1)}.`);
+                } else if (item.type === 'scroll') {
+                    let r = Math.random();
+                    if (r < 0.25) { statusEffects.vigorTurns = 100; player.hp = player.maxHp * 2; addLog("Vigor! HP doubled."); }
+                    else if (r < 0.50) { player.hunger = 100; addLog("Suddenly fatigued!"); }
+                    else if (r < 0.75) { statusEffects.midasTurns = 100; addLog("Midas scroll active."); }
+                    else { player.hp -= 5; addLog("Trap scroll triggered! -5 HP."); }
+                } else if (item.type === 'repair_scroll') {
+                    ['helm', 'chest', 'legs', 'gauntlets', 'boots', 'shield'].forEach(slot => {
+                        player.inventory[slot].forEach(gear => { if (gear.maxDef) gear.def = gear.maxDef; });
+                    });
+                    addLog("All equipped armor repaired.");
+                } else if (item.type === 'gear') {
+                    let c = item.data.category;
+                    let styledName = getStyledItemName(item.data); 
+
+                    if (c.includes('sword') || c.includes('mace') || c === 'dagger' || c === 'staff') {
+                        item.data.type = c; player.inventory.weapons.push(item.data);
+                        addLog(`Looted: ${styledName} (+${item.data.dmg} ATK).`);
+                    } else {
+                        player.inventory[c].push(item.data);
+                        addLog(`Looted: ${styledName} (${item.data.def} DEF).`);
+                    }
+                }
+                
+                if (pickedUp) {
+                    items.splice(idx, 1);
+                    updateDropdowns();
+                }
+            }
+        }
+
+        function wanderMonster(m) {
+            if (Math.random() < 0.4) return;
+            let dirs = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
+            let d = dirs[Math.floor(Math.random() * dirs.length)];
+            let tx = m.x + d.x, ty = m.y + d.y;
+            if (tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS && map[ty][tx] !== TILE_WALL && !monsters.some(o => o.x === tx && o.y === ty)) {
+                m.x = tx; m.y = ty;
+            }
+        }
+
+        function processTurn() {
+            if (statusEffects.vigorTurns > 0) { statusEffects.vigorTurns--; if (statusEffects.vigorTurns === 0) { addLog("Vigor fades."); if (player.hp > player.maxHp) player.hp = player.maxHp; } }
+            if (statusEffects.midasTurns > 0) statusEffects.midasTurns--;
+            if (statusEffects.strengthTurns > 0) { statusEffects.strengthTurns--; if (statusEffects.strengthTurns === 0) addLog("Strength status expired."); }
+            if (statusEffects.invisTurns > 0) { statusEffects.invisTurns--; if (statusEffects.invisTurns === 0) addLog("Invisibility status expired."); }
+            if (statusEffects.armorTurns > 0) { statusEffects.armorTurns--; if (statusEffects.armorTurns === 0) addLog("Armor status expired."); }
+
+            player.hunger--;
+            if (player.hunger <= 0) { player.hunger = 0; player.hp--; addLog("Starving!"); }
+            else if (player.hp < (statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp)) {
+                player.regenTurns++; if (player.regenTurns >= 15) { player.hp++; player.regenTurns = 0; }
+            }
+
+            if (player.hp <= 0) { gameOver = true; addLog("GAME OVER. Press R."); updateUI(); updateFOV(); draw(); return; }
+
+            let totalDef = getTotalDef();
+
+            monsters.forEach(m => {
+                if (m.frozenTurns > 0) { m.frozenTurns--; return; } 
+                let dist = Math.abs(m.x - player.x) + Math.abs(m.y - player.y);
+                
+                if (statusEffects.invisTurns > 0) {
+                    wanderMonster(m);
+                    return;
+                }
+
+                if (dist === 1) {
+                    let rawDmg = Math.floor(Math.random() * m.atk) + 1;
+                    let isSwipe = false;
+                    if (m.name === 'Marcus the Brave') {
+                        if (m.swipeTurn === undefined) {
+                            m.swipeTurn = false;
+                        }
+                        if (m.swipeTurn) {
+                            isSwipe = true;
+                        }
+                        m.swipeTurn = !m.swipeTurn;
+                    }
+                    let dmg = Math.max(1, Math.floor((rawDmg - Math.floor(totalDef / 4)) * 0.5)); 
+                    if (isSwipe) {
+                        dmg *= 2;
+                    }
+                    player.hp -= dmg; 
+                    if (isSwipe) {
+                        addLog(`${m.name} uses Swipe! hits for ${dmg} dmg.`);
+                    } else {
+                        addLog(`${m.name} hits for ${dmg} dmg.`);
+                    }
+                } else if (dist < 6) {
+                    let stepX = m.x + Math.sign(player.x - m.x), stepY = m.y + Math.sign(player.y - m.y);
+                    if (map[m.y][stepX] !== TILE_WALL && !monsters.some(o => o.x === stepX && o.y === m.y)) m.x = stepX;
+                    else if (map[stepY][m.x] !== TILE_WALL && !monsters.some(o => o.x === m.x && o.y === stepY)) m.y = stepY;
+                }
+            });
+
+            updateUI(); 
+            updateFOV(); 
+            draw();
+        }
+
+        function updateUI() {
+            document.getElementById('stat-floor').innerText = `Floor: ${dungeonFloor}/20`;
+            document.getElementById('stat-level').innerText = `Level: ${player.level}`;
+            document.getElementById('stat-hp').innerText = `HP: ${Math.max(0, player.hp)}/${(statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp)}`;
+            document.getElementById('stat-gold').innerText = `Gold: ${player.gold}`;
+            document.getElementById('stat-defense').innerText = `Total DEF: ${getTotalDef()}`;
+            
+            let status = player.hunger === 0 ? "Starving" : player.hunger < 190 ? "Fatigued" : player.hunger < 425 ? "Hungry" : "Satiated";
+            let color = player.hunger === 0 ? "#ff0000" : player.hunger < 190 ? "#ff5500" : player.hunger < 425 ? "#ffaa00" : "#0f0";
+            document.getElementById('stat-hunger').innerText = `Hunger: ${status}`; document.getElementById('stat-hunger').style.color = color;
+            document.getElementById('ui-food').innerText = player.inventory.food;
+
+            let reqXp = XP_REQUIREMENTS[player.level] || 209800;
+            let barPct = player.level >= 20 ? 100 : Math.min(100, (player.xp / reqXp) * 100);
+            document.getElementById('xp-bar').style.width = `${barPct}%`;
+            document.getElementById('xp-text').innerText = player.level >= 20 ? "MAX LEVEL" : `${player.xp} / ${reqXp} XP`;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '20px monospace'; ctx.textBaseline = 'top';
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (explored[r][c]) {
+                        ctx.fillStyle = map[r][c] === TILE_WALL ? '#666' : map[r][c] === TILE_STAIRS ? '#ff0' : '#333';
+                        ctx.fillText(map[r][c], c * TILE_SIZE, r * TILE_SIZE);
+                    }
+                }
+            }
+
+            items.forEach(i => { 
+                if (explored[i.y][i.x]) {
+                    ctx.fillStyle = i.color; 
+                    ctx.fillText(i.symbol, i.x * TILE_SIZE, i.y * TILE_SIZE); 
+                }
+            });
+
+            monsters.forEach(m => { 
+                if (visible[m.y][m.x]) {
+                    ctx.fillStyle = m.frozenTurns > 0 ? '#00ffff' : m.color; 
+                    ctx.fillText(m.symbol, m.x * TILE_SIZE, m.y * TILE_SIZE); 
+                }
+            });
+
+            ctx.fillStyle = gameOver ? '#f00' : gameWon ? '#0f0' : '#fff'; 
+            ctx.fillText(gameOver ? 'X' : gameWon ? 'W' : '@', player.x * TILE_SIZE, player.y * TILE_SIZE);
+        }
+
+        init();
+    </script>
+</body>
+</html>
