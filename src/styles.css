@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Outfit:wght@300;400;600;700&display=swap');
+
+body {
+    background-color: #0b0b0e;
+    color: #4ade80;
+    font-family: 'Fira Code', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    user-select: none;
+    overflow-x: hidden;
+}
+
+#game-app {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 30px;
+    padding: 30px;
+    background: radial-gradient(circle at top left, #18181f 0%, #0b0b0e 100%);
+    border: 1px solid #1f1f2e;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+#game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#ui-container {
+    width: 920px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #1f1f2e;
+    padding-bottom: 10px;
+}
+
+#ui-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 12px;
+    color: #e4e4e7;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.2);
+}
+
+#ui-equipment {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    background: rgba(20, 20, 30, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 10px 14px;
+    border: 1px solid #1f1f2e;
+    border-radius: 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+#ui-equipment div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+#ui-equipment label {
+    font-size: 11px;
+    color: #a1a1aa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+}
+
+select, button {
+    background: #111116;
+    color: #4ade80;
+    border: 1px solid #2e2e3e;
+    border-radius: 6px;
+    font-family: 'Fira Code', monospace;
+    padding: 4px 8px;
+    font-size: 12px;
+    max-width: 130px;
+    cursor: pointer;
+    margin-top: 2px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+select:focus, button:focus {
+    outline: none;
+    border-color: #4ade80;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+}
+
+select:hover, button:hover {
+    background-color: #1a1a24;
+    border-color: #4ade80;
+    transform: translateY(-1px);
+}
+
+canvas {
+    border: 2px solid #1f1f2e;
+    background-color: #050508;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#message-log {
+    width: 920px;
+    height: 60px;
+    margin-top: 15px;
+    font-size: 14px;
+    color: #a1a1aa;
+    overflow: hidden;
+    border-top: 2px solid #1f1f2e;
+    padding-top: 8px;
+    line-height: 1.5;
+}
+
+#message-log div {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#xp-container {
+    width: 920px;
+    margin-top: 12px;
+    background: #14141a;
+    border: 1px solid #1f1f2e;
+    height: 22px;
+    position: relative;
+    text-align: center;
+    font-size: 11px;
+    line-height: 22px;
+    color: #fff;
+    font-weight: bold;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+    font-family: 'Outfit', sans-serif;
+}
+
+#xp-bar {
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    width: 0%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+}
+
+#xp-text {
+    position: relative;
+    z-index: 10;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    letter-spacing: 0.05em;
+}
+

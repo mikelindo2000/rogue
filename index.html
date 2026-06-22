@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rogue: DungeonMaster</title>
+    <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+    <div id="game-app">
+        <!-- Main Game Area -->
+        <div id="game-container">
+            <div id="ui-container">
+                <div id="ui-stats">
+                    <span id="stat-floor">Floor: 1/20</span>
+                    <span id="stat-level">Level: 1</span>
+                    <span id="stat-hp">HP: 30/30</span>
+                    <span id="stat-gold">Gold: 0</span>
+                    <span id="stat-defense">Total DEF: 1</span>
+                    <span id="stat-hunger">Hunger: Satiated</span>
+                </div>
+                <div id="ui-equipment">
+                    <div><label>Main Hand</label><select id="sel-main"></select></div>
+                    <div><label>Off-Hand</label><select id="sel-off"></select></div>
+                    <div><label>Helm</label><select id="sel-helm"></select></div>
+                    <div><label>Chest</label><select id="sel-chest"></select></div>
+                    <div><label>Legs</label><select id="sel-legs"></select></div>
+                    <div><label>Gauntlets</label><select id="sel-gauntlets"></select></div>
+                    <div><label>Boots</label><select id="sel-boots"></select></div>
+                    <div><label style="color:#0ff;font-weight:bold;">Potions</label><select id="sel-potions"></select></div>
+                    <div><label style="color:#ff9900;font-weight:bold;">Food (<span id="ui-food">0</span>/4)</label><button id="btn-eat" style="color:#ff9900; width: 60px;">Eat</button></div>
+                </div>
+            </div>
+            
+            <canvas id="gameCanvas" width="920" height="580"></canvas>
+            
+            <div id="message-log"></div>
+            
+            <div id="xp-container">
+                <div id="xp-bar"></div>
+                <span id="xp-text">0 / 1400 XP</span>
+        </div>
+    </div>
+    
+    <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

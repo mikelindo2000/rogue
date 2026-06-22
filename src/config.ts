@@ -1,0 +1,178 @@
+import { RarityConfig, MonsterTemplate, GearItem } from './types';
+
+export interface TunableConfig {
+  playerStartingHp: number;
+  playerBaseAtk: number;
+  playerMaxFood: number;
+  monsterHpScale: number; // in %
+  monsterAtkScale: number; // in %
+  batHpOverride: number;
+  orcHpOverride: number;
+  dropLegendary: number; // in %
+  dropEpic: number; // in %
+  xpMultiplier: number;
+  hungerMax: number;
+  foodHungerRestore: number;
+}
+
+export const DEFAULT_TUNABLES: TunableConfig = {
+  playerStartingHp: 30,
+  playerBaseAtk: 2,
+  playerMaxFood: 4,
+  monsterHpScale: 100,
+  monsterAtkScale: 100,
+  batHpOverride: 22,
+  orcHpOverride: 24,
+  dropLegendary: 2.0,
+  dropEpic: 3.0,
+  xpMultiplier: 1.0,
+  hungerMax: 800,
+  foodHungerRestore: 300
+};
+
+export const RARITY_CONFIG: Record<string, RarityConfig> = {
+  common: { name: "Common", color: "#ffffff", multiplier: 1.0 },
+  uncommon: { name: "Uncommon", color: "#1eff00", multiplier: 1.2 },
+  rare: { name: "Rare", color: "#0070dd", multiplier: 1.5 },
+  epic: { name: "Epic", color: "#a335ee", multiplier: 1.9 },
+  legendary: { name: "Legendary", color: "#ff8000", multiplier: 2.5 }
+};
+
+export const XP_REQUIREMENTS: Record<number, number> = {
+  1: 1400, 2: 3600, 3: 6500, 4: 10100, 5: 14400,
+  6: 19400, 7: 25200, 8: 31700, 9: 38900, 10: 47400,
+  11: 58600, 12: 71600, 13: 85700, 14: 95800, 15: 111800,
+  16: 129100, 17: 147500, 18: 167100, 19: 187900, 20: 209800
+};
+
+export const MONSTER_XP_TABLE: Record<number, Record<string, number>> = {
+  1: { "Brown Bat": 35, "Orc": 35 },
+  2: { "Brown Bat": 26, "Orc": 26, "Snake": 72 },
+  3: { "Brown Bat": 20, "Orc": 20, "Snake": 54, "Hobgoblin": 100 },
+  4: { "Brown Bat": 15, "Orc": 15, "Snake": 41, "Hobgoblin": 75, "Eagle": 126 },
+  5: { "Brown Bat": 0, "Orc": 0, "Snake": 30, "Hobgoblin": 56, "Eagle": 95, "Leprechaun": 180 },
+  6: { "Hobgoblin": 42, "Eagle": 71, "Leprechaun": 135, "Jungle Flesheater": 216, "King Cobra": 216, "Kalius King Cobra": 485 },
+  7: { "Eagle": 53, "Leprechaun": 101, "Jungle Flesheater": 162, "King Cobra": 162, "Kalius King Cobra": 364, "Indus Worm": 265 },
+  8: { "Leprechaun": 76, "Jungle Flesheater": 122, "King Cobra": 122, "Kalius King Cobra": 273, "Indus Worm": 199, "Pygmy": 317, "Pantier Pygmy King": 704 },
+  9: { "Jungle Flesheater": 92, "King Cobra": 92, "Kalius King Cobra": 205, "Indus Worm": 149, "Pygmy": 238, "Pantier Pygmy King": 528, "Nymph": 354 },
+  10: { "Indus Worm": 112, "Pygmy": 179, "Pantier Pygmy King": 396, "Nymph": 266, "Rabid Ostrich": 379 },
+  11: { "Pygmy": 134, "Pantier Pygmy King": 297, "Nymph": 200, "Rabid Ostrich": 284, "Minotaur": 469, "Michael the Minotaur": 1172 },
+  12: { "Nymph": 150, "Rabid Ostrich": 213, "Minotaur": 352, "Michael the Minotaur": 879, "Unicorn": 551 },
+  13: { "Rabid Ostrich": 160, "Minotaur": 264, "Michael the Minotaur": 660, "Unicorn": 413, "Yeti": 612 },
+  14: { "Minotaur": 198, "Michael the Minotaur": 495, "Unicorn": 310, "Yeti": 459, "Troll": 684, "Trogdor the Troll": 1597 },
+  15: { "Unicorn": 233, "Yeti": 356, "Troll": 513, "Trogdor the Troll": 1198, "Golem": 799, "Gary the Golem": 1863 },
+  16: { "Yeti": 267, "Troll": 385, "Trogdor the Troll": 899, "Golem": 599, "Gary the Golem": 1397, "Flying Serpent": 861 },
+  17: { "Troll": 289, "Trogdor the Troll": 674, "Golem": 449, "Gary the Golem": 1048, "Flying Serpent": 646, "Cyclops": 952, "Colossal Cyclops": 2682 },
+  18: { "Golem": 337, "Gary the Golem": 786, "Flying Serpent": 485, "Cyclops": 714, "Colossal Cyclops": 2012, "Quinotaur": 1044 },
+  19: { "Flying Serpent": 364, "Cyclops": 536, "Colossal Cyclops": 1509, "Quinotaur": 783, "Xelhua": 1139, "Zombie": 1139, "Zachary the Zombie": 3132 },
+  20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587.25, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349 }
+};
+
+export const CHEST_GOLD_TABLE: Record<number, number> = {
+  1: 15, 2: 25, 3: 30, 4: 45, 5: 60, 6: 80, 7: 100, 8: 120, 9: 150, 10: 160,
+  11: 200, 12: 230, 13: 300, 14: 350, 15: 410, 16: 550, 17: 700, 18: 900, 19: 1000, 20: 1200
+};
+
+export const MONSTER_DATABASE: MonsterTemplate[] = [
+  { symbol: 'O', name: 'Orc', hp: 24, atk: 1, color: '#556b2f', minFloor: 1 },
+  { symbol: 'B', name: 'Brown Bat', hp: 22, atk: 1, color: '#8b4513', minFloor: 1 },
+  { symbol: 'S', name: 'Snake', hp: 25, atk: 3, color: '#ff0000', minFloor: 2 },
+  { symbol: 'H', name: 'Hobgoblin', hp: 29, atk: 3, color: '#ffff00', minFloor: 3 },
+  { symbol: 'E', name: 'Eagle', hp: 33, atk: 5, color: '#d3d3d3', minFloor: 4 },
+  { symbol: 'L', name: 'Leprechaun', hp: 38, atk: 6, color: '#00ff00', minFloor: 5 },
+  { symbol: 'J', name: 'Jungle Flesheater', hp: 44, atk: 7, color: '#006400', minFloor: 6 },
+  { symbol: 'K', name: 'King Cobra', hp: 48, atk: 7, color: '#cd853f', minFloor: 6 },
+  { symbol: 'K↑', name: 'Kalius King Cobra', hp: 65, atk: 10, color: '#cd853f', minFloor: 6 },
+  { symbol: 'I', name: 'Indus Worm', hp: 51, atk: 8, color: '#f5f5dc', minFloor: 7 },
+  { symbol: 'P', name: 'Pygmy', hp: 58, atk: 9, color: '#d2b48c', minFloor: 8 },
+  { symbol: 'P↑', name: 'Pantier Pygmy King', hp: 72, atk: 13, color: '#d2b48c', minFloor: 8 },
+  { symbol: 'N', name: 'Nymph', hp: 67, atk: 10, color: '#e6e6fa', minFloor: 9 },
+  { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 12, color: '#d3d3d3', minFloor: 10 },
+  { symbol: 'M', name: 'Minotaur', hp: 89, atk: 13, color: '#8b4513', minFloor: 11 },
+  { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 17, color: '#8b4513', minFloor: 11 },
+  { symbol: 'U', name: 'Unicorn', hp: 102, atk: 14, color: '#ffffff', minFloor: 12 },
+  { symbol: 'Y', name: 'Yeti', hp: 117, atk: 15, color: '#ffffff', minFloor: 13 },
+  { symbol: 'T', name: 'Troll', hp: 135, atk: 16, color: '#00ff00', minFloor: 14 },
+  { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 20, color: '#00ff00', minFloor: 14 },
+  { symbol: 'G', name: 'Golem', hp: 155, atk: 17, color: '#d2b48c', minFloor: 15 },
+  { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 21, color: '#d2b48c', minFloor: 15 },
+  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 18, color: '#39ff14', minFloor: 16 },
+  { symbol: 'C', name: 'Cyclops', hp: 205, atk: 20, color: '#ffdab9', minFloor: 17 },
+  { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 24, color: '#ffdab9', minFloor: 17 },
+  { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 21, color: '#ffff00', minFloor: 18 },
+  { symbol: 'V', name: 'Xelhua', hp: 271, atk: 22, color: '#ff0000', minFloor: 19 },
+  { symbol: 'Z', name: 'Zombie', hp: 275, atk: 22, color: '#00ff00', minFloor: 19 },
+  { symbol: 'Z↑', name: 'Zachary the Zombie', hp: 300, atk: 26, color: '#00ff00', minFloor: 19 },
+  { symbol: 'A', name: 'Apperation', hp: 312, atk: 23, color: '#556666', minFloor: 20 },
+  { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 27, color: '#556666', minFloor: 20 },
+  { symbol: 'D', name: 'Dragon', hp: 380, atk: 23, color: '#00ff00', minFloor: 20 },
+  { symbol: 'D↑', name: 'Dragon King', hp: 1050, atk: 27, color: '#00ff00', minFloor: 20, special: 'boss' },
+  { symbol: 'M*', name: 'Marcus the Brave', hp: 900, atk: 25, color: '#ffd700', minFloor: 20, special: 'boss' }
+];
+
+export const GEAR_POOL: Record<string, GearItem[]> = {
+  helm: [ {name:"Leather Cap", def:1, maxDef:1}, {name:"Iron Helm", def:3, maxDef:3}, {name:"Dragon Visor", def:5, maxDef:5} ],
+  chest: [ {name:"Cloth Shirt", def:1, maxDef:1}, {name:"Chainmail", def:4, maxDef:4}, {name:"Platemail", def:8, maxDef:8} ],
+  legs: [ {name:"Leather Pants", def:1, maxDef:1}, {name:"Iron Greaves", def:3, maxDef:3}, {name:"Dragon Legs", def:5, maxDef:5} ],
+  gauntlets: [ {name:"Cloth Gloves", def:1, maxDef:1}, {name:"Iron Gauntlets", def:2, maxDef:2}, {name:"Mithril Fists", def:4, maxDef:4} ],
+  boots: [ {name:"Leather Shoes", def:1, maxDef:1}, {name:"Steel Sabatons", def:2, maxDef:2}, {name:"Winged Boots", def:4, maxDef:4} ],
+  shield: [ {name:"Buckler", def:2, maxDef:2}, {name:"Kite Shield", def:4, maxDef:4}, {name:"Tower Shield", def:7, maxDef:7} ],
+  dagger: [ {name:"Steel Dagger", dmg:3}, {name:"Assassin Dirk", dmg:5}, {name:"Void Blade", dmg:7} ],
+  '1h_sword': [ {name:"Shortsword", dmg:5}, {name:"Broadsword", dmg:8}, {name:"Rune Blade", dmg:12} ],
+  '2h_sword': [ {name:"Claymore", dmg:10}, {name:"Zweihander", dmg:16}, {name:"Dragon Slayer", dmg:22} ],
+  '1h_mace': [ {name:"Club", dmg:6}, {name:"Morningstar", dmg:9}, {name:"Meteor Hammer", dmg:13} ],
+  '2h_mace': [ {name:"Warhammer", dmg:12}, {name:"Earth Breaker", dmg:18}, {name:"Titan Maul", dmg:25} ],
+  staff: [ {name:"Fire Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', rarity:'common'} ]
+};
+
+let currentTunables: TunableConfig = { ...DEFAULT_TUNABLES };
+
+export function loadConfig(): TunableConfig {
+  const saved = localStorage.getItem('rogue_config_tunables');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      currentTunables = { ...DEFAULT_TUNABLES, ...parsed };
+    } catch (e) {
+      console.error("Failed to parse config overrides", e);
+    }
+  }
+  return currentTunables;
+}
+
+export function saveConfig(tunables: TunableConfig) {
+  currentTunables = { ...tunables };
+  localStorage.setItem('rogue_config_tunables', JSON.stringify(currentTunables));
+}
+
+export function resetConfig(): TunableConfig {
+  localStorage.removeItem('rogue_config_tunables');
+  currentTunables = { ...DEFAULT_TUNABLES };
+  return currentTunables;
+}
+
+export function getConfig(): TunableConfig {
+  return currentTunables;
+}
+
+/**
+ * Returns a dynamically scaled monster list or individual stats based on tunables.
+ */
+export function getScaledMonsterHP(baseHp: number, name: string): number {
+  if (name === 'Brown Bat') return currentTunables.batHpOverride;
+  if (name === 'Orc') return currentTunables.orcHpOverride;
+  return Math.round(baseHp * (currentTunables.monsterHpScale / 100));
+}
+
+export function getScaledMonsterAtk(baseAtk: number): number {
+  return Math.round(baseAtk * (currentTunables.monsterAtkScale / 100));
+}
+
+export function getScaledXpRequirements(): Record<number, number> {
+  const scaled: Record<number, number> = {};
+  for (const levelStr in XP_REQUIREMENTS) {
+    const lvl = parseInt(levelStr);
+    scaled[lvl] = Math.round(XP_REQUIREMENTS[lvl] * currentTunables.xpMultiplier);
+  }
+  return scaled;
+}
