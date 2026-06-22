@@ -76,6 +76,12 @@
     if (action) run(selected, action.action);
   }
 
+  function runEquipAction() {
+    if (!selected) return;
+    const action = selected.actions.find((item) => !item.disabled && item.action.startsWith('equip'));
+    if (action) run(selected, action.action);
+  }
+
   function focusAction(delta: number) {
     const buttons = enabledActions();
     if (buttons.length === 0) return;
@@ -118,6 +124,9 @@
       } else {
         runDefaultAction();
       }
+    } else if (event.key.toLowerCase() === 'e') {
+      event.preventDefault();
+      runEquipAction();
     }
   }
 
