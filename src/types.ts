@@ -102,6 +102,8 @@ export interface Monster {
   symbol: string;
   name: string;
   hp: number;
+  /** HP at spawn, recorded for the UI tooltip's health bar. Display-only. */
+  maxHp?: number;
   atk: number;
   color: string;
   minFloor: number;

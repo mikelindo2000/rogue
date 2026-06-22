@@ -1,8 +1,0 @@
-/* The dungeon viewport. */
-canvas {
-  border: 2px solid var(--border);
-  background-color: #050508;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  image-rendering: optimizeLegibility;
-}

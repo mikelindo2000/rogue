@@ -1,8 +1,16 @@
-import { Player, Monster, Item, StatusEffects, GearItem, ARMOR_SLOTS } from './types';
-import { RARITY_CONFIG, BALANCE, getScaledXpRequirements } from './config';
+import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS } from './types';
+import { BALANCE, getScaledXpRequirements, getConfig } from './config';
 import { TILE, isCorner, isWalkable } from './tiles';
 import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
-import type { GameSelect, SelectOption } from './components/game-select';
+import {
+  ui,
+  type EquipOption,
+  type EquipSlotView,
+  type InventoryCell,
+  type LogLineView,
+} from './ui/store.svelte';
+import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
+import { SLOT_ICON } from './ui/icons';
 
 type DoorOrientation = 'horizontal' | 'vertical';
 
@@ -24,16 +32,18 @@ interface TileMetrics {
 export class GameUI {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private logBox: HTMLElement;
 
-  constructor(canvasId: string, logBoxId: string) {
+  /** Monotonic gutter number for the accumulating UI log history. Reset by
+   *  resetLog() when a new run starts. */
+  private logSeq = 0;
+
+  constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     const context = this.canvas.getContext('2d');
     if (!context) {
       throw new Error("Could not acquire 2D canvas context");
     }
     this.ctx = context;
-    this.logBox = document.getElementById(logBoxId) as HTMLElement;
   }
 
   public render(
@@ -90,6 +100,10 @@ export class GameUI {
 
     // Draw Player
     this.drawPlayer(player.x, player.y, tileSize, style, gameOver, gameWon);
+
+    // Mirror board-derived state into the UI store (stairs proximity, the
+    // nearest visible monster, run state) for the chrome overlays.
+    this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
   }
 
   private tileMetrics(gx: number, gy: number, tileSize: number): TileMetrics {
@@ -476,124 +490,300 @@ export class GameUI {
     return tile === TILE.WALL_V || isCorner(tile);
   }
 
-  public updateStats(player: Player, dungeonFloor: number, statusEffects: StatusEffects, totalDef: number) {
-    const statFloor = document.getElementById('stat-floor');
-    const statLevel = document.getElementById('stat-level');
-    const statHp = document.getElementById('stat-hp');
-    const statGold = document.getElementById('stat-gold');
-    const statDefense = document.getElementById('stat-defense');
-    const statHunger = document.getElementById('stat-hunger');
-    const uiFood = document.getElementById('ui-food');
-    const xpBar = document.getElementById('xp-bar');
-    const xpText = document.getElementById('xp-text');
+  public updateStats(
+    player: Player,
+    dungeonFloor: number,
+    statusEffects: StatusEffects,
+    totalDef: number,
+    turn = 0
+  ) {
+    ui.floor = dungeonFloor;
+    ui.floorName = floorName(dungeonFloor);
+    ui.gold = player.gold;
+    ui.def = totalDef;
+    ui.turn = turn;
+    ui.level = player.level;
 
-    if (statFloor) statFloor.innerText = `Floor: ${dungeonFloor}/20`;
-    if (statLevel) statLevel.innerText = `Level: ${player.level}`;
+    ui.hp = Math.max(0, player.hp);
+    ui.maxHp = Math.round(
+      statusEffects.vigorTurns > 0
+        ? player.maxHp * BALANCE.status.vigorHpMultiplier
+        : player.maxHp
+    );
 
-    const maxHp = statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp;
-    if (statHp) statHp.innerText = `HP: ${Math.max(0, player.hp)}/${maxHp}`;
-    if (statGold) statGold.innerText = `Gold: ${player.gold}`;
-    if (statDefense) statDefense.innerText = `Total DEF: ${totalDef}`;
-
+    const cfg = getConfig();
     const { hungerFatigued, hungerHungry } = BALANCE.player;
-    const status = player.hunger === 0 ? "Starving" : player.hunger < hungerFatigued ? "Fatigued" : player.hunger < hungerHungry ? "Hungry" : "Satiated";
-    const color = player.hunger === 0 ? "#ff0000" : player.hunger < hungerFatigued ? "#ff5500" : player.hunger < hungerHungry ? "#ffaa00" : "#0f0";
-    if (statHunger) {
-      statHunger.innerText = `Hunger: ${status}`;
-      statHunger.style.color = color;
-    }
+    const hv = hungerView(player.hunger, hungerFatigued, hungerHungry, cfg.hungerMax);
+    ui.hungerStatus = hv.status;
+    ui.hungerPct = hv.pct;
+    ui.hungerTone = hv.tone;
 
-    if (uiFood) uiFood.innerText = player.inventory.food.toString();
+    ui.food = player.inventory.food;
+    ui.foodMax = cfg.playerMaxFood;
 
     const xpReqs = getScaledXpRequirements();
-    const reqXp = xpReqs[player.level] || 209800;
-    const barPct = player.level >= 20 ? 100 : Math.min(100, (player.xp / reqXp) * 100);
-    
-    if (xpBar) xpBar.style.width = `${barPct}%`;
-    if (xpText) xpText.innerText = player.level >= 20 ? "MAX LEVEL" : `${player.xp} / ${reqXp} XP`;
+    ui.xp = player.xp;
+    ui.xpReq = xpReqs[player.level] || 209800;
+    ui.atMaxLevel = player.level >= 20;
   }
 
-  private setSelectOptions(id: string, options: SelectOption[]) {
-    const el = document.getElementById(id) as GameSelect | null;
-    if (el && typeof el.setOptions === 'function') {
-      el.setOptions(options);
-    }
-  }
-
+  /** Rebuild the equipment, inventory, and potion views in the store. */
   public updateDropdowns(player: Player) {
-    const rarityColor = (item: GearItem) => RARITY_CONFIG[item.rarity || 'common'].color;
+    ui.equipment = this.buildEquipment(player);
+    const inv = this.buildInventory(player);
+    ui.inventory = inv.cells;
+    ui.inventoryCount = inv.count;
+    ui.potions = player.inventory.potions.map((p, i) => ({ idx: i, label: titleCase(p) }));
+  }
 
-    // Main Hand
-    this.setSelectOptions('sel-main', player.inventory.weapons.map((w, i) => ({
-      value: String(i),
-      label: `${w.name} (+${w.dmg})`,
-      color: rarityColor(w),
-      selected: player.equipped.mainHand === i
-    })));
+  private buildEquipment(player: Player): EquipSlotView[] {
+    const views: EquipSlotView[] = [];
+    const weapons = player.inventory.weapons;
+    const mainIdx = player.equipped.mainHand;
+    const main = weapons[mainIdx];
 
-    const mainWep = player.inventory.weapons[player.equipped.mainHand];
-    const is2H = mainWep?.type?.startsWith('2h_') || mainWep?.type === 'staff';
+    views.push({
+      slot: 'mainHand',
+      label: 'Main hand',
+      icon: SLOT_ICON.mainHand,
+      itemName: main && main.name !== 'None' ? main.name : '',
+      rarityColor: rarityVar(main?.rarity),
+      empty: !main || main.name === 'None',
+      options: weapons.map((w, i) => ({
+        value: String(i),
+        label: `${w.name} (+${w.dmg ?? 0})`,
+        rarityColor: rarityVar(w.rarity),
+        selected: mainIdx === i,
+      })),
+    });
 
-    // Off-Hand
-    let offOptions: SelectOption[];
+    const is2H = main?.type?.startsWith('2h_') || main?.type === 'staff';
+    const off = player.equipped.offHand;
+    let offName = 'None';
+    let offRarity: string | undefined = 'common';
+    if (off.startsWith('shield:')) {
+      const s = player.inventory.shield[Number(off.split(':')[1])];
+      if (s) {
+        offName = s.name;
+        offRarity = s.rarity;
+      }
+    } else if (off.startsWith('weapon:')) {
+      const w = weapons[Number(off.split(':')[1])];
+      if (w) {
+        offName = w.name;
+        offRarity = w.rarity;
+      }
+    }
+
+    let offOptions: EquipOption[];
     if (is2H) {
-      offOptions = [{ value: 'none:0', label: 'Disabled (2H Weapon)', disabled: true, selected: true }];
+      offOptions = [
+        {
+          value: 'none:0',
+          label: 'Disabled (2H weapon)',
+          rarityColor: rarityVar('common'),
+          selected: true,
+          disabled: true,
+        },
+      ];
     } else {
-      offOptions = [{ value: 'none:0', label: 'None', selected: player.equipped.offHand === 'none:0' }];
-      player.inventory.shield.forEach((sh: any, i: number) => {
+      offOptions = [
+        { value: 'none:0', label: 'None', rarityColor: rarityVar('common'), selected: off === 'none:0' },
+      ];
+      player.inventory.shield.forEach((sh, i) => {
         if (i !== 0) {
           const val = 'shield:' + i;
           offOptions.push({
             value: val,
             label: `${sh.name} (${sh.def}/${sh.maxDef})`,
-            color: rarityColor(sh),
-            selected: player.equipped.offHand === val
+            rarityColor: rarityVar(sh.rarity),
+            selected: off === val,
           });
         }
       });
-      if (mainWep?.type === 'dagger') {
-        player.inventory.weapons.forEach((w, i) => {
-          if (w.type === 'dagger' && i !== player.equipped.mainHand) {
+      if (main?.type === 'dagger') {
+        weapons.forEach((w, i) => {
+          if (w.type === 'dagger' && i !== mainIdx) {
             const val = 'weapon:' + i;
             offOptions.push({
               value: val,
-              label: `${w.name} (+${w.dmg})`,
-              color: rarityColor(w),
-              selected: player.equipped.offHand === val
+              label: `${w.name} (+${w.dmg ?? 0})`,
+              rarityColor: rarityVar(w.rarity),
+              selected: off === val,
             });
           }
         });
       }
     }
-    this.setSelectOptions('sel-off', offOptions);
-
-    // Helm, Chest, Legs, Gauntlets, Boots
-    ARMOR_SLOTS.forEach(slot => {
-      this.setSelectOptions(`sel-${slot}`, player.inventory[slot].map((a, i) => ({
-        value: String(i),
-        label: `${a.name} (${a.def}/${a.maxDef})`,
-        color: rarityColor(a),
-        selected: player.equipped[slot] === i
-      })));
+    views.push({
+      slot: 'offHand',
+      label: 'Off-hand',
+      icon: SLOT_ICON.offHand,
+      itemName: is2H || offName === 'None' ? '' : offName,
+      rarityColor: rarityVar(offRarity),
+      empty: is2H || offName === 'None',
+      options: offOptions,
     });
 
-    // Potions (placeholder option, then each potion)
-    const potOptions: SelectOption[] = [
-      { value: '', label: 'Use Potion...', disabled: true, selected: true }
-    ];
-    player.inventory.potions.forEach((p, i) => {
-      potOptions.push({ value: String(i), label: p.charAt(0).toUpperCase() + p.slice(1) });
-    });
-    this.setSelectOptions('sel-potions', potOptions);
+    for (const slot of ARMOR_SLOTS) {
+      const list = player.inventory[slot];
+      const idx = player.equipped[slot];
+      const cur = list[idx];
+      views.push({
+        slot,
+        label: titleCase(slot),
+        icon: SLOT_ICON[slot],
+        itemName: cur && cur.name !== 'None' ? cur.name : '',
+        rarityColor: rarityVar(cur?.rarity),
+        empty: !cur || cur.name === 'None',
+        options: list.map((a, i) => ({
+          value: String(i),
+          label: a.name === 'None' ? 'None' : `${a.name} (${a.def}/${a.maxDef})`,
+          rarityColor: rarityVar(a.rarity),
+          selected: idx === i,
+        })),
+      });
+    }
+
+    return views;
   }
 
+  private buildInventory(player: Player): { cells: InventoryCell[]; count: number } {
+    const cells: InventoryCell[] = [];
+
+    if (player.inventory.food > 0) {
+      cells.push({
+        icon: 'leaf',
+        rarityColor: rarityVar('common'),
+        count: player.inventory.food > 1 ? player.inventory.food : undefined,
+        label: `Rations ×${player.inventory.food}`,
+      });
+    }
+
+    const potCounts = new Map<string, number>();
+    player.inventory.potions.forEach(p => potCounts.set(p, (potCounts.get(p) ?? 0) + 1));
+    for (const [type, n] of potCounts) {
+      cells.push({
+        icon: 'potion',
+        rarityColor: 'var(--rarity-rare)',
+        count: n > 1 ? n : undefined,
+        label: `Potion of ${titleCase(type)}${n > 1 ? ` ×${n}` : ''}`,
+      });
+    }
+
+    player.inventory.weapons.forEach((w, i) => {
+      if (i !== player.equipped.mainHand && player.equipped.offHand !== 'weapon:' + i) {
+        cells.push({
+          icon: 'sword',
+          rarityColor: rarityVar(w.rarity),
+          label: `${w.name} (+${w.dmg ?? 0})`,
+        });
+      }
+    });
+
+    for (const slot of ARMOR_SLOTS) {
+      player.inventory[slot].forEach((a, i) => {
+        if (i !== player.equipped[slot] && a.name !== 'None') {
+          cells.push({
+            icon: SLOT_ICON[slot],
+            rarityColor: rarityVar(a.rarity),
+            label: `${a.name} (${a.def}/${a.maxDef})`,
+          });
+        }
+      });
+    }
+
+    player.inventory.shield.forEach((s, i) => {
+      if (i !== 0 && player.equipped.offHand !== 'shield:' + i) {
+        cells.push({
+          icon: 'shield-dome',
+          rarityColor: rarityVar(s.rarity),
+          label: `${s.name} (${s.def}/${s.maxDef})`,
+        });
+      }
+    });
+
+    return { cells: cells.slice(0, ui.inventoryMax), count: cells.length };
+  }
+
+  /** Clear the accumulated UI log history and gutter numbering. Called by the
+   *  engine when a new run starts (initGame). */
+  public resetLog() {
+    ui.logs = [];
+    this.logSeq = 0;
+  }
+
+  /** Turn the engine's rolling log buffer into an accumulating, numbered UI
+   *  history. Each engine `addLog` calls this with exactly one new tail line. */
   public renderLogs(logs: string[]) {
-    this.logBox.innerHTML = logs.map(l => `<div>> ${l}</div>`).join('');
+    if (logs.length === 0) return;
+    this.logSeq++;
+
+    const msg = logs[logs.length - 1];
+    const line: LogLineView = { n: this.logSeq, html: msg, highlight: /loot/i.test(msg) };
+    const next = [...ui.logs, line];
+    while (next.length > 60) next.shift();
+    ui.logs = next;
+  }
+
+  private escapeHtml(s: string): string {
+    return s.replace(
+      /[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c
+    );
   }
 
   public getStyledItemName(name: string, rarity: string): string {
-    const color = RARITY_CONFIG[rarity || 'common'].color;
-    const capRarity = rarity.charAt(0).toUpperCase() + rarity.slice(1);
-    return `<span style="color: ${color}; font-weight: bold;">[${capRarity}] ${name}</span>`;
+    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${this.escapeHtml(name)}</span>`;
+  }
+
+  /** Push board-derived overlay state (stairs proximity, nearest visible
+   *  monster, run state) into the store for the center-stage chrome. */
+  private syncOverlays(
+    map: string[][],
+    visible: boolean[][],
+    player: Player,
+    monsters: Monster[],
+    cols: number,
+    rows: number,
+    gameOver: boolean,
+    gameWon: boolean
+  ) {
+    let stairs = false;
+    for (let r = 0; r < rows && !stairs; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (visible[r]?.[c] && map[r][c] === TILE.STAIRS) {
+          stairs = true;
+          break;
+        }
+      }
+    }
+    ui.stairsNearby = stairs;
+
+    let best: Monster | null = null;
+    let bestDist = Infinity;
+    for (const m of monsters) {
+      if (visible[m.y]?.[m.x]) {
+        const d = Math.max(Math.abs(m.x - player.x), Math.abs(m.y - player.y));
+        if (d < bestDist) {
+          bestDist = d;
+          best = m;
+        }
+      }
+    }
+    ui.nearbyMonster = best
+      ? {
+          name: best.name,
+          hp: Math.max(0, best.hp),
+          maxHp: best.maxHp ?? best.hp,
+          glyph: best.symbol,
+          color: best.color,
+          hostile: true,
+          subtitle: best.special === 'boss' ? 'Boss' : undefined,
+        }
+      : null;
+
+    ui.gameOver = gameOver;
+    ui.gameWon = gameWon;
   }
 }

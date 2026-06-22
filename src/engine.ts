@@ -19,6 +19,8 @@ export class GameEngine {
   public gameOver: boolean = false;
   public gameWon: boolean = false;
   public logs: string[] = [];
+  /** Turns elapsed this run — surfaced in the HUD; no effect on game logic. */
+  public turn: number = 0;
 
   public statusEffects: StatusEffects = {
     vigorTurns: 0,
@@ -50,6 +52,7 @@ export class GameEngine {
     this.rng = makeRng(seed);
     this.player = createPlayer();
     this.dungeonFloor = 1;
+    this.turn = 0;
     this.gameOver = false;
     this.gameWon = false;
     this.statusEffects = {
@@ -64,6 +67,8 @@ export class GameEngine {
     this.generateFloor();
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    this.ui.resetLog();
+    this.ui.renderLogs(this.logs);
   }
 
   public addLog(msg: string) {
@@ -85,6 +90,7 @@ export class GameEngine {
     // Apply HP scaling to freshly spawned monsters
     this.monsters.forEach(m => {
       m.hp = getScaledMonsterHP(m.hp, m.name);
+      m.maxHp = m.hp;
     });
 
     this.explored = new Array(this.ROWS).fill(0).map(() => new Array(this.COLS).fill(false));
@@ -216,8 +222,10 @@ export class GameEngine {
       // Stairs check
       if (this.map[ty][tx] === TILE.STAIRS) {
         this.dungeonFloor++;
-        this.generateFloor();
+        // Log the descent before generating the floor, so any messages the
+        // generator emits (e.g. the floor-20 boss announcement) read in order.
         this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);
+        this.generateFloor();
         this.ui.updateDropdowns(this.player);
         this.updateUI();
         return;
@@ -439,6 +447,8 @@ export class GameEngine {
   }
 
   public processTurn() {
+    this.turn++;
+
     // Decr status effects
     if (this.statusEffects.vigorTurns > 0) {
       this.statusEffects.vigorTurns--;
@@ -515,7 +525,7 @@ export class GameEngine {
 
   public updateUI() {
     const totalDef = getTotalDef(this.player, this.statusEffects);
-    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef);
+    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn);
   }
 
   public draw() {

@@ -1,0 +1,133 @@
+/* =============================================================================
+   Design tokens — single source of truth for the redesigned UI chrome.
+   Extracted verbatim from the "Modern roguelike redesign" Claude Design project
+   (Roguelike Redesign.dc.html). Every component references these via var(--…);
+   no component should hardcode a hex value.
+
+   NOTE: the dungeon *canvas* is intentionally NOT themed from here — its colors
+   live in src/theme.ts and RARITY_CONFIG (src/config.ts) so the game board looks
+   exactly as before. These tokens style the chrome around it only.
+   ============================================================================ */
+
+:root {
+  /* ---- Surfaces (darkest → lightest) ------------------------------------ */
+  --surface-page: #08090b;      /* page backdrop behind the app frame */
+  --surface-app: #0b0c0f;       /* the app frame */
+  --surface-bar: #0e1014;       /* top bar + footer */
+  --surface-rail: #0d0f13;      /* left + right rails */
+  --surface-map: #07080a;       /* center stage behind the canvas */
+  --surface-inset: #13151a;     /* chips, quick-bar buttons */
+  --surface-inset-2: #15171c;   /* icon tiles, bar tracks, avatar bg */
+  --surface-card: #101217;      /* equipment rows, inventory slots */
+  --surface-raised: #181b21;    /* keycaps */
+  --surface-popover: rgba(13, 15, 19, 0.94); /* floating menus / tooltips */
+  --surface-overlay: rgba(14, 16, 20, 0.8);  /* in-map pills (with blur) */
+
+  /* ---- Borders (subtle → strong) ---------------------------------------- */
+  --border-subtle: #16191f;     /* intra-rail section dividers */
+  --border: #1c1f26;            /* primary structural dividers + scrollbar */
+  --border-chip: #20242c;       /* chips / overlay pills */
+  --border-slot: #23272f;       /* icon tiles, inventory slots */
+  --border-strong: #2a2f38;     /* keycaps, avatar */
+  --border-popover: #2c3038;    /* floating menus / tooltips */
+  --border-dashed: #1c2027;     /* empty inventory slot outline */
+
+  /* ---- Text (brightest → faintest) -------------------------------------- */
+  --text-bright: #e9ebee;       /* primary headings, values */
+  --text: #c5cad1;              /* secondary body */
+  --text-keycap: #b8bdc4;       /* keycap glyphs */
+  --text-muted: #9aa0a8;        /* log body, secondary stats */
+  --text-icon: #aeb4bc;         /* default (common) icon stroke */
+  --text-label: #7a808a;        /* vitals labels, monster level */
+  --text-dim: #6e747e;          /* hint labels, faded log */
+  --text-dimmer: #5e646e;       /* uppercase section labels, units */
+  --text-faint: #4a4f57;        /* "Empty" slot text */
+  --text-faintest: #3c414a;     /* log gutter numbers, empty icons */
+
+  /* ---- Accent: amber / gold (primary brand) ----------------------------- */
+  --accent: #e0a45a;            /* primary accent — logo, @, active highlights */
+  --accent-strong: #e0a23f;     /* gold value (coins), legendary */
+  --accent-deep: #8a6a3e;       /* dimmed accent (loot counts, gutter) */
+  --accent-glow: rgba(224, 164, 90, 0.5);
+  --accent-surface: #1a140c;    /* amber button bg (Eat) */
+  --accent-border: #3a2e18;     /* amber button border */
+  --accent-log-surface: #12100b;/* highlighted loot log row bg */
+
+  /* ---- Semantic status -------------------------------------------------- */
+  --good: #5fb87a;              /* satiated, success, uncommon */
+  --good-bright: #7ed197;       /* uncommon item name */
+  --good-glow: rgba(95, 184, 122, 0.5);
+  --danger: #d9544a;            /* hostile, damage taken */
+  --danger-soft: #c98a85;       /* low-threat monster glyph */
+  --info: #58a0e6;             /* potions, rare */
+  --magic: #b483e6;            /* scrolls, epic */
+  --xp-from: #6a5acd;          /* xp bar gradient start */
+  --xp-to: #a98fe6;            /* xp bar gradient end */
+  --xp-label: #a9a2d6;         /* "Lv 1" xp label */
+
+  /* ---- Health ----------------------------------------------------------- */
+  --hp: #e6a266;               /* filled health segment */
+  --hp-low: #d9743f;           /* last filled segment when wounded */
+  --hp-empty: #1c1f26;         /* empty health segment */
+
+  /* ---- Rarity (UI only — canvas uses RARITY_CONFIG) --------------------- */
+  --rarity-common: #aeb4bc;
+  --rarity-uncommon: #5fb87a;
+  --rarity-rare: #58a0e6;
+  --rarity-epic: #b483e6;
+  --rarity-legendary: var(--accent-strong); /* gold == legendary, by intent */
+
+  /* ---- Chrome ----------------------------------------------------------- */
+  --scrollbar-thumb: #262b33;
+  --focus-ring: var(--accent); /* keyboard focus-visible outline */
+
+  /* ---- Typography ------------------------------------------------------- */
+  --font-ui: 'Geist', system-ui, -apple-system, sans-serif;       /* body, item names */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;          /* headings, numbers, labels */
+  --font-mono: 'Fira Code', 'SF Mono', Menlo, monospace;           /* canvas glyphs (game) */
+
+  /* Font sizes observed in the design */
+  --fs-label: 10px;     /* uppercase section labels */
+  --fs-micro: 8.5px;    /* tiny caps (hunger status) */
+  --fs-xs: 10.5px;      /* gutter numbers, xp text */
+  --fs-sm: 11.5px;      /* hint text, monster sub */
+  --fs-slot-label: 9px; /* equipment slot caps */
+  --fs-body: 12.5px;    /* item names, log body */
+  --fs-value: 13px;     /* stat values */
+  --fs-title: 14px;     /* level name */
+  --fs-title-lg: 15px;  /* character name */
+
+  --tracking-caps: 0.13em;   /* uppercase label letter-spacing */
+  --tracking-caps-wide: 0.16em;
+  --tracking-tight: -0.01em; /* titles */
+
+  /* ---- Radii ------------------------------------------------------------ */
+  --r-2xs: 3px;   /* progress bars / health segments */
+  --r-xs: 5px;    /* keycaps */
+  --r-sm: 7px;    /* small icon tiles */
+  --r-md: 8px;    /* chips, equipment rows, logo */
+  --r-lg: 9px;    /* inventory slots, quick-bar buttons */
+  --r-xl: 11px;   /* popovers, tooltips */
+  --r-2xl: 14px;  /* app frame */
+  --r-pill: 999px;
+  --r-round: 50%;
+
+  /* ---- Layout ----------------------------------------------------------- */
+  --rail-left-w: 264px;
+  --rail-right-w: 312px;
+  --bar-h: 54px;
+  --footer-h: 38px;
+  --frame-w: 1440px;  /* design reference; app may grow to fill viewport */
+  --frame-h: 900px;
+
+  /* ---- Elevation -------------------------------------------------------- */
+  --shadow-app: 0 20px 60px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 14px 40px rgba(0, 0, 0, 0.55);
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 0.12s;
+  --dur: 0.2s;
+  --dur-slow: 0.4s;
+}

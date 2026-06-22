@@ -1,11 +1,4 @@
-/* Rogue: DungeonMaster — modular stylesheet entry point.
-   Order matters: fonts and tokens first, then layout, then components. */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Outfit:wght@300;400;600;700&display=swap');
-
-@import './styles/base.css';
-@import './styles/layout.css';
-@import './styles/hud.css';
-@import './styles/canvas.css';
-@import './styles/dropdown.css';
-@import './styles/modal.css';
-@import './styles/compendium.css';
+/* Rogue: DungeonMaster — stylesheet entry point.
+   The redesigned UI is component-scoped (Svelte); only global tokens, fonts, and
+   base resets live here. Per-component styling lives in each .svelte file. */
+@import './ui/styles/global.css';
