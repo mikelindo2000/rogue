@@ -55,11 +55,35 @@ Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
 
 ## Game Balance
 
-- Designer-set constants (spawn rates, room sizes, combat formula, status
-  durations, loot scaling, FOV) live in the `BALANCE` object in `src/config.ts`.
-  Player-adjustable values live in `TunableConfig`/`DEFAULT_TUNABLES`.
-- Tuning difficulty or generation should mean editing `BALANCE` — do not
-  reintroduce magic numbers into the engine, map generator, or AI.
+All game-balance settings are centralized in [config.ts](file:///Users/marcus/code/rogue/src/config.ts). Do not hardcode magic numbers in game logic.
+
+### 1. Where Balance Files Live
+- **Static Constants**: Designer-set constants (spawn rates, room sizes, combat formulas, status durations, loot scaling, FOV) live in the `BALANCE` object in `src/config.ts`.
+- **Tunable Configuration**: Player-adjustable values (sliders/knobs) live in `TunableConfig` and `DEFAULT_TUNABLES` in `src/config.ts`.
+- **Monster Database**: Base stats, floor requirements, symbols, colors, and special tags (e.g. `'boss'`) for all monsters are defined in `MONSTER_DATABASE`.
+- **Gear Pool**: Item stats (defense, damage, category, rarity) are defined in `GEAR_POOL`.
+
+### 2. How to Make Adjustments
+
+#### A. Adjusting Static Values
+If you need to change a core game balance constant (e.g. food spawn rate, level-up HP multiplier, trap damage):
+1. Locate the setting inside the `BALANCE` object in `src/config.ts` and modify it.
+2. Ensure that any relevant unit tests (e.g. in `src/combat.test.ts` or `src/map.test.ts`) are updated to reflect the new expected outcomes (prefer deriving assertions from `BALANCE` instead of hardcoding).
+
+#### B. Adding a New Tunable Slider
+To add a new setting that players can adjust dynamically:
+1. Define the property type in the `TunableConfig` interface in `src/config.ts`.
+2. Provide a default value in the `DEFAULT_TUNABLES` object in `src/config.ts`.
+3. If the setting alters already-spawned game objects or player state (like starting HP), add logic to handle it in `handleBalanceUpdate()` within `src/engine.ts`.
+4. Update the visual tweaking panel HTML and events to render the new slider and bind it to `saveConfig`.
+
+#### C. Special Monster Overrides (e.g., Tutorial/Floor 1 Spawns)
+- If a high-level monster or boss (such as `Marcus the Brave`) is spawned on a lower floor for testing/tutorial purposes, **do not** nerf their base stats in `MONSTER_DATABASE` (as that would weaken them on their normal depths).
+- Instead, scale their stats down dynamically at spawn-time within [map.ts](file:///Users/marcus/code/rogue/src/map.ts) (e.g., overriding `hp` and `atk` fields when pushed to the `monsters` list).
+
+#### D. Verifying and Testing Changes
+- After any balance adjustment, run `npm run check` (`tsc --noEmit && vitest run`) to ensure no type errors or broken test assertions were introduced.
+- If a formula changes, update the corresponding tests (e.g. in `src/combat.test.ts` or `src/leveling.test.ts`) to maintain 100% coverage of pure mechanics.
 
 ---
 
