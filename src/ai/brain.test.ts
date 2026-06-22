@@ -4,7 +4,7 @@ import { TILE } from '../tiles';
 import { BALANCE } from '../config';
 import type { Monster, Player, StatusEffects } from '../types';
 import { decideMonsterAction } from './brain';
-import { ARCHETYPES, resolveBehavior } from './archetypes';
+import { ARCHETYPES, resolveBehavior, primaryAttackShape } from './archetypes';
 import type { AIAction, MonsterBehavior } from './types';
 import { processMonsterAI, applyOnHitAbilities } from '../monster';
 
@@ -97,6 +97,26 @@ describe('default archetype reproduces legacy behavior', () => {
     const a = decide(m, { x: 6, y: 6 }, DEFAULT, { status, seed: 42 });
     expect(a.type).not.toBe('attack');
     expect(['wait', 'move']).toContain(a.type);
+  });
+});
+
+describe('primaryAttackShape (behavior → balance bridge)', () => {
+  it('a plain melee archetype is 1× damage, every turn', () => {
+    expect(primaryAttackShape({ id: 'default', ...ARCHETYPES.default })).toEqual({
+      damageMultiplier: 1,
+      hitsPerTurn: 1,
+    });
+  });
+
+  it('a windup attack lands less often (brute: 1 windup → every other turn)', () => {
+    const s = primaryAttackShape({ id: 'brute', ...ARCHETYPES.brute });
+    expect(s.damageMultiplier).toBe(1.6);
+    expect(s.hitsPerTurn).toBeCloseTo(0.5, 10);
+  });
+
+  it('a swipe-alternating attack averages 1.5× effective damage', () => {
+    const s = primaryAttackShape({ id: 'boss-swiper', ...ARCHETYPES['boss-swiper'] });
+    expect(s.damageMultiplier).toBeCloseTo(1.5, 10);
   });
 });
 

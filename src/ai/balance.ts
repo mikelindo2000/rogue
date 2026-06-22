@@ -91,7 +91,14 @@ export interface AttackShape {
 export const PLAIN_MELEE: AttackShape = { damageMultiplier: 1, hitsPerTurn: 1 };
 
 /** Build a monster's combat profile from its template, applying the live HP/ATK
- *  tunables so the report reflects the player's actual experience. */
+ *  tunables so the report reflects the player's actual experience.
+ *
+ *  Note: the engine scales as `getScaledMonsterAtk(round(rawAtk·mult))` while
+ *  this applies the multiplier after scaling. The two differ only by a rounding
+ *  step, and only when the atk tunable is off 100% AND a non-unit multiplier is
+ *  in play — neither true for any live monster today. Align the order here
+ *  before enabling combat-affecting archetypes (brute/kiter) if you want the
+ *  harness's prediction to be bit-exact. */
 export function monsterCombatFromTemplate(
   t: MonsterTemplate,
   shape: AttackShape = PLAIN_MELEE,

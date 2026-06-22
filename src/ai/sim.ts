@@ -61,7 +61,10 @@ export function expectedPlayerDamage(p: PlayerCombat): number {
   const C = BALANCE.combat;
   let dmgBase = p.baseAtk + p.weaponDmg;
   if (p.strengthActive) dmgBase += C.strengthBonus;
-  dmgBase = Math.max(1, dmgBase);
+  // Floor to match the integer support of rng.int(); a no-op for the integer
+  // stats the game uses, but keeps the model exact if fractional weapon damage
+  // is ever introduced.
+  dmgBase = Math.max(1, Math.floor(dmgBase));
   // damage = max(1, int(dmgBase) + playerHitBonus)
   return expectedUniformInt(dmgBase, (i) => Math.max(1, i + C.playerHitBonus));
 }
@@ -200,7 +203,8 @@ export function estimateWinRate(
   let hpLeftSum = 0;
   for (let i = 0; i < trials; i++) {
     // Mix the index into the seed (golden-ratio step) for well-spread sub-seeds.
-    const seed = (baseSeed + i * 0x9e3779b9) >>> 0;
+    // Math.imul keeps the step exact in 32-bit space for any trial count.
+    const seed = (baseSeed + Math.imul(i, 0x9e3779b9)) >>> 0;
     const r = simulateDuel(p, m, makeRng(seed));
     if (r.playerWon) {
       wins++;

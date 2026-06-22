@@ -133,8 +133,12 @@ export function archetypeOf(template: { id?: string; name: string }): ArchetypeI
 export function primaryAttackShape(behavior: MonsterBehavior): AttackShape {
   const a = behavior.attacks[0];
   if (!a) return { damageMultiplier: 1, hitsPerTurn: 1 };
+  // A swipe-alternating attack averages a normal hit and a 2× hit, so its
+  // effective per-swing damage is 1.5× — otherwise the harness would undercount
+  // a swiper's DPS by ~33% (matters only when bosses are included in a report).
+  const swipeFactor = a.swipeAlternates ? 1.5 : 1;
   return {
-    damageMultiplier: a.damageMultiplier,
+    damageMultiplier: a.damageMultiplier * swipeFactor,
     hitsPerTurn: 1 / (1 + a.windupTurns + a.cooldown),
   };
 }
