@@ -1,7 +1,8 @@
 import { GameUI } from './ui';
 import { GameEngine } from './engine';
 import { loadConfig } from './config';
-import { setupKeyboardControls } from './controls';
+import { KeyboardManager } from './keyboard';
+import './components/monster-compendium';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first
@@ -15,8 +16,83 @@ document.addEventListener('DOMContentLoaded', () => {
   engine.initGame();
   engine.draw();
 
-  // Setup keyboard controls
-  setupKeyboardControls(engine);
+  // Setup Monsters Compendium reference
+  const compendium = document.getElementById('compendium') as any;
+
+  // Initialize Keyboard Manager and register contexts
+  const keyboard = new KeyboardManager();
+  keyboard.setContextActive('game', true);
+  keyboard.setContextActive('modal', false);
+
+  // Listen to modal opening/closing to adjust keyboard context
+  document.addEventListener('modal-state-change', (e: any) => {
+    const { open } = e.detail;
+    keyboard.setContextActive('game', !open);
+    keyboard.setContextActive('modal', open);
+  });
+
+  // Register Game Movement bindings
+  keyboard.register({
+    keys: ['w', 'ArrowUp'],
+    description: 'Move Up',
+    context: 'game',
+    callback: () => engine.handlePlayerMove(0, -1)
+  });
+  keyboard.register({
+    keys: ['s', 'ArrowDown'],
+    description: 'Move Down',
+    context: 'game',
+    callback: () => engine.handlePlayerMove(0, 1)
+  });
+  keyboard.register({
+    keys: ['a', 'ArrowLeft'],
+    description: 'Move Left',
+    context: 'game',
+    callback: () => engine.handlePlayerMove(-1, 0)
+  });
+  keyboard.register({
+    keys: ['d', 'ArrowRight'],
+    description: 'Move Right',
+    context: 'game',
+    callback: () => engine.handlePlayerMove(1, 0)
+  });
+
+  // Reset Game binding (active during game-over state check)
+  keyboard.register({
+    keys: ['r'],
+    description: 'Restart Game',
+    context: 'game',
+    callback: () => {
+      if (engine.gameOver || engine.gameWon) {
+        engine.initGame();
+        engine.draw();
+      }
+    }
+  });
+
+  // Toggle Monsters Compendium
+  keyboard.register({
+    keys: ['m'],
+    description: 'Toggle Monsters Compendium',
+    context: 'game',
+    callback: () => {
+      if (compendium) {
+        compendium.toggle();
+      }
+    }
+  });
+
+  // Close active modals using Escape
+  keyboard.register({
+    keys: ['Escape'],
+    description: 'Close Modal',
+    context: 'modal',
+    callback: () => {
+      if (compendium) {
+        compendium.close();
+      }
+    }
+  });
 
   // Hook drop-down selections
   const bindEquipSelector = (id: string, slot: string) => {
@@ -58,3 +134,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
