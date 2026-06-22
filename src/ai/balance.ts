@@ -215,7 +215,7 @@ export interface CurveReport {
 }
 
 /** Aggregate the per-monster report into a difficulty-curve health check. */
-export function curveReport(opts: BalanceOptions = {}): CurveReport {
+export function curveReport(opts: BalanceOptions & { includeBosses?: boolean } = {}): CurveReport {
   const report = balanceReport(opts);
   const floors = new Map<number, number[]>();
   for (const r of report) {

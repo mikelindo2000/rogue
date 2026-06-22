@@ -43,6 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.selectedInventoryRef = ui.inventoryItems[0]?.ref ?? null;
     }
   };
+  actions.setBalancePanelOpen = (open) => {
+    ui.balancePanelOpen = open;
+  };
   actions.selectInventoryItem = (ref) => {
     ui.selectedInventoryRef = ref;
   };
@@ -103,6 +106,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // Allow closing the bestiary; only block opening it over another overlay.
       if (ui.compendiumOpen || !overlayOpen()) {
         ui.compendiumOpen = !ui.compendiumOpen;
+      }
+    },
+  });
+
+  keyboard.register({
+    keys: ['b'],
+    description: 'Toggle the balance report (dev)',
+    context: 'game',
+    ctrlOrMeta: true,
+    callback: () => {
+      if (ui.balancePanelOpen || !overlayOpen()) {
+        ui.balancePanelOpen = !ui.balancePanelOpen;
       }
     },
   });

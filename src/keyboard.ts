@@ -3,6 +3,11 @@ export interface KeyBinding {
   description: string;
   callback: (e: KeyboardEvent) => void;
   context?: string; // e.g. 'game', 'modal', 'global'. Defaults to 'game'
+  /** Require the Ctrl (or ⌘ on macOS) modifier. Bindings without this flag only
+   *  fire when Ctrl/Meta is NOT held, so plain movement keys don't trigger on
+   *  browser/OS chords like ⌘B. Shift is unaffected (it gates run-movement in
+   *  the callback, not the key match). */
+  ctrlOrMeta?: boolean;
 }
 
 export class KeyboardManager {
@@ -90,6 +95,11 @@ export class KeyboardManager {
       // Check if the key matches
       const keyMatches = b.keys.includes(pressedKey);
       if (!keyMatches) return false;
+
+      // The Ctrl/Meta modifier state must match the binding's requirement, so a
+      // chord like ⌘B only hits ctrlOrMeta bindings and a bare key never fires
+      // while Ctrl/⌘ is held.
+      if (!!b.ctrlOrMeta !== (e.ctrlKey || e.metaKey)) return false;
 
       // If the user is typing, we ONLY trigger the binding if it is specifically registered
       // to handle Escape or special controls, avoiding typing letters triggering movement/actions.

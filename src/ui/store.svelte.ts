@@ -115,6 +115,8 @@ export interface UIState {
   compendiumOpen: boolean;
   inventoryOpen: boolean;
   selectedInventoryRef: InventoryRef | null;
+  /** Dev-only balance report overlay (⌘/Ctrl+B). */
+  balancePanelOpen: boolean;
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
 }
@@ -154,6 +156,7 @@ export const ui = $state<UIState>({
   compendiumOpen: false,
   inventoryOpen: false,
   selectedInventoryRef: null,
+  balancePanelOpen: false,
   discovery: emptyDiscovery(),
 });
 
@@ -165,6 +168,7 @@ export interface UIActions {
   restart(): void;
   setCompendiumOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
+  setBalancePanelOpen(open: boolean): void;
   selectInventoryItem(ref: InventoryRef | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
 }
@@ -176,6 +180,7 @@ export const actions: UIActions = {
   restart: () => {},
   setCompendiumOpen: () => {},
   setInventoryOpen: () => {},
+  setBalancePanelOpen: () => {},
   selectInventoryItem: () => {},
   inventoryAction: () => {},
 };
