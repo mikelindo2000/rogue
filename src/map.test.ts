@@ -86,10 +86,21 @@ describe('generateLevel', () => {
     }
   });
 
-  it('spawns Marcus the Brave on floor 1', () => {
+  it('spawns Marcus the Brave on floor 1 with nerfed stats', () => {
     const lvl = gen(1, 7);
     expect(lvl.monsters.length).toBeGreaterThanOrEqual(1);
-    expect(lvl.monsters.some(m => m.name === 'Marcus the Brave')).toBe(true);
+    const marcus = lvl.monsters.find(m => m.name === 'Marcus the Brave');
+    expect(marcus).toBeDefined();
+    expect(marcus?.hp).toBe(15);
+    expect(marcus?.atk).toBe(1);
+  });
+
+  it('spawns Marcus the Brave on floor 20 as a boss with original stats', () => {
+    const lvl = gen(20, 7);
+    const marcus = lvl.monsters.find(m => m.name === 'Marcus the Brave');
+    expect(marcus).toBeDefined();
+    expect(marcus?.hp).toBe(900);
+    expect(marcus?.atk).toBe(25);
   });
 
   it('encloses rooms: no floor tile is orthogonally adjacent to raw void (seeds 1..30)', () => {

@@ -204,11 +204,18 @@ export function generateLevel(
     );
   }
 
-  // Spawn Marcus the Brave on floor 1 for testing
+  // Spawn Marcus the Brave on floor 1 for testing, but majorly nerfed so he is beatable at the start of the game
   if (dungeonFloor === 1) {
     const marcus = MONSTER_DATABASE.find(m => m.name === 'Marcus the Brave');
     if (marcus) {
-      monsters.push({ ...marcus, x: rooms[0].x + 2, y: rooms[0].y, frozenTurns: 0 });
+      monsters.push({
+        ...marcus,
+        hp: 15,
+        atk: 1,
+        x: rooms[0].x + 2,
+        y: rooms[0].y,
+        frozenTurns: 0
+      });
     }
   }
 
