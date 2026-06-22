@@ -1,0 +1,5 @@
+#!/bin/sh
+# Pre-commit guardrail: keep every commit type-checking and green.
+# Enable once per clone with:  git config core.hooksPath .githooks
+echo "Running checks (tsc + vitest)..."
+npm run check

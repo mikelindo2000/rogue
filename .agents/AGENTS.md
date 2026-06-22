@@ -15,6 +15,44 @@ Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
      (e.g. "Add custom dropdown component", "Render classic Rogue walls").
    - Add a short body when the *why* isn't obvious from the subject.
 
+3. **Pre-commit hook**:
+   - A repo hook runs `npm run check` before each commit. Enable it once per
+     clone: `git config core.hooksPath .githooks`.
+
+---
+
+## Testing & Determinism
+
+1. **Run `npm run check`** (`tsc --noEmit && vitest run`) before committing.
+   `npm test` watches; `npm run test:run` runs once.
+
+2. **Seedable RNG**: game logic draws randomness from an injected `RNG`
+   (`src/rng.ts`), never `Math.random()` directly. Generation, loot, and combat
+   take an `rng` parameter. This keeps everything reproducible — when adding a
+   randomized system, thread the `rng` through rather than reaching for
+   `Math.random()`.
+
+3. **Test the pure core**: combat math (`src/combat.ts`), loot
+   (`src/items.ts`), leveling (`src/player.ts`), and map generation
+   (`src/map.ts`) are pure/seedable and have unit tests in `src/*.test.ts`.
+   When changing balance or generation, add/adjust a test. Derive expected
+   values from `BALANCE` (see below) instead of hardcoding, so tests survive
+   retuning.
+
+4. **Keep logic pure where practical**: prefer functions that take state +
+   `rng` and return a result (the engine applies it) over functions that mutate
+   and log inline. Pure functions are what the test suite can pin down.
+
+---
+
+## Game Balance
+
+- Designer-set constants (spawn rates, room sizes, combat formula, status
+  durations, loot scaling, FOV) live in the `BALANCE` object in `src/config.ts`.
+  Player-adjustable values live in `TunableConfig`/`DEFAULT_TUNABLES`.
+- Tuning difficulty or generation should mean editing `BALANCE` — do not
+  reintroduce magic numbers into the engine, map generator, or AI.
+
 ---
 
 ## UI Component Architecture
