@@ -5,6 +5,10 @@ export function inventoryArtUrl(name: string): string {
   return `/inventory/${slugify(name)}.png`;
 }
 
+export function inventoryArtName(name: string): string {
+  return name.replace(/ \+\d+$/, '');
+}
+
 export function foodArtUrl(): string {
   return inventoryArtUrl('Rations');
 }
@@ -14,5 +18,5 @@ export function potionArtUrl(type: PotionType): string {
 }
 
 export function gearArtUrl(item: GearItem): string {
-  return inventoryArtUrl(item.name);
+  return inventoryArtUrl(inventoryArtName(item.name));
 }
