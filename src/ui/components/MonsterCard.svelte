@@ -218,7 +218,9 @@
 
   .stats {
     display: flex;
-    gap: 14px;
+    flex-wrap: wrap;
+    column-gap: 14px;
+    row-gap: 4px;
   }
   .stat {
     display: flex;
