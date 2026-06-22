@@ -19,9 +19,17 @@ export interface StageMonster {
   boss?: boolean;
 }
 
-const HERO_GLYPH = '@';
-const HERO_COLOR = '#3f8cff';
-const HERO_ACCENT = '#ffd34d';
+export interface StageHero {
+  glyph: string;
+  color?: string;
+  accent?: string;
+}
+
+const DEFAULT_HERO: Required<StageHero> = {
+  glyph: '@',
+  color: '#3f8cff',
+  accent: '#ffd34d',
+};
 
 // Timeline keyframes in ms; LOOP is the total cycle length.
 const T = {
@@ -47,17 +55,23 @@ export class MonsterStage {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private monster: StageMonster;
+  private hero: Required<StageHero>;
   private rafId: number | null = null;
   private startMs = 0;
   private w = 0;
   private h = 0;
 
-  constructor(canvas: HTMLCanvasElement, monster: StageMonster) {
+  constructor(canvas: HTMLCanvasElement, monster: StageMonster, hero: StageHero = DEFAULT_HERO) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('MonsterStage: 2D context unavailable');
     this.ctx = ctx;
     this.monster = monster;
+    this.hero = normalizeHero(hero);
+  }
+
+  setHero(hero: StageHero): void {
+    this.hero = normalizeHero(hero);
   }
 
   /** Size the backing store for the element's box and the device pixel ratio. */
@@ -143,8 +157,8 @@ export class MonsterStage {
     this.drawShadow(monX, baseline, tile);
 
     // Hero — flickers white on impact, otherwise its steady armor blue.
-    ctx.fillStyle = impactFlash > 0 ? blend(HERO_COLOR, '#ffffff', impactFlash) : HERO_COLOR;
-    drawGlyphAt(ctx, HERO_GLYPH, heroX + heroShake, heroY, tile, 1.1, {
+    ctx.fillStyle = impactFlash > 0 ? blend(this.hero.color, '#ffffff', impactFlash) : this.hero.color;
+    drawGlyphAt(ctx, this.hero.glyph, heroX + heroShake, heroY, tile, 1.1, {
       weight: 800,
       sizeRatio: 0.82,
       embolden: 0.06,
@@ -206,7 +220,7 @@ export class MonsterStage {
     ctx.save();
     // Spark burst.
     ctx.globalAlpha = p;
-    ctx.strokeStyle = HERO_ACCENT;
+    ctx.strokeStyle = this.hero.accent;
     ctx.lineWidth = Math.max(1, tile * 0.05);
     const spokes = 6;
     const r0 = tile * 0.22;
@@ -229,6 +243,14 @@ function blend(a: string, b: string, t: number): string {
   const g = Math.round(lerp(pa[1], pb[1], t));
   const bl = Math.round(lerp(pa[2], pb[2], t));
   return `rgb(${r}, ${g}, ${bl})`;
+}
+
+function normalizeHero(hero: StageHero): Required<StageHero> {
+  return {
+    glyph: hero.glyph || DEFAULT_HERO.glyph,
+    color: hero.color ?? DEFAULT_HERO.color,
+    accent: hero.accent ?? DEFAULT_HERO.accent,
+  };
 }
 
 function hexToRgb(hex: string): [number, number, number] {

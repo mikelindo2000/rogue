@@ -168,3 +168,15 @@ The dungeon board itself stays on `<canvas>` and is rendered imperatively by
      don't `outline: none` without a visible replacement.
    - Keep micro-animations (cubic-bezier transitions, scale-ups, blur backdrops)
      for menus/modals/panels. Reduced-motion is handled globally in `global.css`.
+
+## Bestiary Art
+
+- Generated monster art lives in `public/bestiary/<monster-id>.png`, where
+  `<monster-id>` must match `monsterId()` / the slug fallback in
+  `src/discovery.ts`.
+- Regenerate future monster images from the recipe in
+  `design/MONSTER_IMAGE_GENERATION.md`. Do not assume any particular wrapper
+  CLI or another repo exists on a developer's machine; use any available image
+  generator that can match the documented model/style/params and output paths.
+- Keep bestiary images as dark, text-free, centered creature portraits so they
+  remain legible as card backgrounds and behind the sparring preview.

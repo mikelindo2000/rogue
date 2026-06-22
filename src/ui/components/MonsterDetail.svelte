@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { MonsterTemplate } from '../../types';
+  import { ui } from '../store.svelte';
   import Modal from './primitives/Modal.svelte';
   import MonsterStage from './MonsterStage.svelte';
+  import { monsterArtUrl } from '../monsterArt';
 
   let {
     monster,
@@ -16,6 +18,7 @@
   } = $props();
 
   const isBoss = $derived(monster?.special === 'boss');
+  const artUrl = $derived(monster ? monsterArtUrl(monster) : null);
 
   const lore = $derived(
     monster?.lore ??
@@ -26,45 +29,54 @@
 <Modal open={monster !== null} title={monster?.name ?? ''} onClose={onClose}>
   {#if monster}
     <div class="body">
-      <!-- Remount the stage when the monster changes so a future prev/next
-           detail-view navigation animates the right creature. -->
-      {#key monster}
-        <MonsterStage {monster} />
-      {/key}
+      {#if artUrl}
+        <div
+          class="art-bg"
+          style:background-image={`url("${artUrl}")`}
+          aria-hidden="true"
+        ></div>
+      {/if}
+      <div class="content">
+        <!-- Remount the stage when the monster changes so a future prev/next
+             detail-view navigation animates the right creature. -->
+        {#key monster}
+          <MonsterStage {monster} heroGlyph={ui.glyph} />
+        {/key}
 
-      <div class="meta">
-        <div class="glyph-chip" style:color={monster.color}>
-          <span class="glyph">{monster.symbol}</span>
-        </div>
-        <div class="headline">
-          <div class="title-row">
-            <span class="name">{monster.name}</span>
-            {#if isBoss}<span class="boss-tag">BOSS</span>{/if}
+        <div class="meta">
+          <div class="glyph-chip" style:color={monster.color}>
+            <span class="glyph">{monster.symbol}</span>
           </div>
-          <p class="lore">{lore}</p>
+          <div class="headline">
+            <div class="title-row">
+              <span class="name">{monster.name}</span>
+              {#if isBoss}<span class="boss-tag">BOSS</span>{/if}
+            </div>
+            <p class="lore">{lore}</p>
+          </div>
         </div>
-      </div>
 
-      <div class="statgrid">
-        <div class="stat">
-          <span class="label">Health</span>
-          <span class="val">{monster.hp}</span>
-        </div>
-        <div class="stat">
-          <span class="label">Attack</span>
-          <span class="val">{monster.atk}</span>
-        </div>
-        <div class="stat">
-          <span class="label">First floor</span>
-          <span class="val">{monster.minFloor}</span>
-        </div>
-        <div class="stat">
-          <span class="label">First seen</span>
-          <span class="val">Floor {firstSeenFloor ?? monster.minFloor}</span>
-        </div>
-        <div class="stat">
-          <span class="label">Times slain</span>
-          <span class="val">{killCount}</span>
+        <div class="statgrid">
+          <div class="stat">
+            <span class="label">Health</span>
+            <span class="val">{monster.hp}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Attack</span>
+            <span class="val">{monster.atk}</span>
+          </div>
+          <div class="stat">
+            <span class="label">First floor</span>
+            <span class="val">{monster.minFloor}</span>
+          </div>
+          <div class="stat">
+            <span class="label">First seen</span>
+            <span class="val">Floor {firstSeenFloor ?? monster.minFloor}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Times slain</span>
+            <span class="val">{killCount}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -73,11 +85,41 @@
 
 <style>
   .body {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 16px;
     padding: 18px;
     width: min(70vw, 520px);
+    overflow: hidden;
+  }
+  .body::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      linear-gradient(180deg, rgba(11, 13, 18, 0.62) 0%, rgba(11, 13, 18, 0.78) 46%, rgba(11, 13, 18, 0.9) 100%),
+      radial-gradient(120% 80% at 92% 18%, rgba(11, 13, 18, 0.04), rgba(11, 13, 18, 0.48));
+    pointer-events: none;
+  }
+  .art-bg {
+    position: absolute;
+    inset: -12% -8% auto 42%;
+    height: min(58%, 340px);
+    z-index: 0;
+    background-position: center top;
+    background-size: cover;
+    opacity: 0.8;
+    filter: saturate(0.95) contrast(1.05);
+    pointer-events: none;
+  }
+  .content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .meta {

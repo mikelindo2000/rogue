@@ -2,6 +2,7 @@
   import type { MonsterTemplate } from '../../types';
   import type { MonsterTier } from '../../discovery';
   import { hpBand, atkBand } from '../../discovery';
+  import { monsterArtUrl } from '../monsterArt';
 
   let {
     monster,
@@ -20,6 +21,7 @@
   const isBoss = $derived(monster.special === 'boss');
   const locked = $derived(tier === 'unknown');
   const defeated = $derived(tier === 'defeated');
+  const artUrl = $derived(locked ? null : monsterArtUrl(monster));
 </script>
 
 {#if locked}
@@ -38,6 +40,13 @@
   </div>
 {:else}
   <div class="card" class:boss={isBoss} class:clickable={defeated}>
+    {#if artUrl}
+      <div
+        class="art-bg"
+        style:background-image={`url("${artUrl}")`}
+        aria-hidden="true"
+      ></div>
+    {/if}
     <button
       class="hit"
       type="button"
@@ -102,14 +111,36 @@
     display: flex;
     gap: 12px;
     align-items: center;
+    min-height: 112px;
     padding: 11px 12px;
     background: var(--surface-card);
     border: 1px solid var(--border-slot);
     border-radius: var(--r-lg);
+    overflow: hidden;
     transition:
       border-color var(--dur-fast) var(--ease),
       background var(--dur-fast) var(--ease),
       transform var(--dur-fast) var(--ease);
+  }
+  .card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      linear-gradient(90deg, rgba(18, 20, 27, 0.72) 0%, rgba(18, 20, 27, 0.5) 52%, rgba(18, 20, 27, 0.24) 100%),
+      radial-gradient(110% 120% at 100% 50%, rgba(18, 20, 27, 0), rgba(18, 20, 27, 0.34));
+    pointer-events: none;
+  }
+  .art-bg {
+    position: absolute;
+    inset: -22%;
+    z-index: 0;
+    background-position: right top;
+    background-size: cover;
+    opacity: 0.8;
+    filter: saturate(0.92) contrast(1.08);
+    pointer-events: none;
   }
   .card.clickable:hover {
     border-color: var(--border-strong);
@@ -117,7 +148,7 @@
     transform: translateY(-1px);
   }
 
-  /* Full-card click target sits under the content but above the card. */
+  /* Full-card click target sits above the visual layers. */
   .hit {
     position: absolute;
     inset: 0;
@@ -127,6 +158,7 @@
     margin: 0;
     border-radius: var(--r-lg);
     cursor: pointer;
+    z-index: 3;
   }
   .hit:disabled {
     cursor: default;
@@ -165,6 +197,8 @@
   }
 
   .glyph-chip {
+    position: relative;
+    z-index: 2;
     flex: none;
     display: flex;
     align-items: center;
@@ -183,6 +217,7 @@
 
   .details {
     position: relative;
+    z-index: 2;
     flex: 1;
     min-width: 0;
     display: flex;
