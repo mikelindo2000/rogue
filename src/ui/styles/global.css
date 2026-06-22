@@ -33,13 +33,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Consistent keyboard focus affordance. Components may override the offset, but
+   should not remove the ring without providing their own visible alternative. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
 /* Scrollbars — match the design's thin dark treatment. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262b33;
+  background: var(--scrollbar-thumb);
   border-radius: var(--r-md);
 }
 ::-webkit-scrollbar-track {

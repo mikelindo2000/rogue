@@ -67,6 +67,7 @@ export class GameEngine {
     this.generateFloor();
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    this.ui.resetLog();
     this.ui.renderLogs(this.logs);
   }
 
@@ -221,8 +222,10 @@ export class GameEngine {
       // Stairs check
       if (this.map[ty][tx] === TILE.STAIRS) {
         this.dungeonFloor++;
-        this.generateFloor();
+        // Log the descent before generating the floor, so any messages the
+        // generator emits (e.g. the floor-20 boss announcement) read in order.
         this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);
+        this.generateFloor();
         this.ui.updateDropdowns(this.player);
         this.updateUI();
         return;

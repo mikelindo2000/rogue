@@ -6,8 +6,9 @@
   let body = $state<HTMLDivElement | null>(null);
 
   $effect(() => {
-    // Re-run on new lines, then scroll to bottom.
-    void ui.logs.length;
+    // Track the newest line's sequence number (not length, which plateaus at the
+    // history cap) so autoscroll keeps following new messages.
+    void ui.logs.at(-1)?.n;
     if (body) body.scrollTop = body.scrollHeight;
   });
 </script>

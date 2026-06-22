@@ -14,20 +14,57 @@
   } = $props();
 
   let windowEl = $state<HTMLElement | null>(null);
+  let previousActive: HTMLElement | null = null;
 
   function close() {
     open = false;
     onClose?.();
+    previousActive?.focus?.();
+    previousActive = null;
   }
+
+  function focusables(): HTMLElement[] {
+    if (!windowEl) return [];
+    return Array.from(
+      windowEl.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    );
+  }
+
   function onKeydown(e: KeyboardEvent) {
-    if (open && e.key === 'Escape') {
+    if (!open) return;
+    if (e.key === 'Escape') {
       e.stopPropagation();
       close();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Trap focus within the dialog.
+      const items = focusables();
+      if (items.length === 0) {
+        e.preventDefault();
+        windowEl?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === windowEl)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   }
 
   $effect(() => {
-    if (open) windowEl?.focus();
+    if (open) {
+      previousActive = document.activeElement as HTMLElement | null;
+      windowEl?.focus();
+    }
   });
 </script>
 

@@ -103,7 +103,7 @@
   }
   .label {
     font: 600 var(--fs-slot-label) var(--font-display);
-    letter-spacing: 0.12em;
+    letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
     color: var(--text-dimmer);
   }

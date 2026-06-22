@@ -6,9 +6,9 @@
 </script>
 
 {#if m}
-  <div class="tooltip" role="status">
+  <div class="tooltip" role="img" aria-label="{m.name}, {m.hp} of {m.maxHp} health">
     <div class="head">
-      <span class="glyph" style="color:{m.color}">{m.glyph}</span>
+      <span class="glyph" style="color:{m.color}" aria-hidden="true">{m.glyph}</span>
       <span class="name">{m.name}</span>
       {#if m.hostile}
         <span class="state">hostile</span>
@@ -18,7 +18,13 @@
       {/if}
     </div>
     <div class="hp">
-      <div class="track">
+      <div
+        class="track"
+        role="progressbar"
+        aria-valuenow={m.hp}
+        aria-valuemin={0}
+        aria-valuemax={m.maxHp}
+      >
         <div class="fill" style="width:{pct}%"></div>
       </div>
       <span class="val">{m.hp}/{m.maxHp}</span>
@@ -83,14 +89,14 @@
   .track {
     flex: 1;
     height: 5px;
-    border-radius: 3px;
+    border-radius: var(--r-2xs);
     background: var(--surface-inset-2);
     overflow: hidden;
   }
   .fill {
     height: 100%;
     background: var(--danger);
-    border-radius: 3px;
+    border-radius: var(--r-2xs);
     transition: width var(--dur) var(--ease);
   }
   .val {

@@ -33,10 +33,9 @@ export class GameUI {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
 
-  /** Append-only log sequence number + last buffer length, used to turn the
-   *  engine's rolling log buffer into a numbered, accumulating UI history. */
+  /** Monotonic gutter number for the accumulating UI log history. Reset by
+   *  resetLog() when a new run starts. */
   private logSeq = 0;
-  private lastLogLen = 0;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -506,10 +505,11 @@ export class GameUI {
     ui.level = player.level;
 
     ui.hp = Math.max(0, player.hp);
-    ui.maxHp =
+    ui.maxHp = Math.round(
       statusEffects.vigorTurns > 0
         ? player.maxHp * BALANCE.status.vigorHpMultiplier
-        : player.maxHp;
+        : player.maxHp
+    );
 
     const cfg = getConfig();
     const { hungerFatigued, hungerHungry } = BALANCE.player;
@@ -706,21 +706,17 @@ export class GameUI {
     return { cells: cells.slice(0, ui.inventoryMax), count: cells.length };
   }
 
+  /** Clear the accumulated UI log history and gutter numbering. Called by the
+   *  engine when a new run starts (initGame). */
+  public resetLog() {
+    ui.logs = [];
+    this.logSeq = 0;
+  }
+
   /** Turn the engine's rolling log buffer into an accumulating, numbered UI
-   *  history. Each engine `addLog` calls this with exactly one new tail line; a
-   *  shrinking buffer signals a new game, so we reset the sequence. */
+   *  history. Each engine `addLog` calls this with exactly one new tail line. */
   public renderLogs(logs: string[]) {
-    if (logs.length === 0) {
-      ui.logs = [];
-      this.logSeq = 0;
-      this.lastLogLen = 0;
-      return;
-    }
-    if (logs.length < this.lastLogLen) {
-      ui.logs = [];
-      this.logSeq = 0;
-    }
-    this.lastLogLen = logs.length;
+    if (logs.length === 0) return;
     this.logSeq++;
 
     const msg = logs[logs.length - 1];
@@ -730,8 +726,15 @@ export class GameUI {
     ui.logs = next;
   }
 
+  private escapeHtml(s: string): string {
+    return s.replace(
+      /[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c
+    );
+  }
+
   public getStyledItemName(name: string, rarity: string): string {
-    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${name}</span>`;
+    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${this.escapeHtml(name)}</span>`;
   }
 
   /** Push board-derived overlay state (stairs proximity, nearest visible

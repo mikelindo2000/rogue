@@ -6,7 +6,6 @@
   }: { value: number; max: number; segments?: number } = $props();
 
   const filled = $derived(max > 0 ? Math.round((value / max) * segments) : 0);
-  const low = $derived(max > 0 && value > 0 && value / max <= 0.3);
 </script>
 
 <div
@@ -21,7 +20,7 @@
     <span
       class="seg"
       class:fill={i < filled}
-      class:last={low && i === filled - 1}
+      class:last={filled > 0 && i === filled - 1}
     ></span>
   {/each}
 </div>
@@ -34,7 +33,7 @@
   .seg {
     flex: 1;
     height: 11px;
-    border-radius: 3px;
+    border-radius: var(--r-2xs);
     background: var(--hp-empty);
     transition: background var(--dur) var(--ease);
   }

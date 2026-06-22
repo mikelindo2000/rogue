@@ -75,7 +75,11 @@
   --rarity-uncommon: #5fb87a;
   --rarity-rare: #58a0e6;
   --rarity-epic: #b483e6;
-  --rarity-legendary: #e0a23f;
+  --rarity-legendary: var(--accent-strong); /* gold == legendary, by intent */
+
+  /* ---- Chrome ----------------------------------------------------------- */
+  --scrollbar-thumb: #262b33;
+  --focus-ring: var(--accent); /* keyboard focus-visible outline */
 
   /* ---- Typography ------------------------------------------------------- */
   --font-ui: 'Geist', system-ui, -apple-system, sans-serif;       /* body, item names */
@@ -98,6 +102,7 @@
   --tracking-tight: -0.01em; /* titles */
 
   /* ---- Radii ------------------------------------------------------------ */
+  --r-2xs: 3px;   /* progress bars / health segments */
   --r-xs: 5px;    /* keycaps */
   --r-sm: 7px;    /* small icon tiles */
   --r-md: 8px;    /* chips, equipment rows, logo */

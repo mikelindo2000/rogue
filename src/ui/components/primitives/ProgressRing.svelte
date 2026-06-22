@@ -47,7 +47,7 @@
   }
   .cap {
     font: 600 var(--fs-micro) var(--font-display);
-    letter-spacing: 0.1em;
+    letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
   }
 </style>

@@ -23,12 +23,12 @@
 <style>
   .track {
     background: var(--surface-inset-2);
-    border-radius: 3px;
+    border-radius: var(--r-2xs);
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    border-radius: 3px;
+    border-radius: var(--r-2xs);
     background: linear-gradient(90deg, var(--xp-from), var(--xp-to));
     transition: width var(--dur-slow) var(--ease);
   }

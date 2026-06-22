@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
+  import KeyCap from './primitives/KeyCap.svelte';
 </script>
 
 <div class="stage">
@@ -26,7 +27,7 @@
         <div class="end-sub">
           {ui.gameWon ? 'You escaped the dungeon.' : 'The dungeon claims another.'}
         </div>
-        <div class="end-hint">Press <span class="key">R</span> to restart</div>
+        <div class="end-hint">Press <KeyCap>R</KeyCap> to restart</div>
       </div>
     </div>
   {/if}
@@ -116,22 +117,11 @@
     color: var(--text-muted);
   }
   .end-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 8px;
     font: 500 var(--fs-sm) var(--font-ui);
     color: var(--text-dim);
-  }
-  .end-hint .key {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-strong);
-    border-bottom-width: 2px;
-    border-radius: var(--r-xs);
-    font: 600 11px var(--font-display);
-    color: var(--text-keycap);
   }
 </style>
