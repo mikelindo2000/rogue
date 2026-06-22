@@ -127,3 +127,47 @@ describe('GameEngine run movement', () => {
     expect(engine.turn).toBe(2);
   });
 });
+
+describe('GameEngine inventory commands', () => {
+  it('does not let use actions equip gear', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
+
+    const used = engine.performInventoryAction({ kind: 'weapon', index: 1 }, 'use');
+
+    expect(used).toBe(false);
+    expect(engine.player.equipped.mainHand).toBe(0);
+    expect(engine.logs).toContain('That item cannot be used.');
+  });
+
+  it('does not let equip actions consume potions', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.player.inventory.potions = ['healing'];
+
+    const equipped = engine.performInventoryAction({ kind: 'potion', potionType: 'healing' }, 'equip');
+
+    expect(equipped).toBe(false);
+    expect(engine.player.inventory.potions).toEqual(['healing']);
+    expect(engine.logs).toContain('That item cannot be equipped.');
+  });
+
+  it('reports stale food refs as failed use actions', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.player.inventory.food = 0;
+
+    const used = engine.performInventoryAction({ kind: 'food' }, 'use');
+
+    expect(used).toBe(false);
+    expect(engine.logs).toContain('You have no food to eat!');
+  });
+
+  it('can equip an inventory dagger into off-hand through explicit action', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
+
+    const equipped = engine.performInventoryAction({ kind: 'weapon', index: 1 }, 'equipOffHand');
+
+    expect(equipped).toBe(true);
+    expect(engine.player.equipped.offHand).toBe('weapon:1');
+  });
+});

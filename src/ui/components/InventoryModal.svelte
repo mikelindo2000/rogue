@@ -5,6 +5,8 @@
   import Icon from './primitives/Icon.svelte';
   import RarityDot from './primitives/RarityDot.svelte';
 
+  let listEl = $state<HTMLElement | null>(null);
+
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
     if (ref.kind === 'potion') return `potion:${ref.potionType}`;
@@ -15,37 +17,66 @@
 
   const selected = $derived.by<InventoryCell | undefined>(() => {
     const selectedRef = ui.selectedInventoryRef;
-    if (!selectedRef) return ui.inventory[0];
-    return ui.inventory.find((cell) => refKey(cell.ref) === refKey(selectedRef)) ?? ui.inventory[0];
+    if (!selectedRef) return ui.inventoryItems[0];
+    return ui.inventoryItems.find((cell) => refKey(cell.ref) === refKey(selectedRef)) ?? ui.inventoryItems[0];
   });
 
   function close() {
     actions.setInventoryOpen(false);
   }
 
-  function choose(cell: InventoryCell) {
+  function choose(cell: InventoryCell, focusAction = false) {
     actions.selectInventoryItem(cell.ref);
+    if (focusAction) {
+      setTimeout(() => {
+        document.querySelector<HTMLButtonElement>('.detail-pane .action:not([aria-disabled="true"])')?.focus();
+      });
+    }
   }
 
   function run(cell: InventoryCell, action: InventoryAction) {
     actions.inventoryAction(cell.ref, action);
   }
+
+  function moveSelection(current: InventoryCell, delta: number) {
+    const index = ui.inventoryItems.findIndex((cell) => refKey(cell.ref) === refKey(current.ref));
+    const next = ui.inventoryItems[(index + delta + ui.inventoryItems.length) % ui.inventoryItems.length];
+    if (!next) return;
+    choose(next);
+    setTimeout(() => {
+      const row = listEl?.querySelector<HTMLButtonElement>(`button[data-ref="${refKey(next.ref)}"]`);
+      row?.focus();
+    });
+  }
 </script>
 
 <Modal open={ui.inventoryOpen} title="Inventory" onClose={close}>
   <div class="body">
-    {#if ui.inventory.length === 0}
+    {#if ui.inventoryItems.length === 0}
       <div class="empty">
         <div class="empty-icon"><Icon name="pouch" size={28} /></div>
         <p>Your pack is empty.</p>
       </div>
     {:else}
-      <div class="list" aria-label="Carried items">
-        {#each ui.inventory as cell (refKey(cell.ref))}
+      <div class="list" aria-label="Carried items" bind:this={listEl}>
+        {#each ui.inventoryItems as cell (refKey(cell.ref))}
           <button
             class="row"
             class:selected={selected && refKey(selected.ref) === refKey(cell.ref)}
+            data-ref={refKey(cell.ref)}
             onclick={() => choose(cell)}
+            onkeydown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                moveSelection(cell, 1);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                moveSelection(cell, -1);
+              } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                choose(cell, true);
+              }
+            }}
             aria-pressed={selected && refKey(selected.ref) === refKey(cell.ref)}
           >
             <span class="tile" style:color={cell.rarityColor}>
@@ -78,9 +109,12 @@
             {#each selected.actions as item (item.action)}
               <button
                 class="action"
-                disabled={item.disabled}
+                aria-disabled={item.disabled ? 'true' : undefined}
+                aria-describedby={item.reason ? `inventory-reason-${item.action}` : undefined}
                 title={item.reason}
-                onclick={() => run(selected, item.action)}
+                onclick={() => {
+                  if (!item.disabled) run(selected, item.action);
+                }}
               >
                 {item.label}
               </button>
@@ -90,7 +124,7 @@
           {#if selected.actions.some((item) => item.disabled && item.reason)}
             <div class="reasons">
               {#each selected.actions.filter((item) => item.disabled && item.reason) as item (item.action)}
-                <p>{item.reason}</p>
+                <p id="inventory-reason-{item.action}">{item.reason}</p>
               {/each}
             </div>
           {/if}
@@ -247,14 +281,14 @@
       color var(--dur-fast) var(--ease);
   }
 
-  .action:hover:not(:disabled),
+  .action:hover:not([aria-disabled="true"]),
   .action:focus-visible {
     background: var(--accent-log-surface);
     border-color: var(--accent);
     outline: none;
   }
 
-  .action:disabled {
+  .action[aria-disabled="true"] {
     cursor: default;
     border-color: var(--border-slot);
     background: var(--surface-inset);
@@ -298,8 +332,8 @@
 
   @media (max-width: 720px) {
     .body {
-      grid-template-columns: 1fr;
-      width: min(92vw, 460px);
+    grid-template-columns: 1fr;
+      width: min(100%, 460px);
     }
 
     .list {

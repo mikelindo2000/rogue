@@ -122,10 +122,29 @@ function normalizeOffHand(player: Player, addLog: (msg: string) => void) {
 }
 
 function equipTargetFromSlotValue(slot: EquipSlot, value: string): EquipTarget | null {
-  if (slot === 'offHand') return { slot, value };
+  if (slot === 'offHand') {
+    const parsed = parseOffHandValue(value);
+    return parsed ? { slot, value: parsed.value } : null;
+  }
   const index = Number(value);
   if (!Number.isInteger(index)) return null;
   return { slot, index };
+}
+
+type ParsedOffHandValue =
+  | { kind: 'none'; value: 'none:0' }
+  | { kind: 'shield'; value: string; index: number }
+  | { kind: 'weapon'; value: string; index: number };
+
+function parseOffHandValue(value: string): ParsedOffHandValue | null {
+  if (value === 'none:0') return { kind: 'none', value };
+  const match = /^(shield|weapon):([1-9]\d*|0)$/.exec(value);
+  if (!match) return null;
+  const kind = match[1] as 'shield' | 'weapon';
+  const index = Number(match[2]);
+  if (!Number.isInteger(index)) return null;
+  if (kind === 'shield' && index === 0) return null;
+  return { kind, index, value: `${kind}:${index}` };
 }
 
 export function inventoryRefToEquipTarget(player: Player, ref: InventoryRef): EquipTarget | null {
@@ -152,19 +171,21 @@ export function canEquip(player: Player, target: EquipTarget): { ok: true } | { 
   }
 
   if (target.slot === 'offHand') {
-    if (target.value === 'none:0') return { ok: true };
+    const parsed = parseOffHandValue(target.value);
+    if (!parsed) return { ok: false, reason: 'That off-hand item cannot be equipped.' };
+    if (parsed.kind === 'none') return { ok: true };
     if (isTwoHanded(player)) return { ok: false, reason: 'Two-handed weapons require an empty off-hand.' };
 
-    if (target.value.startsWith('shield:')) {
-      const index = Number(target.value.split(':')[1]);
+    if (parsed.kind === 'shield') {
+      const index = parsed.index;
       if (!Number.isInteger(index) || index <= 0 || !player.inventory.shield[index]) {
         return { ok: false, reason: 'That shield is no longer in your pack.' };
       }
       return { ok: true };
     }
 
-    if (target.value.startsWith('weapon:')) {
-      const index = Number(target.value.split(':')[1]);
+    if (parsed.kind === 'weapon') {
+      const index = parsed.index;
       const main = player.inventory.weapons[player.equipped.mainHand];
       const off = player.inventory.weapons[index];
       if (!Number.isInteger(index) || !off) return { ok: false, reason: 'That weapon is no longer in your pack.' };
@@ -199,7 +220,12 @@ export function equipValidated(
   }
 
   if (target.slot === 'offHand') {
-    player.equipped.offHand = target.value;
+    const parsed = parseOffHandValue(target.value);
+    if (!parsed) {
+      addLog('That off-hand item cannot be equipped.');
+      return false;
+    }
+    player.equipped.offHand = parsed.value;
     normalizeOffHand(player, addLog);
     return true;
   }

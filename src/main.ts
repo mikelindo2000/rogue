@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setInventoryOpen = (open) => {
     ui.inventoryOpen = open;
     if (open && !ui.selectedInventoryRef) {
-      ui.selectedInventoryRef = ui.inventory[0]?.ref ?? null;
+      ui.selectedInventoryRef = ui.inventoryItems[0]?.ref ?? null;
     }
   };
   actions.selectInventoryItem = (ref) => {

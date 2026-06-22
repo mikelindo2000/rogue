@@ -51,6 +51,18 @@ describe('equipment validation', () => {
     expect(log.entries).toContain('Off-hand weapon unequipped.');
   });
 
+  it('rejects non-canonical off-hand command values', () => {
+    const player = createPlayer();
+    const log = logs();
+    player.inventory.shield.push({ name: 'Buckler', def: 2, maxDef: 2, rarity: 'common' });
+    player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
+
+    expect(equipValidated(player, { slot: 'offHand', value: 'shield:1:stale' }, log.add)).toBe(false);
+    expect(equipValidated(player, { slot: 'offHand', value: 'weapon:01' }, log.add)).toBe(false);
+    expect(player.equipped.offHand).toBe('none:0');
+    expect(log.entries).toContain('That off-hand item cannot be equipped.');
+  });
+
   it('maps inventory refs to their equipment targets', () => {
     const player = createPlayer();
     player.inventory.helm.push({ name: 'Iron Helm', def: 3, maxDef: 3, rarity: 'common' });

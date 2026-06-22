@@ -297,7 +297,7 @@ overlay sibling. The canvas element lives inside `CenterStage`.
 - Height `--footer-h`, padding `0 18px`, `bg var(--surface-bar)`,
   `border-top 1px var(--border)`. Flex row, gap 18px, align center.
 - Hint = `KeyCap` + label (`500 var(--fs-sm) var(--font-ui) var(--text-dim)`).
-  Hints: `↑↓←→` move, `i` inventory, `g` pick up, `e` eat, `>` descend; then
+  Hints: `↑↓←→` move, `Shift` run, `i` inventory, `e` eat, `m` bestiary; then
   right-aligned (`margin-left:auto`) `?` all shortcuts.
 
 ---

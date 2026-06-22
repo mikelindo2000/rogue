@@ -500,7 +500,7 @@ export class GameEngine {
     return true;
   }
 
-  public consumeFood() {
+  public consumeFood(): boolean {
     if (this.player.inventory.food > 0) {
       this.player.inventory.food--;
       if (this.player.undeadFoods > 0) {
@@ -513,8 +513,10 @@ export class GameEngine {
       }
       this.updateUI();
       this.processTurn();
+      return true;
     } else {
       this.addLog("You have no food to eat!");
+      return false;
     }
   }
 
@@ -525,6 +527,12 @@ export class GameEngine {
   }
 
   public equipInventoryItem(ref: InventoryRef): boolean {
+    if (ref.kind === 'food' || ref.kind === 'potion') {
+      this.addLog("That item cannot be equipped.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+
     const target = inventoryRefToEquipTarget(this.player, ref);
     if (!target) {
       this.addLog("That item cannot be equipped.");
@@ -540,13 +548,14 @@ export class GameEngine {
 
   public useInventoryItem(ref: InventoryRef): boolean {
     if (ref.kind === 'food') {
-      this.consumeFood();
-      return true;
+      return this.consumeFood();
     }
     if (ref.kind === 'potion') {
       return this.usePotionType(ref);
     }
-    return this.equipInventoryItem(ref);
+    this.addLog("That item cannot be used.");
+    this.ui.updateDropdowns(this.player);
+    return false;
   }
 
   public performInventoryAction(ref: InventoryRef, action: InventoryAction): boolean {

@@ -97,6 +97,7 @@ export interface UIState {
   foodMax: number;
   // panels
   equipment: EquipSlotView[];
+  inventoryItems: InventoryCell[];
   inventory: InventoryCell[];
   inventoryCount: number;
   inventoryMax: number;
@@ -136,6 +137,7 @@ export const ui = $state<UIState>({
   food: 0,
   foodMax: 4,
   equipment: [],
+  inventoryItems: [],
   inventory: [],
   inventoryCount: 0,
   inventoryMax: 20,

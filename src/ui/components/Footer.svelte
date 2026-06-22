@@ -8,20 +8,20 @@
     <span class="lbl">move</span>
   </span>
   <span class="hint">
-    <KeyCap>i</KeyCap>
-    <span class="lbl">inventory</span>
+    <KeyCap>Shift</KeyCap>
+    <span class="lbl">run</span>
   </span>
   <span class="hint">
-    <KeyCap>g</KeyCap>
-    <span class="lbl">pick up</span>
+    <KeyCap>i</KeyCap>
+    <span class="lbl">inventory</span>
   </span>
   <span class="hint">
     <KeyCap>e</KeyCap>
     <span class="lbl">eat</span>
   </span>
   <span class="hint">
-    <KeyCap>&gt;</KeyCap>
-    <span class="lbl">descend</span>
+    <KeyCap>m</KeyCap>
+    <span class="lbl">bestiary</span>
   </span>
   <span class="hint right">
     <KeyCap>?</KeyCap>

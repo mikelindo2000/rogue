@@ -1047,7 +1047,8 @@ export class GameUI {
   public updateDropdowns(player: Player) {
     ui.equipment = this.buildEquipment(player);
     const inv = this.buildInventory(player);
-    ui.inventory = inv.cells;
+    ui.inventoryItems = inv.cells;
+    ui.inventory = inv.cells.slice(0, ui.inventoryMax);
     ui.inventoryCount = inv.count;
     ui.potions = player.inventory.potions.map((p, i) => ({ idx: i, label: titleCase(p) }));
   }
@@ -1239,7 +1240,7 @@ export class GameUI {
       }
     });
 
-    return { cells: cells.slice(0, ui.inventoryMax), count: cells.length };
+    return { cells, count: cells.length };
   }
 
   private inventoryActions(player: Player, ref: InventoryRef): InventoryActionView[] {
