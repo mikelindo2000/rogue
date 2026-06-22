@@ -54,6 +54,11 @@ interface Room {
   cy: number;
 }
 
+interface DoorCandidate {
+  x: number;
+  y: number;
+}
+
 type Dir = 'h' | 'v';
 interface Edge {
   a: number; // index of the west (h) or north (v) cell
@@ -169,6 +174,69 @@ function connect(map: string[][], a: Room, b: Room, dir: Dir, rng: RNG) {
     digCol(map, ax.x, ax.y, turn);
     digRow(map, turn, ax.x, bx.x);
     digCol(map, bx.x, turn, bx.y);
+  }
+}
+
+function doorTouchesRoom(door: DoorCandidate, room: Room): boolean {
+  return door.x >= room.l && door.x <= room.r && door.y >= room.t && door.y <= room.b;
+}
+
+function collectSecretDoorCandidates(
+  map: string[][],
+  realRooms: Room[],
+  protectedRooms: Room[]
+): DoorCandidate[] {
+  const candidates: DoorCandidate[] = [];
+  for (let y = 1; y < map.length - 1; y++) {
+    for (let x = 1; x < map[y].length - 1; x++) {
+      if (map[y][x] !== TILE.DOOR) continue;
+      if (protectedRooms.some(room => doorTouchesRoom({ x, y }, room))) continue;
+
+      const touchesRealRoom = realRooms.some(room => doorTouchesRoom({ x, y }, room));
+      if (!touchesRealRoom) continue;
+
+      candidates.push({ x, y });
+    }
+  }
+  return candidates;
+}
+
+function tryPlaceSecretDoors(
+  map: string[][],
+  realRooms: Room[],
+  startRoom: Room,
+  endRoom: Room,
+  dungeonFloor: number,
+  playerX: number,
+  playerY: number,
+  stairsDownX: number,
+  stairsDownY: number,
+  rng: RNG,
+  cols: number,
+  rows: number
+) {
+  if (dungeonFloor < 3 || dungeonFloor >= 20 || stairsDownX < 0 || stairsDownY < 0) return;
+
+  const desired = dungeonFloor === 3 ? 1 : rng.chance(0.45) ? 1 : 0;
+  if (desired === 0) return;
+
+  const protectedRooms = [startRoom, endRoom].filter((room, index, arr) => arr.indexOf(room) === index);
+  const candidates = collectSecretDoorCandidates(map, realRooms, protectedRooms);
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  let placed = 0;
+  for (const candidate of candidates) {
+    const original = map[candidate.y][candidate.x];
+    map[candidate.y][candidate.x] = TILE.SECRET_DOOR;
+    if (isReachable(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows)) {
+      placed++;
+      if (placed >= desired) break;
+    } else {
+      map[candidate.y][candidate.x] = original;
+    }
   }
 }
 
@@ -330,6 +398,21 @@ export function generateLevel(
       `down stairs unreachable from start on floor ${dungeonFloor} (seed ${rng.seed})`
     );
   }
+
+  tryPlaceSecretDoors(
+    map,
+    realRooms,
+    startRoom,
+    endRoom,
+    dungeonFloor,
+    playerX,
+    playerY,
+    stairsDownX,
+    stairsDownY,
+    rng,
+    cols,
+    rows
+  );
 
   // Spawn Marcus the Brave on floor 1 for testing, but majorly nerfed so he is
   // beatable at the start of the game.

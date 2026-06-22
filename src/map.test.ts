@@ -123,6 +123,7 @@ describe('generateLevel', () => {
       TILE.WALL_H,
       TILE.WALL_V,
       TILE.DOOR,
+      TILE.SECRET_DOOR,
       TILE.CORRIDOR,
       TILE.STAIRS_UP,
       TILE.STAIRS_DOWN,
@@ -157,6 +158,27 @@ describe('generateLevel', () => {
         expect(
           ok,
           `floor ${floor}, seed ${seed}: down stairs (${lvl.stairsDownX},${lvl.stairsDownY}) not reachable from player (${lvl.playerX},${lvl.playerY})`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('does not place secret doors on the first two floors (seeds 1..30)', () => {
+    for (const floor of [1, 2]) {
+      for (let seed = 1; seed <= 30; seed++) {
+        const lvl = gen(floor, seed);
+        expect(lvl.map.flat().filter(tile => tile === TILE.SECRET_DOOR)).toHaveLength(0);
+      }
+    }
+  });
+
+  it('keeps down stairs reachable without discovering secrets (seeds 1..30)', () => {
+    for (let floor = 3; floor < 20; floor += 4) {
+      for (let seed = 1; seed <= 30; seed++) {
+        const lvl = gen(floor, seed);
+        expect(
+          reachable(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsDownX, lvl.stairsDownY),
+          `floor ${floor}, seed ${seed}: down stairs require a secret door`
         ).toBe(true);
       }
     }
@@ -218,11 +240,11 @@ describe('generateLevel', () => {
         // A wall run may be pierced by a single `+` door, so accept doors while
         // scanning toward the next corner.
         let r = l + 1;
-        while (r < map[t].length && (map[t][r] === TILE.WALL_H || map[t][r] === TILE.DOOR)) r++;
+        while (r < map[t].length && (map[t][r] === TILE.WALL_H || map[t][r] === TILE.DOOR || map[t][r] === TILE.SECRET_DOOR)) r++;
         expect(map[t][r], `top-right corner missing for TL (${l},${t})`).toBe(TILE.CORNER_TR);
 
         let b = t + 1;
-        while (b < map.length && (map[b][l] === TILE.WALL_V || map[b][l] === TILE.DOOR)) b++;
+        while (b < map.length && (map[b][l] === TILE.WALL_V || map[b][l] === TILE.DOOR || map[b][l] === TILE.SECRET_DOOR)) b++;
         expect(map[b][l], `bottom-left corner missing for TL (${l},${t})`).toBe(TILE.CORNER_BL);
 
         expect(map[b][r], `bottom-right corner missing for TL (${l},${t})`).toBe(TILE.CORNER_BR);
@@ -262,7 +284,7 @@ describe('generateLevel', () => {
   });
 
   it('opens at most one door (hall) per room wall (seeds 1..40)', () => {
-    const countDoors = (cells: string[]) => cells.filter(c => c === TILE.DOOR).length;
+    const countDoors = (cells: string[]) => cells.filter(c => c === TILE.DOOR || c === TILE.SECRET_DOOR).length;
     for (let seed = 1; seed <= 40; seed++) {
       const { map } = gen(6, seed);
       for (const { l, t, r, b } of parseRooms(map)) {
@@ -285,7 +307,7 @@ describe('generateLevel', () => {
           ).toBeLessThanOrEqual(1);
           // Every non-door wall cell is a real wall glyph — never raw void.
           for (const cell of cells) {
-            expect(cell === TILE.DOOR || cell === TILE.WALL_H || cell === TILE.WALL_V).toBe(true);
+            expect(cell === TILE.DOOR || cell === TILE.SECRET_DOOR || cell === TILE.WALL_H || cell === TILE.WALL_V).toBe(true);
           }
         }
       }

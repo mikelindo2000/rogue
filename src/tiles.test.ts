@@ -5,7 +5,7 @@ const CORNERS = [TILE.CORNER_TL, TILE.CORNER_TR, TILE.CORNER_BL, TILE.CORNER_BR]
 
 describe('isWalkable', () => {
   const walkable = [TILE.FLOOR, TILE.CORRIDOR, TILE.DOOR, TILE.STAIRS_UP, TILE.STAIRS_DOWN]; // '.', '#', '+', '<', '>'
-  const blocked = [TILE.WALL_H, TILE.WALL_V, ...CORNERS, TILE.VOID, undefined];
+  const blocked = [TILE.WALL_H, TILE.WALL_V, ...CORNERS, TILE.SECRET_DOOR, TILE.VOID, undefined];
 
   it.each(walkable)('is walkable for %j', (ch) => {
     expect(isWalkable(ch)).toBe(true);
@@ -17,7 +17,7 @@ describe('isWalkable', () => {
 });
 
 describe('blocksSight', () => {
-  const blocks = [TILE.WALL_H, TILE.WALL_V, ...CORNERS, TILE.VOID, undefined];
+  const blocks = [TILE.WALL_H, TILE.WALL_V, ...CORNERS, TILE.SECRET_DOOR, TILE.VOID, undefined];
   const transparent = [TILE.FLOOR, TILE.CORRIDOR, TILE.DOOR, TILE.STAIRS_UP, TILE.STAIRS_DOWN]; // '.', '#', '+', '<', '>'
 
   it.each(blocks)('blocks sight for %j', (ch) => {
@@ -30,7 +30,7 @@ describe('blocksSight', () => {
 });
 
 describe('isWall', () => {
-  const walls = [TILE.WALL_H, TILE.WALL_V, ...CORNERS];
+  const walls = [TILE.WALL_H, TILE.WALL_V, ...CORNERS, TILE.SECRET_DOOR];
   const notWalls = [TILE.FLOOR, TILE.CORRIDOR, TILE.DOOR, TILE.STAIRS_UP, TILE.STAIRS_DOWN, TILE.VOID, undefined];
 
   it.each(walls)('treats %j as a wall', (ch) => {

@@ -23,6 +23,7 @@ export const TILE = {
   CORNER_BL: '└',
   CORNER_BR: '┘',
   DOOR: '+',
+  SECRET_DOOR: '?',
   STAIRS_UP: '<',
   STAIRS_DOWN: '>',
 } as const;
@@ -53,15 +54,20 @@ export function isWalkable(ch: string | undefined): boolean {
 
 /** Tiles that stop line-of-sight (walls, corners, and unexcavated rock). */
 export function blocksSight(ch: string | undefined): boolean {
-  return ch === undefined || ch === TILE.VOID || WALL_CHARS.has(ch);
+  return ch === undefined || ch === TILE.VOID || ch === TILE.SECRET_DOOR || WALL_CHARS.has(ch);
 }
 
 /** True for any room-bounding wall glyph, including the four corners. */
 export function isWall(ch: string | undefined): boolean {
-  return ch !== undefined && WALL_CHARS.has(ch);
+  return ch !== undefined && (ch === TILE.SECRET_DOOR || WALL_CHARS.has(ch));
 }
 
 /** True for the four corner glyphs only. */
 export function isCorner(ch: string | undefined): boolean {
   return ch !== undefined && CORNER_CHARS.has(ch);
+}
+
+/** True for an unrevealed hidden doorway. */
+export function isSecretDoor(ch: string | undefined): boolean {
+  return ch === TILE.SECRET_DOOR;
 }
