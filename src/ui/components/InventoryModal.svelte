@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { ui, actions, type InventoryCell } from '../store.svelte';
   import type { InventoryAction, InventoryRef } from '../../types';
   import Modal from './primitives/Modal.svelte';
@@ -6,6 +7,7 @@
   import RarityDot from './primitives/RarityDot.svelte';
 
   let listEl = $state<HTMLElement | null>(null);
+  let bodyEl = $state<HTMLElement | null>(null);
 
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
@@ -25,33 +27,112 @@
     actions.setInventoryOpen(false);
   }
 
-  function choose(cell: InventoryCell, focusAction = false) {
+  function choose(cell: InventoryCell) {
     actions.selectInventoryItem(cell.ref);
-    if (focusAction) {
-      setTimeout(() => {
-        document.querySelector<HTMLButtonElement>('.detail-pane .action:not([aria-disabled="true"])')?.focus();
-      });
-    }
   }
 
   function run(cell: InventoryCell, action: InventoryAction) {
     actions.inventoryAction(cell.ref, action);
   }
 
-  function moveSelection(current: InventoryCell, delta: number) {
-    const index = ui.inventoryItems.findIndex((cell) => refKey(cell.ref) === refKey(current.ref));
+  function selectedIndex() {
+    if (!selected) return -1;
+    return ui.inventoryItems.findIndex((cell) => refKey(cell.ref) === refKey(selected.ref));
+  }
+
+  function rowFor(cell: InventoryCell | undefined) {
+    if (!cell) return null;
+    return listEl?.querySelector<HTMLButtonElement>(`button[data-ref="${refKey(cell.ref)}"]`) ?? null;
+  }
+
+  function enabledActions() {
+    if (!bodyEl) return [];
+    return Array.from(bodyEl.querySelectorAll<HTMLButtonElement>('.detail-pane .action:not([aria-disabled="true"])'));
+  }
+
+  function moveSelection(delta: number, focusAction = false) {
+    if (ui.inventoryItems.length === 0) return;
+    const currentIndex = selectedIndex();
+    const index = currentIndex === -1 ? 0 : currentIndex;
     const next = ui.inventoryItems[(index + delta + ui.inventoryItems.length) % ui.inventoryItems.length];
     if (!next) return;
     choose(next);
     setTimeout(() => {
-      const row = listEl?.querySelector<HTMLButtonElement>(`button[data-ref="${refKey(next.ref)}"]`);
-      row?.focus();
+      if (focusAction) {
+        enabledActions()[0]?.focus();
+      } else {
+        rowFor(next)?.focus();
+      }
     });
   }
+
+  function focusSelectedRow() {
+    setTimeout(() => rowFor(selected)?.focus());
+  }
+
+  function runDefaultAction() {
+    if (!selected) return;
+    const action = selected.actions.find((item) => !item.disabled);
+    if (action) run(selected, action.action);
+  }
+
+  function focusAction(delta: number) {
+    const buttons = enabledActions();
+    if (buttons.length === 0) return;
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    buttons[(index + delta + buttons.length) % buttons.length]?.focus();
+  }
+
+  function handleKeyboard(event: KeyboardEvent) {
+    if (!ui.inventoryOpen || ui.inventoryItems.length === 0) return;
+
+    const target = event.target as HTMLElement | null;
+    if (!target || !bodyEl?.contains(target)) return;
+
+    const onAction = !!target?.closest('.detail-pane .action');
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveSelection(-1, onAction);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveSelection(1, onAction);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      if (onAction) {
+        focusSelectedRow();
+      } else {
+        moveSelection(-1);
+      }
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      if (onAction) {
+        focusAction(1);
+      } else {
+        enabledActions()[0]?.focus();
+      }
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (onAction && target instanceof HTMLButtonElement) {
+        target.click();
+      } else {
+        runDefaultAction();
+      }
+    }
+  }
+
+  $effect(() => {
+    if (!ui.inventoryOpen || ui.inventoryItems.length === 0) return;
+    tick().then(() => {
+      rowFor(selected)?.focus();
+    });
+  });
 </script>
 
+<svelte:window onkeydown={handleKeyboard} />
+
 <Modal open={ui.inventoryOpen} title="Inventory" onClose={close}>
-  <div class="body">
+  <div class="body" bind:this={bodyEl}>
     {#if ui.inventoryItems.length === 0}
       <div class="empty">
         <div class="empty-icon"><Icon name="pouch" size={28} /></div>
@@ -65,18 +146,6 @@
             class:selected={selected && refKey(selected.ref) === refKey(cell.ref)}
             data-ref={refKey(cell.ref)}
             onclick={() => choose(cell)}
-            onkeydown={(event) => {
-              if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                moveSelection(cell, 1);
-              } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                moveSelection(cell, -1);
-              } else if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                choose(cell, true);
-              }
-            }}
             aria-pressed={selected && refKey(selected.ref) === refKey(cell.ref)}
           >
             <span class="tile" style:color={cell.rarityColor}>
@@ -111,6 +180,7 @@
                 class="action"
                 aria-disabled={item.disabled ? 'true' : undefined}
                 aria-describedby={item.reason ? `inventory-reason-${item.action}` : undefined}
+                tabindex={item.disabled ? -1 : 0}
                 title={item.reason}
                 onclick={() => {
                   if (!item.disabled) run(selected, item.action);
