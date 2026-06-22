@@ -119,6 +119,14 @@ export interface Monster {
   special?: 'boss';
   frozenTurns: number;
   swipeTurn?: boolean;
+  /** Per-monster AI runtime (FSM state + cooldowns), attached lazily by the
+   *  behavior interpreter. Typed as the structural shape to avoid a cycle with
+   *  the ai/ module; see MonsterAIRuntime in src/ai/types.ts. */
+  ai?: {
+    state: 'asleep' | 'hunting' | 'fleeing';
+    cooldowns: Record<string, number>;
+    swipeToggle: boolean;
+  };
 }
 
 export interface StatusEffects {

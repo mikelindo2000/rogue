@@ -1,43 +1,20 @@
 import { Monster, Player, StatusEffects } from './types';
-import { getScaledMonsterAtk, BALANCE } from './config';
-import { isWalkable } from './tiles';
+import { getScaledMonsterAtk } from './config';
 import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
+import { decideMonsterAction, ensureRuntime } from './ai/brain';
+import { resolveBehavior } from './ai/archetypes';
+import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior } from './ai/types';
 
-export function wanderMonster(
-  m: Monster,
-  map: string[][],
-  cols: number,
-  rows: number,
-  monsters: Monster[],
-  rng: RNG
-) {
-  if (rng.chance(BALANCE.monster.wanderSkipChance)) return;
-  const dirs = [
-    { x: 1, y: 0 },
-    { x: -1, y: 0 },
-    { x: 0, y: 1 },
-    { x: 0, y: -1 }
-  ];
-  const d = rng.pick(dirs);
-  if (!d) return;
-
-  const tx = m.x + d.x;
-  const ty = m.y + d.y;
-
-  if (
-    tx >= 0 &&
-    tx < cols &&
-    ty >= 0 &&
-    ty < rows &&
-    isWalkable(map[ty]?.[tx]) &&
-    !monsters.some(o => o.x === tx && o.y === ty)
-  ) {
-    m.x = tx;
-    m.y = ty;
-  }
-}
-
+/**
+ * Advance every monster one turn.
+ *
+ * This is now a thin shell: the behavior interpreter (src/ai/brain.ts) decides
+ * each monster's action from its resolved behavior profile, and this function
+ * applies the resulting intent (move / attack / wait) to the world. Monsters on
+ * the `default` archetype decide exactly what the old hand-rolled logic did, so
+ * existing encounters and seeded runs are unchanged.
+ */
 export function processMonsterAI(
   monsters: Monster[],
   player: Player,
@@ -47,49 +24,132 @@ export function processMonsterAI(
   rows: number,
   totalDef: number,
   addLog: (msg: string) => void,
-  rng: RNG
+  rng: RNG,
+  turn = 0
 ) {
-  monsters.forEach(m => {
+  for (const m of monsters) {
     if (m.frozenTurns > 0) {
       m.frozenTurns--;
+      continue;
+    }
+
+    const behavior = resolveBehavior(m);
+    const action = decideMonsterAction({
+      monster: m,
+      behavior,
+      player,
+      status: statusEffects,
+      map,
+      cols,
+      rows,
+      monsters,
+      rng,
+      turn,
+    });
+
+    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn);
+  }
+}
+
+/** Resolve one intent against the world. The brain has already validated moves
+ *  for walkability/occupancy, so application is a straight mutation. */
+function applyAction(
+  action: AIAction,
+  m: Monster,
+  behavior: MonsterBehavior,
+  player: Player,
+  totalDef: number,
+  addLog: (msg: string) => void,
+  rng: RNG,
+  turn: number
+) {
+  switch (action.type) {
+    case 'wait':
       return;
-    }
-
-    const dist = Math.abs(m.x - player.x) + Math.abs(m.y - player.y);
-
-    if (statusEffects.invisTurns > 0) {
-      wanderMonster(m, map, cols, rows, monsters, rng);
+    case 'move':
+      m.x += action.dx;
+      m.y += action.dy;
       return;
-    }
+    case 'attack':
+      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn);
+      return;
+  }
+}
 
-    if (dist === 1) {
-      let isSwipe = false;
-      if (m.name === 'Marcus the Brave') {
-        if (m.swipeTurn === undefined) m.swipeTurn = false;
-        if (m.swipeTurn) isSwipe = true;
-        m.swipeTurn = !m.swipeTurn;
+function applyAttack(
+  m: Monster,
+  behavior: MonsterBehavior,
+  attackId: string,
+  player: Player,
+  totalDef: number,
+  addLog: (msg: string) => void,
+  rng: RNG,
+  turn: number
+) {
+  const rt = ensureRuntime(m);
+  const attack: AttackSpec = behavior.attacks.find((a) => a.id === attackId) ?? behavior.attacks[0];
+
+  // Marcus the Brave's signature: every other swing is a double-damage swipe.
+  let isSwipe = false;
+  if (attack.swipeAlternates) {
+    if (rt.swipeToggle) isSwipe = true;
+    rt.swipeToggle = !rt.swipeToggle;
+  }
+
+  const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
+  const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: isSwipe, rng });
+  player.hp -= dmg;
+  addLog(isSwipe ? `${m.name} uses Swipe! hits for ${dmg} dmg.` : `${m.name} hits for ${dmg} dmg.`);
+
+  if (attack.cooldown > 0) rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;
+
+  // On-hit abilities (steal, leech, …) fire as side effects of landing a blow.
+  applyOnHitAbilities(behavior, m, player, rng).forEach(addLog);
+}
+
+/**
+ * Fire every `onHit` ability whose chance roll passes, mutating the monster and
+ * player, and return the log lines produced. Exported so the ability effects
+ * can be unit-tested directly with deterministic (chance = 1) profiles.
+ */
+export function applyOnHitAbilities(
+  behavior: MonsterBehavior,
+  m: Monster,
+  player: Player,
+  rng: RNG
+): string[] {
+  const rt = ensureRuntime(m);
+  const logs: string[] = [];
+  for (const ab of behavior.abilities) {
+    if (ab.trigger !== 'onHit' || !rng.chance(ab.chance)) continue;
+    fireAbility(ab, m, player, logs);
+    if (ab.thenFlee) rt.state = 'fleeing';
+  }
+  return logs;
+}
+
+function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]) {
+  switch (ab.id) {
+    case 'stealGold': {
+      const amount = Math.min(player.gold, ab.magnitude ?? 0);
+      if (amount > 0) {
+        player.gold -= amount;
+        logs.push(`${m.name} steals ${amount} gold!`);
       }
-
-      // Scale monster base attack on-the-fly using the slider config value
-      const dmg = computeMonsterDamage({
-        scaledAtk: getScaledMonsterAtk(m.atk),
-        totalDef,
-        swipe: isSwipe,
-        rng
-      });
-
-      player.hp -= dmg;
-      addLog(isSwipe ? `${m.name} uses Swipe! hits for ${dmg} dmg.` : `${m.name} hits for ${dmg} dmg.`);
-    } else if (dist < BALANCE.monster.aggroRange) {
-      const stepX = m.x + Math.sign(player.x - m.x);
-      const stepY = m.y + Math.sign(player.y - m.y);
-
-      // Simple pathfinding: try X, then Y
-      if (isWalkable(map[m.y]?.[stepX]) && !monsters.some(o => o.x === stepX && o.y === m.y)) {
-        m.x = stepX;
-      } else if (isWalkable(map[stepY]?.[m.x]) && !monsters.some(o => o.x === m.x && o.y === stepY)) {
-        m.y = stepY;
-      }
+      break;
     }
-  });
+    case 'leechHeal': {
+      const maxHp = m.maxHp ?? m.hp;
+      const heal = Math.min(maxHp - m.hp, ab.magnitude ?? 0);
+      if (heal > 0) {
+        m.hp += heal;
+        logs.push(`${m.name} drains your vitality!`);
+      }
+      break;
+    }
+    // stealItem / freeze / drainStrength / summon are schema-only for now —
+    // safely ignored until the engine grows hooks for them.
+    default:
+      break;
+  }
 }

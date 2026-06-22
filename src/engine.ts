@@ -670,7 +670,8 @@ export class GameEngine {
       this.ROWS,
       totalDef,
       (msg) => this.addLog(msg),
-      this.rng
+      this.rng,
+      this.turn
     );
     if (this.player.hp < hpBeforeMonsters) this.ui.fxPlayerHit();
 
