@@ -4,6 +4,7 @@ import { generateLevel } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
+import { isWalkable, blocksSight, TILE } from './tiles';
 
 export class GameEngine {
   public map: string[][] = [];
@@ -120,7 +121,7 @@ export class GameEngine {
         this.visible[mapY][mapX] = true;
         this.explored[mapY][mapX] = true;
 
-        if (this.map[mapY][mapX] === '#') break;
+        if (blocksSight(this.map[mapY][mapX])) break;
       }
     }
   }
@@ -145,7 +146,7 @@ export class GameEngine {
       tx < this.COLS &&
       ty >= 0 &&
       ty < this.ROWS &&
-      this.map[ty]?.[tx] !== '#'
+      isWalkable(this.map[ty]?.[tx])
     ) {
       this.player.x = tx;
       this.player.y = ty;
@@ -153,7 +154,7 @@ export class GameEngine {
       this.checkItems();
 
       // Stairs check
-      if (this.map[ty][tx] === '>') {
+      if (this.map[ty][tx] === TILE.STAIRS) {
         this.dungeonFloor++;
         this.generateFloor();
         this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);

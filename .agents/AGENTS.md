@@ -2,6 +2,21 @@
 
 Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
 
+## Version Control
+
+1. **Commit as you work**:
+   - Make small, focused commits as you complete coherent units of work
+     (a feature, a refactor, a fix) rather than one giant commit at the end.
+   - Run `npx tsc --noEmit` (or `npm run build`) before committing so every
+     commit type-checks and builds.
+
+2. **Commit messages**:
+   - Write a concise imperative subject line describing the change
+     (e.g. "Add custom dropdown component", "Render classic Rogue walls").
+   - Add a short body when the *why* isn't obvious from the subject.
+
+---
+
 ## UI Component Architecture
 
 1. **Native Web Components Only**:
@@ -34,9 +49,30 @@ Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
 
 ## Styling Guidelines
 
-1. **Visual Theme**:
-   - Maintain the radial dark background gradient (`#161622` to `#0c0c10`) and green-highlighted color scheme (`#4ade80`).
-   - Use Outfit font for headers and descriptive stats, and Fira Code monospace font for raw data grid layouts, symbols, and logs.
+1. **Modular CSS**:
+   - `src/styles.css` is an entry point that only `@import`s the font and the
+     modules in `src/styles/`. Each concern lives in its own file:
+     `base.css` (design tokens + body), `layout.css`, `hud.css`, `canvas.css`,
+     `dropdown.css`, `modal.css`, `compendium.css`.
+   - Add new component styles as a new file in `src/styles/` and import it from
+     `styles.css`. Keep rules grouped by the component they style.
 
-2. **Aesthetic Transitions**:
-   - Always add smooth micro-animations (`cubic-bezier` transitions, keyframe scale-ups, blur backdrops) for modals or panels to keep the design premium and cohesive.
+2. **Design Tokens**:
+   - Colors, fonts, radii, and easing curves are defined as CSS custom
+     properties in `:root` (`src/styles/base.css`). Reference them
+     (`var(--phosphor)`, `var(--border)`, `var(--ease)`, etc.) instead of
+     hardcoding hex values, so the theme stays centralized.
+   - Canvas (dungeon) colors can't live in CSS; they are centralized in
+     `src/theme.ts` and the tile vocabulary in `src/tiles.ts`.
+
+3. **Visual Theme**:
+   - Maintain the radial dark background gradient and green-phosphor accent
+     (`var(--phosphor)`). The dungeon view follows the original Rogue: rooms
+     bounded by `-`/`|` walls with `.` floor, dark `#` corridors, `+` doors.
+   - Use Outfit font for headers and descriptive stats, and Fira Code monospace
+     font for raw data grid layouts, symbols, and logs.
+
+4. **Aesthetic Transitions**:
+   - Always add smooth micro-animations (`cubic-bezier` transitions, keyframe
+     scale-ups, blur backdrops) for modals, panels, or dropdowns to keep the
+     design premium and cohesive.

@@ -1,0 +1,144 @@
+/* <game-select> — custom dropdown replacing native <select>. */
+game-select {
+  position: relative;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.gs-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: var(--panel-solid);
+  color: var(--phosphor);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 9px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease),
+              transform 0.18s var(--ease), background 0.18s var(--ease);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.gs-trigger:hover {
+  background: var(--bg-elevated);
+  border-color: var(--phosphor);
+  transform: translateY(-1px);
+}
+
+.gs-trigger:focus-visible {
+  outline: none;
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+}
+
+game-select.is-open .gs-trigger {
+  border-color: var(--phosphor);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.35);
+}
+
+.gs-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gs-placeholder {
+  color: var(--muted-dim);
+}
+
+.gs-arrow {
+  color: var(--muted);
+  font-size: 10px;
+  transition: transform 0.2s var(--ease);
+}
+
+game-select.is-open .gs-arrow {
+  transform: rotate(180deg);
+  color: var(--phosphor);
+}
+
+.gs-panel {
+  position: absolute;
+  z-index: 500;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: max-content;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  display: none;
+  outline: none;
+  animation: gsPanelIn 0.14s var(--ease-spring);
+}
+
+game-select.is-open .gs-panel {
+  display: block;
+}
+
+@keyframes gsPanelIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.gs-option {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.12s var(--ease);
+  position: relative;
+}
+
+.gs-option.is-highlighted {
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.gs-option.is-selected {
+  font-weight: 700;
+}
+
+.gs-option.is-selected::after {
+  content: '✓';
+  position: absolute;
+  right: 10px;
+  color: var(--phosphor);
+}
+
+.gs-option.is-disabled {
+  color: var(--muted-dim);
+  cursor: default;
+  font-style: italic;
+}
+
+.gs-option.is-disabled.is-highlighted {
+  background: transparent;
+}
+
+/* Shared scrollbar treatment for the option panel. */
+.gs-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.gs-panel::-webkit-scrollbar-track {
+  background: var(--inset);
+}
+.gs-panel::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+.gs-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--phosphor);
+}

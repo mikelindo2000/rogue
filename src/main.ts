@@ -3,6 +3,7 @@ import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
 import './components/monster-compendium';
+import './components/game-select';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first
@@ -24,11 +25,23 @@ document.addEventListener('DOMContentLoaded', () => {
   keyboard.setContextActive('game', true);
   keyboard.setContextActive('modal', false);
 
-  // Listen to modal opening/closing to adjust keyboard context
+  // Track open overlays (modals + custom dropdowns) so movement keys are
+  // suspended while the player is interacting with a menu.
+  let modalCount = 0;
+  let dropdownCount = 0;
+  const syncContexts = () => {
+    keyboard.setContextActive('modal', modalCount > 0);
+    keyboard.setContextActive('game', modalCount === 0 && dropdownCount === 0);
+  };
+
   document.addEventListener('modal-state-change', (e: any) => {
-    const { open } = e.detail;
-    keyboard.setContextActive('game', !open);
-    keyboard.setContextActive('modal', open);
+    modalCount = Math.max(0, modalCount + (e.detail.open ? 1 : -1));
+    syncContexts();
+  });
+
+  document.addEventListener('dropdown-state-change', (e: any) => {
+    dropdownCount = Math.max(0, dropdownCount + (e.detail.open ? 1 : -1));
+    syncContexts();
   });
 
   // Register Game Movement bindings

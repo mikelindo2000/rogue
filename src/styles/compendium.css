@@ -1,0 +1,143 @@
+/* Monsters compendium modal contents. */
+.compendium-search-container {
+  margin-bottom: 20px;
+}
+
+#compendium-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--inset);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-bright);
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+#compendium-search:focus {
+  border-color: var(--phosphor);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.25);
+}
+
+.compendium-content {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.compendium-content::-webkit-scrollbar {
+  width: 6px;
+}
+.compendium-content::-webkit-scrollbar-track {
+  background: var(--inset);
+}
+.compendium-content::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+.compendium-content::-webkit-scrollbar-thumb:hover {
+  background: var(--phosphor);
+}
+
+.compendium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.monster-card {
+  background: #101016;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  transition: all 0.25s ease;
+}
+
+.monster-card:hover {
+  background: #161622;
+  border-color: var(--phosphor);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.1);
+  transform: translateY(-2px);
+}
+
+.monster-symbol-wrapper {
+  width: 44px;
+  height: 44px;
+  background: var(--inset);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.monster-symbol {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.monster-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.monster-name {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.monster-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.stat-label {
+  color: var(--muted-dim);
+}
+
+.stat-val {
+  color: var(--phosphor);
+  font-weight: bold;
+}
+
+/* Boss card variant. */
+.boss-card {
+  border-color: rgba(255, 215, 0, 0.3);
+  background: linear-gradient(135deg, #101016 0%, #1c1910 100%);
+}
+
+.boss-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.15);
+}
+
+.boss-tag {
+  background: rgba(255, 215, 0, 0.15);
+  color: var(--gold);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}

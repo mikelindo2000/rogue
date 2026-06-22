@@ -1,5 +1,8 @@
 import { Player, Monster, Item, StatusEffects } from './types';
 import { RARITY_CONFIG, getScaledXpRequirements } from './config';
+import { TILE } from './tiles';
+import { TILE_COLORS, TILE_DEFAULT_COLOR, DIM_ALPHA, PLAYER_COLORS } from './theme';
+import type { GameSelect, SelectOption } from './components/game-select';
 
 export class GameUI {
   private canvas: HTMLCanvasElement;
@@ -30,40 +33,51 @@ export class GameUI {
     gameWon: boolean
   ) {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.font = '20px monospace';
-    this.ctx.textBaseline = 'top';
+    this.ctx.font = '700 18px "Fira Code", monospace';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.textAlign = 'center';
 
-    // Draw Map
+    const half = tileSize / 2;
+    const glyph = (ch: string, gx: number, gy: number) => {
+      this.ctx.fillText(ch, gx * tileSize + half, gy * tileSize + half);
+    };
+
+    // Draw Map. Tiles in view render at full strength; remembered-but-unseen
+    // tiles fade back, the way an explored dungeon dims behind you in Rogue.
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        if (explored[r]?.[c]) {
-          const tile = map[r][c];
-          this.ctx.fillStyle = tile === '#' ? '#666' : tile === '>' ? '#ff0' : '#333';
-          this.ctx.fillText(tile, c * tileSize, r * tileSize);
-        }
+        if (!explored[r]?.[c]) continue;
+        const tile = map[r][c];
+        if (tile === TILE.VOID) continue;
+
+        this.ctx.globalAlpha = visible[r]?.[c] ? 1 : DIM_ALPHA;
+        this.ctx.fillStyle = TILE_COLORS[tile] || TILE_DEFAULT_COLOR;
+        glyph(tile, c, r);
       }
     }
+    this.ctx.globalAlpha = 1;
 
-    // Draw Items
+    // Draw Items (only those not standing in darkness should glow brightly)
     items.forEach(i => {
-      if (explored[i.y]?.[i.x]) {
-        this.ctx.fillStyle = i.color;
-        this.ctx.fillText(i.symbol, i.x * tileSize, i.y * tileSize);
-      }
+      if (!explored[i.y]?.[i.x]) return;
+      this.ctx.globalAlpha = visible[i.y]?.[i.x] ? 1 : DIM_ALPHA;
+      this.ctx.fillStyle = i.color;
+      glyph(i.symbol, i.x, i.y);
     });
+    this.ctx.globalAlpha = 1;
 
     // Draw Monsters
     monsters.forEach(m => {
       if (visible[m.y]?.[m.x]) {
         this.ctx.fillStyle = m.frozenTurns > 0 ? '#00ffff' : m.color;
-        this.ctx.fillText(m.symbol, m.x * tileSize, m.y * tileSize);
+        glyph(m.symbol, m.x, m.y);
       }
     });
 
     // Draw Player
-    this.ctx.fillStyle = gameOver ? '#f00' : gameWon ? '#0f0' : '#fff';
+    this.ctx.fillStyle = gameOver ? PLAYER_COLORS.dead : gameWon ? PLAYER_COLORS.won : PLAYER_COLORS.alive;
     const playerSymbol = gameOver ? 'X' : gameWon ? 'W' : '@';
-    this.ctx.fillText(playerSymbol, player.x * tileSize, player.y * tileSize);
+    glyph(playerSymbol, player.x, player.y);
   }
 
   public updateStats(player: Player, dungeonFloor: number, statusEffects: StatusEffects, totalDef: number) {
@@ -102,65 +116,79 @@ export class GameUI {
     if (xpText) xpText.innerText = player.level >= 20 ? "MAX LEVEL" : `${player.xp} / ${reqXp} XP`;
   }
 
+  private setSelectOptions(id: string, options: SelectOption[]) {
+    const el = document.getElementById(id) as GameSelect | null;
+    if (el && typeof el.setOptions === 'function') {
+      el.setOptions(options);
+    }
+  }
+
   public updateDropdowns(player: Player) {
-    const selMain = document.getElementById('sel-main') as HTMLSelectElement;
-    const selOff = document.getElementById('sel-off') as HTMLSelectElement;
-    const selPotions = document.getElementById('sel-potions') as HTMLSelectElement;
+    const rarityColor = (item: any) => RARITY_CONFIG[item.rarity || 'common'].color;
 
-    if (!selMain || !selOff || !selPotions) return;
-
-    // Main Hand dropdown
-    selMain.innerHTML = player.inventory.weapons.map((w, i) => {
-      const color = RARITY_CONFIG[w.rarity || 'common'].color;
-      return `<option value="${i}" ${player.equipped.mainHand === i ? 'selected' : ''} style="color:${color};">${w.name} (+${w.dmg})</option>`;
-    }).join('');
+    // Main Hand
+    this.setSelectOptions('sel-main', player.inventory.weapons.map((w, i) => ({
+      value: String(i),
+      label: `${w.name} (+${w.dmg})`,
+      color: rarityColor(w),
+      selected: player.equipped.mainHand === i
+    })));
 
     const mainWep = player.inventory.weapons[player.equipped.mainHand];
     const is2H = mainWep?.type?.startsWith('2h_') || mainWep?.type === 'staff';
 
-    // Off-Hand dropdown logic
-    let offOptions = `<option value="none:0" ${player.equipped.offHand === 'none:0' ? 'selected' : ''}>None</option>`;
+    // Off-Hand
+    let offOptions: SelectOption[];
     if (is2H) {
-      offOptions = `<option value="none:0">Disabled (2H Weapon)</option>`;
+      offOptions = [{ value: 'none:0', label: 'Disabled (2H Weapon)', disabled: true, selected: true }];
     } else {
-      player.inventory.shield.forEach((sh, i) => {
+      offOptions = [{ value: 'none:0', label: 'None', selected: player.equipped.offHand === 'none:0' }];
+      player.inventory.shield.forEach((sh: any, i: number) => {
         if (i !== 0) {
           const val = 'shield:' + i;
-          const color = RARITY_CONFIG[sh.rarity || 'common'].color;
-          offOptions += `<option value="${val}" ${player.equipped.offHand === val ? 'selected' : ''} style="color:${color};">${sh.name} (${sh.def}/${sh.maxDef})</option>`;
+          offOptions.push({
+            value: val,
+            label: `${sh.name} (${sh.def}/${sh.maxDef})`,
+            color: rarityColor(sh),
+            selected: player.equipped.offHand === val
+          });
         }
       });
       if (mainWep?.type === 'dagger') {
         player.inventory.weapons.forEach((w, i) => {
           if (w.type === 'dagger' && i !== player.equipped.mainHand) {
             const val = 'weapon:' + i;
-            const color = RARITY_CONFIG[w.rarity || 'common'].color;
-            offOptions += `<option value="${val}" ${player.equipped.offHand === val ? 'selected' : ''} style="color:${color};">${w.name} (+${w.dmg})</option>`;
+            offOptions.push({
+              value: val,
+              label: `${w.name} (+${w.dmg})`,
+              color: rarityColor(w),
+              selected: player.equipped.offHand === val
+            });
           }
         });
       }
     }
-    selOff.innerHTML = offOptions;
+    this.setSelectOptions('sel-off', offOptions);
 
-    // Hel, Chest, Legs, Gauntlets, Boots dropdowns
+    // Helm, Chest, Legs, Gauntlets, Boots
     const slots = ['helm', 'chest', 'legs', 'gauntlets', 'boots'];
     slots.forEach(slot => {
-      const el = document.getElementById(`sel-${slot}`) as HTMLSelectElement;
-      if (el) {
-        el.innerHTML = player.inventory[slot].map((a: any, i: number) => {
-          const color = RARITY_CONFIG[a.rarity || 'common'].color;
-          return `<option value="${i}" ${player.equipped[slot] === i ? 'selected' : ''} style="color:${color};">${a.name} (${a.def}/${a.maxDef})</option>`;
-        }).join('');
-      }
+      this.setSelectOptions(`sel-${slot}`, (player.inventory[slot] as any[]).map((a: any, i: number) => ({
+        value: String(i),
+        label: `${a.name} (${a.def}/${a.maxDef})`,
+        color: rarityColor(a),
+        selected: player.equipped[slot] === i
+      })));
     });
 
-    // Potion dropdown
-    let potOptions = `<option value="" selected disabled>Use Potion...</option>`;
+    // Potions (placeholder option, then each potion)
+    const potOptions: SelectOption[] = [
+      { value: '', label: 'Use Potion...', disabled: true, selected: true }
+    ];
     player.inventory.potions.forEach((p, i) => {
-      const capitalized = p.charAt(0).toUpperCase() + p.slice(1);
-      potOptions += `<option value="${i}">${capitalized}</option>`;
+      potOptions.push({ value: String(i), label: p.charAt(0).toUpperCase() + p.slice(1) });
     });
-    selPotions.innerHTML = potOptions;
+    this.setSelectOptions('sel-potions', potOptions);
   }
 
   public renderLogs(logs: string[]) {

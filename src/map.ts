@@ -1,6 +1,7 @@
 import { Item, Monster } from './types';
 import { MONSTER_DATABASE } from './config';
 import { rollLootRarity, generateGearItem } from './items';
+import { TILE } from './tiles';
 
 interface Room {
   x: number;
@@ -9,6 +10,66 @@ interface Room {
   y1: number;
   w: number;
   h: number;
+}
+
+/**
+ * Walks the carved map and decorates it with original-Rogue scenery:
+ *   - every void tile that hugs a room floor becomes a `-`/`|` wall,
+ *   - every corridor tile that touches a room floor becomes a `+` door.
+ * Corridors themselves are left bare (dark passages), exactly as in Rogue.
+ */
+function decorateWalls(map: string[][], cols: number, rows: number) {
+  const anyFloorAround = (r: number, c: number) => {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        if (map[r + dr]?.[c + dc] === TILE.FLOOR) return true;
+      }
+    }
+    return false;
+  };
+
+  // Snapshot the carved layer so neighbor tests aren't polluted mid-pass.
+  const carved = map.map(row => row.slice());
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tile = carved[r][c];
+
+      if (tile === TILE.VOID && anyFloorAround(r, c)) {
+        const floorAbove = carved[r - 1]?.[c] === TILE.FLOOR;
+        const floorBelow = carved[r + 1]?.[c] === TILE.FLOOR;
+        // Top/bottom edges (and corners, by default) read as horizontal walls;
+        // left/right edges read as vertical walls — matching Rogue's `-`/`|`.
+        if (floorAbove || floorBelow) {
+          map[r][c] = TILE.WALL_H;
+        } else if (carved[r]?.[c - 1] === TILE.FLOOR || carved[r]?.[c + 1] === TILE.FLOOR) {
+          map[r][c] = TILE.WALL_V;
+        } else {
+          map[r][c] = TILE.WALL_H;
+        }
+      } else if (tile === TILE.CORRIDOR) {
+        // A door is only stamped where a corridor genuinely pierces a wall:
+        // room floor on one side, the corridor continuing on the opposite
+        // side. This avoids littering doors along corridors that merely run
+        // beside a room.
+        const fAbove = carved[r - 1]?.[c] === TILE.FLOOR;
+        const fBelow = carved[r + 1]?.[c] === TILE.FLOOR;
+        const fLeft = carved[r]?.[c - 1] === TILE.FLOOR;
+        const fRight = carved[r]?.[c + 1] === TILE.FLOOR;
+        const cAbove = carved[r - 1]?.[c] === TILE.CORRIDOR;
+        const cBelow = carved[r + 1]?.[c] === TILE.CORRIDOR;
+        const cLeft = carved[r]?.[c - 1] === TILE.CORRIDOR;
+        const cRight = carved[r]?.[c + 1] === TILE.CORRIDOR;
+
+        const verticalDoor = (fAbove && cBelow) || (fBelow && cAbove);
+        const horizontalDoor = (fLeft && cRight) || (fRight && cLeft);
+        if (verticalDoor || horizontalDoor) {
+          map[r][c] = TILE.DOOR;
+        }
+      }
+    }
+  }
 }
 
 export function generateLevel(
@@ -25,7 +86,7 @@ export function generateLevel(
   stairsX: number;
   stairsY: number;
 } {
-  const map: string[][] = new Array(rows).fill(0).map(() => new Array(cols).fill('#'));
+  const map: string[][] = new Array(rows).fill(0).map(() => new Array(cols).fill(TILE.VOID));
   const monsters: Monster[] = [];
   const items: Item[] = [];
   const rooms: Room[] = [];
@@ -46,7 +107,7 @@ export function generateLevel(
     // Carve out room floors
     for (let r = y; r < y + h; r++) {
       for (let c = x; c < x + w; c++) {
-        map[r][c] = '.';
+        map[r][c] = TILE.FLOOR;
       }
     }
 
@@ -60,20 +121,25 @@ export function generateLevel(
     };
 
     if (rooms.length > 0) {
+      // Bore an L-shaped corridor between room centers. Only excavate rock —
+      // never overwrite a room floor we tunnel through.
       const p = rooms[rooms.length - 1];
       let cx = p.x;
       let cy = p.y;
       while (cx !== center.x) {
-        map[cy][cx] = '.';
+        if (map[cy][cx] === TILE.VOID) map[cy][cx] = TILE.CORRIDOR;
         cx += (cx < center.x) ? 1 : -1;
       }
       while (cy !== center.y) {
-        map[cy][cx] = '.';
+        if (map[cy][cx] === TILE.VOID) map[cy][cx] = TILE.CORRIDOR;
         cy += (cy < center.y) ? 1 : -1;
       }
     }
     rooms.push(center);
   }
+
+  // Wrap rooms in walls and stamp doorways where corridors meet them.
+  decorateWalls(map, cols, rows);
 
   const playerX = rooms[0].x;
   const playerY = rooms[0].y;
@@ -83,7 +149,7 @@ export function generateLevel(
   if (dungeonFloor < 20) {
     stairsX = rooms[rooms.length - 1].x;
     stairsY = rooms[rooms.length - 1].y;
-    map[stairsY][stairsX] = '>';
+    map[stairsY][stairsX] = TILE.STAIRS;
   }
 
   // Spawn Marcus the Brave on floor 1 for testing

@@ -1,5 +1,6 @@
 import { Monster, Player, StatusEffects } from './types';
 import { getScaledMonsterAtk } from './config';
+import { isWalkable } from './tiles';
 
 export function wanderMonster(
   m: Monster,
@@ -26,7 +27,7 @@ export function wanderMonster(
     tx < cols &&
     ty >= 0 &&
     ty < rows &&
-    map[ty]?.[tx] !== '#' &&
+    isWalkable(map[ty]?.[tx]) &&
     !monsters.some(o => o.x === tx && o.y === ty)
   ) {
     m.x = tx;
@@ -89,9 +90,9 @@ export function processMonsterAI(
       const stepY = m.y + Math.sign(player.y - m.y);
 
       // Simple pathfinding: try X, then Y
-      if (map[m.y]?.[stepX] !== '#' && !monsters.some(o => o.x === stepX && o.y === m.y)) {
+      if (isWalkable(map[m.y]?.[stepX]) && !monsters.some(o => o.x === stepX && o.y === m.y)) {
         m.x = stepX;
-      } else if (map[stepY]?.[m.x] !== '#' && !monsters.some(o => o.x === m.x && o.y === stepY)) {
+      } else if (isWalkable(map[stepY]?.[m.x]) && !monsters.some(o => o.x === m.x && o.y === stepY)) {
         m.y = stepY;
       }
     }
