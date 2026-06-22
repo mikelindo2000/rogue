@@ -7,7 +7,7 @@ Welcome to **Rogue: DungeonMaster**, a modern, modular, browser-based turn-based
 ## 🎮 How to Play (Keyboard Controls)
 
 - **Move / Explore**: Use the **Arrow Keys** or **W, A, S, D**.
-- **Run in a Direction**: Hold **Shift** with a movement key, or quickly double-tap the same direction, to keep moving until blocked, threatened, or at the end of a hall.
+- **Run in a Direction**: Hold **Shift** with a movement key to keep moving until blocked, threatened, or at the end of a hall.
 - **Monsters Compendium**: Press **M** to open the monsters codex to research stats and spawn floors.
 - **Search Codex**: Type in the search box to filter monsters by name or symbol.
 - **Close Menus**: Press **Escape** or click outside a menu/modal to close it.
