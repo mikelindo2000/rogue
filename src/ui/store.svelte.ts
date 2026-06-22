@@ -5,7 +5,7 @@
    it. Mutating `ui`'s properties is reactive (Svelte 5 deep proxy), so no manual
    subscriptions are needed. `actions` is wired by main.ts to call engine methods. */
 
-import type { EquipSlot } from '../types';
+import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
 import type { HungerTone } from './format';
 
@@ -16,6 +16,7 @@ export interface EquipOption {
   rarityColor: string; // var(--rarity-…)
   selected: boolean;
   disabled?: boolean;
+  reason?: string;
 }
 
 /** A single equipment slot row in the left rail. */
@@ -35,6 +36,17 @@ export interface InventoryCell {
   rarityColor: string;
   count?: number; // shown as a badge when > 1
   label: string; // accessible name / tooltip
+  detail: string;
+  ref: InventoryRef;
+  equipped?: boolean;
+  actions: InventoryActionView[];
+}
+
+export interface InventoryActionView {
+  action: InventoryAction;
+  label: string;
+  disabled?: boolean;
+  reason?: string;
 }
 
 export interface PotionOption {
@@ -98,6 +110,8 @@ export interface UIState {
   gameWon: boolean;
   // overlays
   compendiumOpen: boolean;
+  inventoryOpen: boolean;
+  selectedInventoryRef: InventoryRef | null;
 }
 
 export const ui = $state<UIState>({
@@ -132,6 +146,8 @@ export const ui = $state<UIState>({
   gameOver: false,
   gameWon: false,
   compendiumOpen: false,
+  inventoryOpen: false,
+  selectedInventoryRef: null,
 });
 
 /** Action hooks the chrome calls; main.ts points these at the live engine. */
@@ -141,6 +157,9 @@ export interface UIActions {
   eat(): void;
   restart(): void;
   setCompendiumOpen(open: boolean): void;
+  setInventoryOpen(open: boolean): void;
+  selectInventoryItem(ref: InventoryRef | null): void;
+  inventoryAction(ref: InventoryRef, action: InventoryAction): void;
 }
 
 export const actions: UIActions = {
@@ -149,4 +168,7 @@ export const actions: UIActions = {
   eat: () => {},
   restart: () => {},
   setCompendiumOpen: () => {},
+  setInventoryOpen: () => {},
+  selectInventoryItem: () => {},
+  inventoryAction: () => {},
 };

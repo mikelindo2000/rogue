@@ -126,6 +126,21 @@ export type Inventory = {
   potions: PotionType[];
 } & Record<GearSlot, GearItem[]>;
 
+/** Stable reference the UI can send back to engine inventory commands. */
+export type InventoryRef =
+  | { kind: 'food' }
+  | { kind: 'potion'; potionType: PotionType }
+  | { kind: 'weapon'; index: number }
+  | { kind: 'armor'; slot: ArmorSlot; index: number }
+  | { kind: 'shield'; index: number };
+
+export type InventoryAction = 'equip' | 'equipOffHand' | 'use';
+
+export type EquipTarget =
+  | { slot: 'mainHand'; index: number }
+  | { slot: 'offHand'; value: string }
+  | { slot: ArmorSlot; index: number };
+
 export type Equipped = {
   mainHand: number;
   offHand: string;

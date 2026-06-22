@@ -2,7 +2,7 @@
   import type { InventoryCell } from '../store.svelte';
   import Icon from './primitives/Icon.svelte';
 
-  let { cell }: { cell?: InventoryCell } = $props();
+  let { cell, onSelect }: { cell?: InventoryCell; onSelect?: (cell: InventoryCell) => void } = $props();
 </script>
 
 {#if cell}
@@ -10,6 +10,7 @@
     class="slot filled"
     aria-label={cell.label}
     style="--rarity:{cell.rarityColor}"
+    onclick={() => onSelect?.(cell)}
   >
     <span class="icon" style="color:{cell.rarityColor}">
       <Icon name={cell.icon} size={20} />

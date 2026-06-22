@@ -37,6 +37,18 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setCompendiumOpen = (open) => {
     ui.compendiumOpen = open;
   };
+  actions.setInventoryOpen = (open) => {
+    ui.inventoryOpen = open;
+    if (open && !ui.selectedInventoryRef) {
+      ui.selectedInventoryRef = ui.inventory[0]?.ref ?? null;
+    }
+  };
+  actions.selectInventoryItem = (ref) => {
+    ui.selectedInventoryRef = ref;
+  };
+  actions.inventoryAction = (ref, action) => {
+    engine.performInventoryAction(ref, action);
+  };
 
   // Keyboard: all game shortcuts route through the centralized manager.
   const keyboard = new KeyboardManager();
@@ -70,6 +82,17 @@ document.addEventListener('DOMContentLoaded', () => {
     description: 'Restart (when the run has ended)',
     context: 'game',
     callback: () => actions.restart(),
+  });
+
+  keyboard.register({
+    keys: ['i'],
+    description: 'Toggle inventory',
+    context: 'game',
+    callback: () => {
+      if (ui.inventoryOpen || !overlayOpen()) {
+        actions.setInventoryOpen(!ui.inventoryOpen);
+      }
+    },
   });
 
   keyboard.register({

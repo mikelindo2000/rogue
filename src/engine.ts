@@ -1,7 +1,7 @@
-import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, ARMOR_SLOTS } from './types';
+import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, ARMOR_SLOTS, InventoryAction, InventoryRef } from './types';
 import { GameUI } from './ui';
 import { generateLevel } from './map';
-import { createPlayer, getTotalDef, gainXp, handleEquipItem } from './player';
+import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
 import { computeStrike } from './combat';
@@ -489,6 +489,17 @@ export class GameEngine {
     this.processTurn();
   }
 
+  private usePotionType(potionType: InventoryRef & { kind: 'potion' }) {
+    const idx = this.player.inventory.potions.findIndex(p => p === potionType.potionType);
+    if (idx === -1) {
+      this.addLog("You no longer have that potion.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+    this.usePotion(idx);
+    return true;
+  }
+
   public consumeFood() {
     if (this.player.inventory.food > 0) {
       this.player.inventory.food--;
@@ -511,6 +522,43 @@ export class GameEngine {
     handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+  }
+
+  public equipInventoryItem(ref: InventoryRef): boolean {
+    const target = inventoryRefToEquipTarget(this.player, ref);
+    if (!target) {
+      this.addLog("That item cannot be equipped.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+
+    const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
+    this.ui.updateDropdowns(this.player);
+    this.updateUI();
+    return equipped;
+  }
+
+  public useInventoryItem(ref: InventoryRef): boolean {
+    if (ref.kind === 'food') {
+      this.consumeFood();
+      return true;
+    }
+    if (ref.kind === 'potion') {
+      return this.usePotionType(ref);
+    }
+    return this.equipInventoryItem(ref);
+  }
+
+  public performInventoryAction(ref: InventoryRef, action: InventoryAction): boolean {
+    if (action === 'equip') return this.equipInventoryItem(ref);
+    if (action === 'equipOffHand' && ref.kind === 'weapon') {
+      const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
+      this.ui.updateDropdowns(this.player);
+      this.updateUI();
+      return equipped;
+    }
+    if (action === 'use') return this.useInventoryItem(ref);
+    return false;
   }
 
   public processTurn() {

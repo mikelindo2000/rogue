@@ -1,11 +1,16 @@
 <script lang="ts">
-  import { ui } from '../store.svelte';
+  import { ui, actions, type InventoryCell } from '../store.svelte';
   import SectionLabel from './primitives/SectionLabel.svelte';
   import ItemSlot from './ItemSlot.svelte';
 
   const cells = $derived(
     Array.from({ length: ui.inventoryMax }, (_, i) => ui.inventory[i])
   );
+
+  function openItem(cell: InventoryCell) {
+    actions.selectInventoryItem(cell.ref);
+    actions.setInventoryOpen(true);
+  }
 </script>
 
 <section class="inventory">
@@ -18,7 +23,7 @@
   </header>
   <div class="grid">
     {#each cells as cell, i (i)}
-      <ItemSlot {cell} />
+      <ItemSlot {cell} onSelect={openItem} />
     {/each}
   </div>
 </section>

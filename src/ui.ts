@@ -1,11 +1,13 @@
-import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS } from './types';
+import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType } from './types';
 import { BALANCE, getScaledXpRequirements, getConfig } from './config';
+import { canEquip } from './player';
 import { TILE, isCorner, isWalkable } from './tiles';
 import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
 import {
   ui,
   type EquipOption,
   type EquipSlotView,
+  type InventoryActionView,
   type InventoryCell,
   type LogLineView,
 } from './ui/store.svelte';
@@ -179,6 +181,17 @@ export class GameUI {
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
 
+    // Tiles a monster or item occupies, so their floor dot can be drawn at
+    // half strength — otherwise the bright dot bleeds through the glyph's gaps
+    // and overpowers whatever is standing on the tile.
+    const occupied = new Set<number>();
+    for (const mo of s.monsters) {
+      if (s.visible[mo.y]?.[mo.x]) occupied.add(mo.y * s.cols + mo.x);
+    }
+    for (const it of s.items) {
+      if (s.explored[it.y]?.[it.x]) occupied.add(it.y * s.cols + it.x);
+    }
+
     // Draw Map. Tiles in view render at full strength; remembered-but-unseen
     // tiles fade back, the way an explored dungeon dims behind you in Rogue.
     for (let r = 0; r < s.rows; r++) {
@@ -187,7 +200,9 @@ export class GameUI {
         const tile = s.map[r][c];
         if (tile === TILE.VOID) continue;
 
-        this.ctx.globalAlpha = s.visible[r]?.[c] ? 1 : DIM_ALPHA;
+        let alpha = s.visible[r]?.[c] ? 1 : DIM_ALPHA;
+        if (tile === TILE.FLOOR && occupied.has(r * s.cols + c)) alpha *= 0.5;
+        this.ctx.globalAlpha = alpha;
         this.drawDungeonTile(s.map, tile, c, r, s.tileSize, style);
       }
     }
@@ -1153,31 +1168,43 @@ export class GameUI {
     const cells: InventoryCell[] = [];
 
     if (player.inventory.food > 0) {
+      const ref: InventoryRef = { kind: 'food' };
       cells.push({
         icon: 'leaf',
         rarityColor: rarityVar('common'),
         count: player.inventory.food > 1 ? player.inventory.food : undefined,
         label: `Rations ×${player.inventory.food}`,
+        detail: `Restores hunger. You can carry ${player.inventory.food}/${getConfig().playerMaxFood}.`,
+        ref,
+        actions: this.inventoryActions(player, ref),
       });
     }
 
-    const potCounts = new Map<string, number>();
+    const potCounts = new Map<PotionType, number>();
     player.inventory.potions.forEach(p => potCounts.set(p, (potCounts.get(p) ?? 0) + 1));
     for (const [type, n] of potCounts) {
+      const ref: InventoryRef = { kind: 'potion', potionType: type };
       cells.push({
         icon: 'potion',
         rarityColor: 'var(--rarity-rare)',
         count: n > 1 ? n : undefined,
         label: `Potion of ${titleCase(type)}${n > 1 ? ` ×${n}` : ''}`,
+        detail: this.potionDetail(type),
+        ref,
+        actions: this.inventoryActions(player, ref),
       });
     }
 
     player.inventory.weapons.forEach((w, i) => {
       if (i !== player.equipped.mainHand && player.equipped.offHand !== 'weapon:' + i) {
+        const ref: InventoryRef = { kind: 'weapon', index: i };
         cells.push({
           icon: 'sword',
           rarityColor: rarityVar(w.rarity),
           label: `${w.name} (+${w.dmg ?? 0})`,
+          detail: `${this.weaponTypeLabel(w.type)} weapon. ${w.dmg ?? 0} damage.`,
+          ref,
+          actions: this.inventoryActions(player, ref),
         });
       }
     });
@@ -1185,10 +1212,14 @@ export class GameUI {
     for (const slot of ARMOR_SLOTS) {
       player.inventory[slot].forEach((a, i) => {
         if (i !== player.equipped[slot] && a.name !== 'None') {
+          const ref: InventoryRef = { kind: 'armor', slot, index: i };
           cells.push({
             icon: SLOT_ICON[slot],
             rarityColor: rarityVar(a.rarity),
             label: `${a.name} (${a.def}/${a.maxDef})`,
+            detail: `${titleCase(slot)} armor. ${a.def ?? 0}/${a.maxDef ?? a.def ?? 0} defense.`,
+            ref,
+            actions: this.inventoryActions(player, ref),
           });
         }
       });
@@ -1196,15 +1227,79 @@ export class GameUI {
 
     player.inventory.shield.forEach((s, i) => {
       if (i !== 0 && player.equipped.offHand !== 'shield:' + i) {
+        const ref: InventoryRef = { kind: 'shield', index: i };
         cells.push({
           icon: 'shield-dome',
           rarityColor: rarityVar(s.rarity),
           label: `${s.name} (${s.def}/${s.maxDef})`,
+          detail: `Off-hand shield. ${s.def ?? 0}/${s.maxDef ?? s.def ?? 0} defense.`,
+          ref,
+          actions: this.inventoryActions(player, ref),
         });
       }
     });
 
     return { cells: cells.slice(0, ui.inventoryMax), count: cells.length };
+  }
+
+  private inventoryActions(player: Player, ref: InventoryRef): InventoryActionView[] {
+    if (ref.kind === 'food') {
+      return [{ action: 'use', label: 'Eat' }];
+    }
+    if (ref.kind === 'potion') {
+      return [{ action: 'use', label: 'Drink' }];
+    }
+
+    if (ref.kind === 'weapon') {
+      const main = canEquip(player, { slot: 'mainHand', index: ref.index });
+      const actions: InventoryActionView[] = [
+        {
+          action: 'equip',
+          label: 'Equip main',
+          disabled: !main.ok,
+          reason: main.ok ? undefined : main.reason,
+        },
+      ];
+      const off = canEquip(player, { slot: 'offHand', value: `weapon:${ref.index}` });
+      actions.push({
+        action: 'equipOffHand',
+        label: 'Equip off-hand',
+        disabled: !off.ok,
+        reason: off.ok ? undefined : off.reason,
+      });
+      return actions;
+    }
+
+    if (ref.kind === 'armor') {
+      const result = canEquip(player, { slot: ref.slot, index: ref.index });
+      return [{
+        action: 'equip',
+        label: `Equip ${titleCase(ref.slot)}`,
+        disabled: !result.ok,
+        reason: result.ok ? undefined : result.reason,
+      }];
+    }
+
+    const result = canEquip(player, { slot: 'offHand', value: `shield:${ref.index}` });
+    return [{
+      action: 'equip',
+      label: 'Equip shield',
+      disabled: !result.ok,
+      reason: result.ok ? undefined : result.reason,
+    }];
+  }
+
+  private potionDetail(type: string): string {
+    if (type === 'healing') return `Restores up to ${BALANCE.potions.healAmount} health.`;
+    if (type === 'strength') return `Adds ${BALANCE.combat.strengthBonus} attack for ${BALANCE.status.strengthTurns} turns.`;
+    if (type === 'invisibility') return `Makes monsters lose track of you for ${BALANCE.status.invisTurns} turns.`;
+    if (type === 'armor') return `Adds ${BALANCE.status.armorDefBonus} defense for ${BALANCE.status.armorTurns} turns.`;
+    return 'A mysterious potion.';
+  }
+
+  private weaponTypeLabel(type?: string): string {
+    if (!type) return 'Unknown';
+    return titleCase(type.replace(/^1h_/, 'one-handed ').replace(/^2h_/, 'two-handed ').replace(/_/g, ' '));
   }
 
   /** Clear the accumulated UI log history and gutter numbering. Called by the

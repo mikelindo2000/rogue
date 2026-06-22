@@ -9,6 +9,7 @@
   import MessageLog from './components/MessageLog.svelte';
   import Footer from './components/Footer.svelte';
   import Compendium from './components/Compendium.svelte';
+  import InventoryModal from './components/InventoryModal.svelte';
 </script>
 
 <div class="frame">
@@ -30,6 +31,7 @@
 </div>
 
 <Compendium />
+<InventoryModal />
 
 <style>
   .frame {
