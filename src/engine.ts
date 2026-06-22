@@ -5,7 +5,7 @@ import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inv
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
 import { computeStrike } from './combat';
-import { isWalkable, blocksSight, isWall, TILE } from './tiles';
+import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
 import {
   loadDiscovery,
@@ -15,6 +15,13 @@ import {
   monsterId,
   type DiscoveryState,
 } from './discovery';
+
+interface FloorState {
+  map: string[][];
+  explored: boolean[][];
+  monsters: Monster[];
+  items: Item[];
+}
 
 export class GameEngine {
   public map: string[][] = [];
@@ -46,6 +53,7 @@ export class GameEngine {
   /** Seed and RNG for the current run; reproducible when seeded explicitly. */
   public seed: number = 0;
   private rng: RNG;
+  private floorStates: Map<number, FloorState> = new Map();
 
   private ui: GameUI;
 
@@ -76,7 +84,8 @@ export class GameEngine {
       invisTurns: 0,
       armorTurns: 0
     };
-    this.logs = ["Welcome to the Dungeon! Move onto portals (>) to travel deeper."];
+    this.floorStates.clear();
+    this.logs = ["Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors."];
 
     this.generateFloor();
     this.ui.updateDropdowns(this.player);
@@ -184,7 +193,7 @@ export class GameEngine {
    * the player is in a corridor or doorway (handled by the raycast above).
    */
   private revealRoom(px: number, py: number) {
-    const isInterior = (ch: string | undefined) => ch === TILE.FLOOR || ch === TILE.STAIRS;
+    const isInterior = (ch: string | undefined) => ch === TILE.FLOOR || (ch !== undefined && STAIR_TILES.has(ch));
     if (!isInterior(this.map[py]?.[px])) return;
 
     const reveal = (x: number, y: number) => {
@@ -250,9 +259,13 @@ export class GameEngine {
 
       this.checkItems();
 
-      // Stairs check
-      if (this.map[ty][tx] === TILE.STAIRS) {
-        this.descendThroughPortal();
+      const currentTile = this.map[ty][tx];
+      if (currentTile === TILE.STAIRS_DOWN) {
+        this.travelStairs(1);
+        return;
+      }
+      if (currentTile === TILE.STAIRS_UP) {
+        this.travelStairs(-1);
         return;
       }
 
@@ -295,8 +308,12 @@ export class GameEngine {
       this.checkItems();
 
       const currentTile = this.map[ty][tx];
-      if (currentTile === TILE.STAIRS) {
-        this.descendThroughPortal();
+      if (currentTile === TILE.STAIRS_DOWN) {
+        this.travelStairs(1);
+        return;
+      }
+      if (currentTile === TILE.STAIRS_UP) {
+        this.travelStairs(-1);
         return;
       }
 
@@ -310,14 +327,58 @@ export class GameEngine {
     }
   }
 
-  private descendThroughPortal() {
-    this.dungeonFloor++;
-    // Log the descent before generating the floor, so any messages the
+  private travelStairs(delta: 1 | -1) {
+    const targetFloor = this.dungeonFloor + delta;
+    if (targetFloor < 1 || targetFloor > 20) return;
+
+    this.saveCurrentFloor();
+    this.dungeonFloor = targetFloor;
+
+    // Log the transition before loading the floor, so any messages the
     // generator emits (e.g. the floor-20 boss announcement) read in order.
-    this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);
-    this.generateFloor();
+    this.addLog(`${delta > 0 ? 'Descended' : 'Ascended'} to Floor ${this.dungeonFloor}!`);
+    this.loadFloorForTravel(delta);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+  }
+
+  private saveCurrentFloor() {
+    this.floorStates.set(this.dungeonFloor, {
+      map: this.map.map(row => [...row]),
+      explored: this.explored.map(row => [...row]),
+      monsters: structuredClone(this.monsters),
+      items: structuredClone(this.items),
+    });
+  }
+
+  private loadFloorForTravel(delta: 1 | -1) {
+    const saved = this.floorStates.get(this.dungeonFloor);
+    if (saved) {
+      this.map = saved.map.map(row => [...row]);
+      this.explored = saved.explored.map(row => [...row]);
+      this.visible = new Array(this.ROWS).fill(0).map(() => new Array(this.COLS).fill(false));
+      this.monsters = structuredClone(saved.monsters);
+      this.items = structuredClone(saved.items);
+    } else {
+      this.generateFloor();
+    }
+
+    const arrivalTile = delta > 0 ? TILE.STAIRS_UP : TILE.STAIRS_DOWN;
+    const arrival = this.findTile(arrivalTile);
+    if (arrival) {
+      this.player.x = arrival.x;
+      this.player.y = arrival.y;
+    }
+    this.updateFOV();
+  }
+
+  private findTile(tile: string): { x: number; y: number } | null {
+    for (let y = 0; y < this.ROWS; y++) {
+      for (let x = 0; x < this.COLS; x++) {
+        if (this.map[y]?.[x] === tile) return { x, y };
+      }
+    }
+    return null;
   }
 
   private hasAdjacentMonster(): boolean {

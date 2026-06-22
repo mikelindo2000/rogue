@@ -23,8 +23,11 @@ export const TILE = {
   CORNER_BL: '└',
   CORNER_BR: '┘',
   DOOR: '+',
-  STAIRS: '>',
+  STAIRS_UP: '<',
+  STAIRS_DOWN: '>',
 } as const;
+
+export const STAIR_TILES: ReadonlySet<string> = new Set([TILE.STAIRS_UP, TILE.STAIRS_DOWN]);
 
 /** Every glyph that forms part of a room's bounding wall (edges + corners). */
 const WALL_CHARS: ReadonlySet<string> = new Set([
@@ -45,7 +48,7 @@ const CORNER_CHARS: ReadonlySet<string> = new Set([
 
 /** Tiles the player and monsters may stand on. */
 export function isWalkable(ch: string | undefined): boolean {
-  return ch === TILE.FLOOR || ch === TILE.CORRIDOR || ch === TILE.DOOR || ch === TILE.STAIRS;
+  return ch === TILE.FLOOR || ch === TILE.CORRIDOR || ch === TILE.DOOR || (ch !== undefined && STAIR_TILES.has(ch));
 }
 
 /** Tiles that stop line-of-sight (walls, corners, and unexcavated rock). */

@@ -43,8 +43,10 @@ describe('generateLevel', () => {
     expect(a.map).toEqual(b.map);
     expect(a.playerX).toEqual(b.playerX);
     expect(a.playerY).toEqual(b.playerY);
-    expect(a.stairsX).toEqual(b.stairsX);
-    expect(a.stairsY).toEqual(b.stairsY);
+    expect(a.stairsUpX).toEqual(b.stairsUpX);
+    expect(a.stairsUpY).toEqual(b.stairsUpY);
+    expect(a.stairsDownX).toEqual(b.stairsDownX);
+    expect(a.stairsDownY).toEqual(b.stairsDownY);
   });
 
   it('produces different maps for different seeds', () => {
@@ -64,23 +66,35 @@ describe('generateLevel', () => {
     }
   });
 
-  it('places walkable stairs on floors 1-19 (seeds 1..30)', () => {
+  it('places walkable down stairs on floors 1-19 (seeds 1..30)', () => {
     for (let floor = 1; floor < 20; floor += 6) {
       for (let seed = 1; seed <= 30; seed++) {
         const lvl = gen(floor, seed);
-        expect(lvl.stairsX).toBeGreaterThanOrEqual(0);
-        expect(lvl.stairsY).toBeGreaterThanOrEqual(0);
-        expect(lvl.map[lvl.stairsY][lvl.stairsX]).toBe(TILE.STAIRS);
-        expect(isWalkable(lvl.map[lvl.stairsY][lvl.stairsX])).toBe(true);
+        expect(lvl.stairsDownX).toBeGreaterThanOrEqual(0);
+        expect(lvl.stairsDownY).toBeGreaterThanOrEqual(0);
+        expect(lvl.map[lvl.stairsDownY][lvl.stairsDownX]).toBe(TILE.STAIRS_DOWN);
+        expect(isWalkable(lvl.map[lvl.stairsDownY][lvl.stairsDownX])).toBe(true);
       }
     }
   });
 
-  it('places no stairs but at least one boss on floor 20 (seeds 1..30)', () => {
+  it('places walkable up stairs on floors 2-20 (seeds 1..30)', () => {
+    for (let floor = 2; floor <= 20; floor += 6) {
+      for (let seed = 1; seed <= 30; seed++) {
+        const lvl = gen(floor, seed);
+        expect(lvl.stairsUpX).toBeGreaterThanOrEqual(0);
+        expect(lvl.stairsUpY).toBeGreaterThanOrEqual(0);
+        expect(lvl.map[lvl.stairsUpY][lvl.stairsUpX]).toBe(TILE.STAIRS_UP);
+        expect(isWalkable(lvl.map[lvl.stairsUpY][lvl.stairsUpX])).toBe(true);
+      }
+    }
+  });
+
+  it('places no down stairs but at least one boss on floor 20 (seeds 1..30)', () => {
     for (let seed = 1; seed <= 30; seed++) {
       const lvl = gen(20, seed);
-      expect(lvl.stairsX).toBe(-1);
-      expect(lvl.stairsY).toBe(-1);
+      expect(lvl.stairsDownX).toBe(-1);
+      expect(lvl.stairsDownY).toBe(-1);
       const bosses = lvl.monsters.filter(m => m.special === 'boss');
       expect(bosses.length).toBeGreaterThanOrEqual(1);
     }
@@ -110,7 +124,8 @@ describe('generateLevel', () => {
       TILE.WALL_V,
       TILE.DOOR,
       TILE.CORRIDOR,
-      TILE.STAIRS,
+      TILE.STAIRS_UP,
+      TILE.STAIRS_DOWN,
     ]);
     for (let seed = 1; seed <= 30; seed++) {
       const { map } = gen(3, seed);
@@ -134,14 +149,14 @@ describe('generateLevel', () => {
     }
   });
 
-  it('connects player to stairs via walkable tiles on floors 1-19 (seeds 1..30)', () => {
+  it('connects player to down stairs via walkable tiles on floors 1-19 (seeds 1..30)', () => {
     for (let floor = 1; floor < 20; floor += 6) {
       for (let seed = 1; seed <= 30; seed++) {
         const lvl = gen(floor, seed);
-        const ok = reachable(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsX, lvl.stairsY);
+        const ok = reachable(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsDownX, lvl.stairsDownY);
         expect(
           ok,
-          `floor ${floor}, seed ${seed}: stairs (${lvl.stairsX},${lvl.stairsY}) not reachable from player (${lvl.playerX},${lvl.playerY})`
+          `floor ${floor}, seed ${seed}: down stairs (${lvl.stairsDownX},${lvl.stairsDownY}) not reachable from player (${lvl.playerX},${lvl.playerY})`
         ).toBe(true);
       }
     }

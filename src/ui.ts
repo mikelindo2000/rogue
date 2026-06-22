@@ -1,7 +1,7 @@
 import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType } from './types';
 import { BALANCE, getScaledXpRequirements, getConfig } from './config';
 import { canEquip } from './player';
-import { TILE, isCorner, isWalkable } from './tiles';
+import { TILE, STAIR_TILES, isCorner, isWalkable } from './tiles';
 import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
 import {
   ui,
@@ -445,7 +445,7 @@ export class GameUI {
       this.drawCorner(m, style, tile);
     } else if (tile === TILE.DOOR) {
       this.drawDoor(map, m, style);
-    } else if (tile === TILE.STAIRS) {
+    } else if (STAIR_TILES.has(tile)) {
       this.drawFloorDot(m, style.floorDotDim);
       this.drawStairs(m, style);
     }
@@ -1334,7 +1334,7 @@ export class GameUI {
     let stairs = false;
     for (let r = 0; r < rows && !stairs; r++) {
       for (let c = 0; c < cols; c++) {
-        if (visible[r]?.[c] && map[r][c] === TILE.STAIRS) {
+        if (visible[r]?.[c] && STAIR_TILES.has(map[r][c])) {
           stairs = true;
           break;
         }

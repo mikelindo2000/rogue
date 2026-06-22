@@ -184,8 +184,10 @@ export function generateLevel(
   playerY: number;
   monsters: Monster[];
   items: Item[];
-  stairsX: number;
-  stairsY: number;
+  stairsUpX: number;
+  stairsUpY: number;
+  stairsDownX: number;
+  stairsDownY: number;
 } {
   const map: string[][] = new Array(rows).fill(0).map(() => new Array(cols).fill(TILE.VOID));
   const monsters: Monster[] = [];
@@ -308,16 +310,24 @@ export function generateLevel(
   const playerY = startRoom.cy;
   assert(isWalkable(map[playerY]?.[playerX]), `player start (${playerX},${playerY}) not walkable on floor ${dungeonFloor}`);
 
-  let stairsX = -1;
-  let stairsY = -1;
+  let stairsUpX = -1;
+  let stairsUpY = -1;
+  let stairsDownX = -1;
+  let stairsDownY = -1;
+  if (dungeonFloor > 1) {
+    stairsUpX = startRoom.cx;
+    stairsUpY = startRoom.cy;
+    map[stairsUpY][stairsUpX] = TILE.STAIRS_UP;
+    assert(isWalkable(map[stairsUpY][stairsUpX]), `up stairs (${stairsUpX},${stairsUpY}) not walkable on floor ${dungeonFloor}`);
+  }
   if (dungeonFloor < 20) {
-    stairsX = endRoom.cx;
-    stairsY = endRoom.cy;
-    map[stairsY][stairsX] = TILE.STAIRS;
-    assert(isWalkable(map[stairsY][stairsX]), `stairs (${stairsX},${stairsY}) not walkable on floor ${dungeonFloor}`);
+    stairsDownX = endRoom.cx;
+    stairsDownY = endRoom.cy;
+    map[stairsDownY][stairsDownX] = TILE.STAIRS_DOWN;
+    assert(isWalkable(map[stairsDownY][stairsDownX]), `down stairs (${stairsDownX},${stairsDownY}) not walkable on floor ${dungeonFloor}`);
     devAssert(
-      () => isReachable(map, playerX, playerY, stairsX, stairsY, cols, rows),
-      `stairs unreachable from start on floor ${dungeonFloor} (seed ${rng.seed})`
+      () => isReachable(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows),
+      `down stairs unreachable from start on floor ${dungeonFloor} (seed ${rng.seed})`
     );
   }
 
@@ -411,7 +421,9 @@ export function generateLevel(
     playerY,
     monsters,
     items,
-    stairsX,
-    stairsY
+    stairsUpX,
+    stairsUpY,
+    stairsDownX,
+    stairsDownY
   };
 }

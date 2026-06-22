@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameEngine } from './engine';
 import { Monster } from './types';
-import { TILE } from './tiles';
+import { TILE, isWalkable } from './tiles';
 
 const makeUi = () => ({
   renderLogs: () => {},
@@ -59,6 +59,38 @@ const carveRow = (engine: GameEngine, y: number, x1: number, x2: number, tile: s
   for (let x = x1; x <= x2; x++) engine.map[y][x] = tile;
 };
 
+const findTile = (engine: GameEngine, tile: string) => {
+  for (let y = 0; y < engine.ROWS; y++) {
+    for (let x = 0; x < engine.COLS; x++) {
+      if (engine.map[y]?.[x] === tile) return { x, y };
+    }
+  }
+  throw new Error(`Missing tile ${tile}`);
+};
+
+const stepOffAndBackOnto = (engine: GameEngine, tile: string) => {
+  const origin = findTile(engine, tile);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const x = origin.x + dx;
+    const y = origin.y + dy;
+    if (isWalkableForTest(engine, x, y) && engine.map[y][x] !== tile) {
+      engine.player.x = origin.x;
+      engine.player.y = origin.y;
+      engine.handlePlayerMove(dx, dy);
+      engine.handlePlayerMove(-dx, -dy);
+      return;
+    }
+  }
+  throw new Error(`No adjacent walkable tile next to ${tile}`);
+};
+
+const isWalkableForTest = (engine: GameEngine, x: number, y: number) =>
+  x >= 0 &&
+  x < engine.COLS &&
+  y >= 0 &&
+  y < engine.ROWS &&
+  isWalkable(engine.map[y]?.[x]);
+
 describe('GameEngine boss victory conditions', () => {
   it('does not win the game when a boss-tagged Marcus dies before floor 20', () => {
     const engine = makeBossKiller(1);
@@ -82,6 +114,29 @@ describe('GameEngine boss victory conditions', () => {
 
     engine.playerAttack(marcus);
     expect(engine.gameWon).toBe(true);
+  });
+});
+
+describe('GameEngine stair travel', () => {
+  it('lets the player descend and then return to the saved previous floor', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+    engine.map[2][3] = TILE.STAIRS_DOWN;
+    engine.items = [{ type: 'food', symbol: '%', color: '#ff9900', x: 4, y: 2 }];
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.dungeonFloor).toBe(2);
+    expect(engine.map[engine.player.y][engine.player.x]).toBe(TILE.STAIRS_UP);
+
+    engine.monsters = [];
+    stepOffAndBackOnto(engine, TILE.STAIRS_UP);
+
+    expect(engine.dungeonFloor).toBe(1);
+    expect(engine.player.x).toBe(3);
+    expect(engine.player.y).toBe(2);
+    expect(engine.map[2][3]).toBe(TILE.STAIRS_DOWN);
+    expect(engine.items).toEqual([{ type: 'food', symbol: '%', color: '#ff9900', x: 4, y: 2 }]);
   });
 });
 

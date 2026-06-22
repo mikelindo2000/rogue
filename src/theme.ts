@@ -125,7 +125,8 @@ export const TILE_COLORS: Record<string, string> = {
   [TILE.FLOOR]: DUNGEON_STYLES[0].floorDot,
   [TILE.CORRIDOR]: DUNGEON_STYLES[0].corridor,
   [TILE.DOOR]: DUNGEON_STYLES[0].door,
-  [TILE.STAIRS]: DUNGEON_STYLES[0].stairs,
+  [TILE.STAIRS_UP]: DUNGEON_STYLES[0].stairs,
+  [TILE.STAIRS_DOWN]: DUNGEON_STYLES[0].stairs,
 };
 
 /** Fallback color for any tile not explicitly themed. */
