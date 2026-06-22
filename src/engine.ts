@@ -7,6 +7,14 @@ import { processMonsterAI } from './monster';
 import { computeStrike } from './combat';
 import { isWalkable, blocksSight, isWall, TILE } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
+import {
+  loadDiscovery,
+  saveDiscovery,
+  markSeen,
+  markDefeated,
+  monsterId,
+  type DiscoveryState,
+} from './discovery';
 
 export class GameEngine {
   public map: string[][] = [];
@@ -41,10 +49,16 @@ export class GameEngine {
 
   private ui: GameUI;
 
+  /** Cross-run record of which monsters the player has met. Loaded once and
+   *  persisted on change — it intentionally survives initGame/restart. */
+  public discovery: DiscoveryState;
+
   constructor(ui: GameUI) {
     this.ui = ui;
     this.player = createPlayer();
     this.rng = makeRng(randomSeed());
+    this.discovery = loadDiscovery();
+    this.ui.syncDiscovery(this.discovery);
   }
 
   public initGame(seed: number = randomSeed()) {
@@ -145,6 +159,23 @@ export class GameEngine {
     // along room walls: rays run parallel to a one-tile-thick wall and only
     // graze a few of its cells, so the rest would stay dark.
     this.revealRoom(this.player.x, this.player.y);
+
+    this.recordSightings();
+  }
+
+  /** Mark every monster currently in the player's FOV as discovered. Cheap and
+   *  idempotent: only persists/notifies the UI when the seen set actually grows. */
+  private recordSightings() {
+    let changed = false;
+    for (const m of this.monsters) {
+      if (this.visible[m.y]?.[m.x]) {
+        if (markSeen(this.discovery, monsterId(m), this.dungeonFloor)) changed = true;
+      }
+    }
+    if (changed) {
+      saveDiscovery(this.discovery);
+      this.ui.syncDiscovery(this.discovery);
+    }
   }
 
   /**
@@ -349,6 +380,10 @@ export class GameEngine {
     if (monster.hp <= 0) {
       this.addLog(`The ${monster.name} dies!`);
       this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
+
+      markDefeated(this.discovery, monsterId(monster), this.dungeonFloor);
+      saveDiscovery(this.discovery);
+      this.ui.syncDiscovery(this.discovery);
 
       let xpGained = 0;
       const floorTable = MONSTER_XP_TABLE[this.player.level];

@@ -1,39 +1,104 @@
 <script lang="ts">
   import type { MonsterTemplate } from '../../types';
+  import type { MonsterTier } from '../../discovery';
+  import { hpBand, atkBand } from '../../discovery';
 
-  let { monster }: { monster: MonsterTemplate } = $props();
+  let {
+    monster,
+    tier,
+    firstSeenFloor,
+    killCount = 0,
+    onView,
+  }: {
+    monster: MonsterTemplate;
+    tier: MonsterTier;
+    firstSeenFloor?: number;
+    killCount?: number;
+    onView?: () => void;
+  } = $props();
 
   const isBoss = $derived(monster.special === 'boss');
+  const locked = $derived(tier === 'unknown');
+  const defeated = $derived(tier === 'defeated');
 </script>
 
-<div class="card" class:boss={isBoss}>
-  <div class="glyph-chip" style:color={monster.color}>
-    <span class="glyph">{monster.symbol}</span>
-  </div>
-  <div class="details">
-    <div class="name-row">
-      <span class="name">{monster.name}</span>
-      {#if isBoss}<span class="boss-tag">BOSS</span>{/if}
+{#if locked}
+  <div class="card locked" aria-label="Undiscovered monster">
+    <div class="glyph-chip">
+      <span class="glyph">?</span>
     </div>
-    <div class="stats">
-      <div class="stat">
-        <span class="stat-label">HP</span>
-        <span class="stat-val">{monster.hp}</span>
+    <div class="details">
+      <div class="name-row">
+        <span class="name">???</span>
       </div>
-      <div class="stat">
-        <span class="stat-label">ATK</span>
-        <span class="stat-val">{monster.atk}</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Floor</span>
-        <span class="stat-val">{monster.minFloor}+</span>
+      <div class="stats">
+        <span class="hint">Not yet discovered</span>
       </div>
     </div>
   </div>
-</div>
+{:else}
+  <div class="card" class:boss={isBoss} class:clickable={defeated}>
+    <button
+      class="hit"
+      type="button"
+      disabled={!defeated}
+      onclick={() => onView?.()}
+      aria-label={defeated ? `View ${monster.name} preview` : monster.name}
+    ></button>
+    <div class="glyph-chip" style:color={monster.color}>
+      <span class="glyph">{monster.symbol}</span>
+    </div>
+    <div class="details">
+      <div class="name-row">
+        <span class="name">{monster.name}</span>
+        {#if isBoss}<span class="boss-tag">BOSS</span>{/if}
+      </div>
+
+      {#if defeated}
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">HP</span>
+            <span class="stat-val">{monster.hp}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">ATK</span>
+            <span class="stat-val">{monster.atk}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Floor</span>
+            <span class="stat-val">{monster.minFloor}+</span>
+          </div>
+          {#if killCount > 0}
+            <div class="stat">
+              <span class="stat-label">Slain</span>
+              <span class="stat-val">{killCount}</span>
+            </div>
+          {/if}
+        </div>
+        <span class="view-hint">View preview →</span>
+      {:else}
+        <!-- seen: coarse bands, no exact numbers -->
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">HP</span>
+            <span class="stat-val band">{hpBand(monster.hp)}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Threat</span>
+            <span class="stat-val band">{atkBand(monster.atk)}</span>
+          </div>
+        </div>
+        <span class="seen-hint">
+          First seen: Floor {firstSeenFloor ?? monster.minFloor} · defeat to learn more
+        </span>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   .card {
+    position: relative;
     display: flex;
     gap: 12px;
     align-items: center;
@@ -46,10 +111,29 @@
       background var(--dur-fast) var(--ease),
       transform var(--dur-fast) var(--ease);
   }
-  .card:hover {
+  .card.clickable:hover {
     border-color: var(--border-strong);
     background: var(--surface-inset);
     transform: translateY(-1px);
+  }
+
+  /* Full-card click target sits under the content but above the card. */
+  .hit {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    border-radius: var(--r-lg);
+    cursor: pointer;
+  }
+  .hit:disabled {
+    cursor: default;
+  }
+  .hit:focus-visible {
+    outline: 2px solid var(--accent-border);
+    outline-offset: 2px;
   }
 
   .card.boss {
@@ -60,8 +144,24 @@
       var(--accent-surface) 100%
     );
   }
-  .card.boss:hover {
+  .card.boss.clickable:hover {
     border-color: var(--accent-strong);
+  }
+
+  /* Locked silhouette */
+  .card.locked {
+    border-style: dashed;
+    opacity: 0.7;
+  }
+  .card.locked .glyph-chip {
+    color: var(--text-dimmer);
+  }
+  .card.locked .glyph {
+    opacity: 0.5;
+  }
+  .card.locked .name {
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
   }
 
   .glyph-chip {
@@ -82,11 +182,13 @@
   }
 
   .details {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    pointer-events: none;
   }
 
   .name-row {
@@ -133,5 +235,19 @@
     font: 600 var(--fs-sm) var(--font-display);
     color: var(--text);
     font-variant-numeric: tabular-nums;
+  }
+  .stat-val.band {
+    font-variant-numeric: normal;
+    color: var(--text-muted);
+  }
+
+  .hint,
+  .seen-hint,
+  .view-hint {
+    font: 500 var(--fs-micro) var(--font-ui);
+    color: var(--text-dim);
+  }
+  .view-hint {
+    color: var(--accent-strong);
   }
 </style>

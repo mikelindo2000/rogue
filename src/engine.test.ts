@@ -7,6 +7,7 @@ const makeUi = () => ({
   renderLogs: () => {},
   updateDropdowns: () => {},
   updateStats: () => {},
+  syncDiscovery: () => {},
   render: () => {},
   fxStrike: () => {},
   fxHit: () => {},

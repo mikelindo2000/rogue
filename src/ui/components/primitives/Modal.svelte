@@ -1,5 +1,22 @@
+<script module lang="ts">
+  // Shared stack of open modals. Every Modal listens for Escape on `window`, so
+  // when modals are nested (e.g. a monster preview over the bestiary) each
+  // window listener fires for the same keypress. The stack lets only the
+  // topmost modal act, so one Escape dismisses one layer instead of all of them.
+  const modalStack: symbol[] = [];
+  const isTopmost = (token: symbol) => modalStack[modalStack.length - 1] === token;
+  function pushModal(token: symbol) {
+    if (!modalStack.includes(token)) modalStack.push(token);
+  }
+  function removeModal(token: symbol) {
+    const i = modalStack.indexOf(token);
+    if (i !== -1) modalStack.splice(i, 1);
+  }
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { onDestroy } from 'svelte';
 
   let {
     open = $bindable(false),
@@ -13,6 +30,7 @@
     children: Snippet;
   } = $props();
 
+  const token = Symbol('modal');
   let windowEl = $state<HTMLElement | null>(null);
   let previousActive: HTMLElement | null = null;
 
@@ -35,6 +53,9 @@
   function onKeydown(e: KeyboardEvent) {
     if (!open) return;
     if (e.key === 'Escape') {
+      // Only the topmost open modal responds, so nested modals close one layer
+      // at a time rather than all collapsing on a single Escape.
+      if (!isTopmost(token)) return;
       e.stopPropagation();
       close();
       return;
@@ -62,10 +83,15 @@
 
   $effect(() => {
     if (open) {
+      pushModal(token);
       previousActive = document.activeElement as HTMLElement | null;
       windowEl?.focus();
+    } else {
+      removeModal(token);
     }
   });
+
+  onDestroy(() => removeModal(token));
 </script>
 
 <svelte:window onkeydown={onKeydown} />

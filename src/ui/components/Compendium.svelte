@@ -1,23 +1,59 @@
 <script lang="ts">
+  import type { MonsterTemplate } from '../../types';
   import { MONSTER_DATABASE } from '../../config';
   import { ui, actions } from '../store.svelte';
+  import { monsterId, tierOf } from '../../discovery';
   import Modal from './primitives/Modal.svelte';
   import MonsterCard from './MonsterCard.svelte';
+  import MonsterDetail from './MonsterDetail.svelte';
 
   let query = $state('');
+  let detail = $state<MonsterTemplate | null>(null);
 
+  // Tag every template with its discovery state for the current snapshot.
+  const entries = $derived(
+    MONSTER_DATABASE.map((monster) => {
+      const id = monsterId(monster);
+      return {
+        monster,
+        id,
+        tier: tierOf(ui.discovery, id),
+        firstSeenFloor: ui.discovery.firstSeenFloor[id],
+        killCount: ui.discovery.killCount[id] ?? 0,
+      };
+    }),
+  );
+
+  const discoveredCount = $derived(
+    entries.filter((e) => e.tier !== 'unknown').length,
+  );
+
+  // Empty query shows the whole bestiary (silhouettes included) so the player
+  // sees how much remains. A query can only match monsters they've discovered —
+  // you can't search for a name you've never learned.
   const filtered = $derived.by(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return MONSTER_DATABASE;
-    return MONSTER_DATABASE.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) ||
-        m.symbol.toLowerCase().includes(q),
+    if (!q) return entries;
+    return entries.filter(
+      (e) =>
+        e.tier !== 'unknown' &&
+        (e.monster.name.toLowerCase().includes(q) ||
+          e.monster.symbol.toLowerCase().includes(q)),
     );
   });
 
   function close() {
+    detail = null;
     actions.setCompendiumOpen(false);
+  }
+
+  function detailKillCount(): number {
+    if (!detail) return 0;
+    return ui.discovery.killCount[monsterId(detail)] ?? 0;
+  }
+  function detailFirstSeen(): number | undefined {
+    if (!detail) return undefined;
+    return ui.discovery.firstSeenFloor[monsterId(detail)];
   }
 </script>
 
@@ -27,24 +63,40 @@
       <input
         type="text"
         bind:value={query}
-        placeholder="Search by name or symbol…"
+        placeholder="Search discovered monsters…"
         autocomplete="off"
         spellcheck="false"
         aria-label="Search monsters"
       />
+      <span class="count">{discoveredCount} / {entries.length} discovered</span>
     </div>
 
     {#if filtered.length === 0}
-      <p class="empty">No monsters found.</p>
+      <p class="empty">
+        {query.trim() ? 'No discovered monsters match.' : 'No monsters in the bestiary.'}
+      </p>
     {:else}
       <div class="grid">
-        {#each filtered as monster (monster.name)}
-          <MonsterCard {monster} />
+        {#each filtered as entry (entry.id)}
+          <MonsterCard
+            monster={entry.monster}
+            tier={entry.tier}
+            firstSeenFloor={entry.firstSeenFloor}
+            killCount={entry.killCount}
+            onView={() => (detail = entry.monster)}
+          />
         {/each}
       </div>
     {/if}
   </div>
 </Modal>
+
+<MonsterDetail
+  monster={detail}
+  killCount={detailKillCount()}
+  firstSeenFloor={detailFirstSeen()}
+  onClose={() => (detail = null)}
+/>
 
 <style>
   .body {
@@ -55,8 +107,14 @@
     width: min(78vw, 880px);
   }
 
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
   .search input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     box-sizing: border-box;
     padding: 11px 14px;
     background: var(--surface-inset-2);
@@ -78,6 +136,14 @@
     box-shadow:
       inset 0 1px 3px rgba(0, 0, 0, 0.5),
       0 0 0 2px var(--accent-surface);
+  }
+  .count {
+    flex: none;
+    font: 600 var(--fs-sm) var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
   }
 
   .grid {

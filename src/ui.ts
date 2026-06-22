@@ -13,6 +13,8 @@ import {
 } from './ui/store.svelte';
 import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
 import { SLOT_ICON } from './ui/icons';
+import { drawGlyphAt, type GlyphOpts } from './render/glyph';
+import { snapshotDiscovery, type DiscoveryState } from './discovery';
 
 type DoorOrientation = 'horizontal' | 'vertical';
 
@@ -906,41 +908,12 @@ export class GameUI {
     gy: number,
     tileSize: number,
     maxWidthRatio: number,
-    opts: { weight?: number; sizeRatio?: number; dx?: number; embolden?: number } = {}
+    opts: GlyphOpts = {}
   ) {
+    // Center the glyph on the tile's floor-dot center; drawGlyphAt handles the
+    // ink-box centering, dx shake, and embolden stroke shared with the stage.
     const m = this.tileMetrics(gx, gy, tileSize);
-    const weight = opts.weight ?? 700;
-    const sizeRatio = opts.sizeRatio ?? 0.72;
-    const dx = opts.dx ?? 0;
-    const maxWidth = Math.round(tileSize * maxWidthRatio);
-    let fontSize = Math.max(12, Math.floor(tileSize * sizeRatio));
-
-    this.ctx.save();
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'alphabetic';
-    this.ctx.font = `${weight} ${fontSize}px "Fira Code", monospace`;
-    let metrics = this.ctx.measureText(ch);
-    if (metrics.width > maxWidth) {
-      fontSize = Math.max(10, Math.floor(fontSize * (maxWidth / metrics.width)));
-      this.ctx.font = `${weight} ${fontSize}px "Fira Code", monospace`;
-      metrics = this.ctx.measureText(ch);
-    }
-    // Center the glyph's actual ink box on the tile center (the floor dot), so
-    // monsters sit squarely on the cell they occupy regardless of the symbol.
-    const asc = metrics.actualBoundingBoxAscent ?? fontSize * 0.7;
-    const desc = metrics.actualBoundingBoxDescent ?? 0;
-    const x = m.cx + dx;
-    const y = m.cy + (asc - desc) / 2;
-    // Fira Code tops out at weight 700, so to push monsters bolder still we
-    // stroke each glyph in its own fill color, fattening every stem.
-    if (opts.embolden) {
-      this.ctx.lineJoin = 'round';
-      this.ctx.strokeStyle = this.ctx.fillStyle as string;
-      this.ctx.lineWidth = Math.max(1, fontSize * opts.embolden);
-      this.ctx.strokeText(ch, x, y);
-    }
-    this.ctx.fillText(ch, x, y);
-    this.ctx.restore();
+    drawGlyphAt(this.ctx, ch, m.cx, m.cy, tileSize, maxWidthRatio, opts);
   }
 
   private connectsToPassage(tile: string | undefined): boolean {
@@ -1041,6 +1014,12 @@ export class GameUI {
     ui.xp = player.xp;
     ui.xpReq = xpReqs[player.level] || 209800;
     ui.atMaxLevel = player.level >= 20;
+  }
+
+  /** Push a fresh discovery snapshot into the reactive store so the bestiary
+   *  re-renders when a monster is first sighted or first defeated. */
+  public syncDiscovery(state: DiscoveryState) {
+    ui.discovery = snapshotDiscovery(state);
   }
 
   /** Rebuild the equipment, inventory, and potion views in the store. */

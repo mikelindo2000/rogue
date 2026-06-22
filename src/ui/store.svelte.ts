@@ -8,6 +8,7 @@
 import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
 import type { HungerTone } from './format';
+import { emptyDiscovery, type DiscoveryState } from '../discovery';
 
 /** One selectable option in an equipment slot's picker. */
 export interface EquipOption {
@@ -113,6 +114,8 @@ export interface UIState {
   compendiumOpen: boolean;
   inventoryOpen: boolean;
   selectedInventoryRef: InventoryRef | null;
+  // meta-progression: which monsters the player has discovered
+  discovery: DiscoveryState;
 }
 
 export const ui = $state<UIState>({
@@ -150,6 +153,7 @@ export const ui = $state<UIState>({
   compendiumOpen: false,
   inventoryOpen: false,
   selectedInventoryRef: null,
+  discovery: emptyDiscovery(),
 });
 
 /** Action hooks the chrome calls; main.ts points these at the live engine. */

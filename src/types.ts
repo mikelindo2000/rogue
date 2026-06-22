@@ -24,6 +24,8 @@ export interface LootChances {
 }
 
 export interface MonsterTemplate {
+  /** Stable discovery key. Optional — falls back to a slug of `name`. */
+  id?: string;
   symbol: string;
   name: string;
   hp: number;
@@ -31,6 +33,8 @@ export interface MonsterTemplate {
   color: string;
   minFloor: number;
   special?: 'boss';
+  /** Flavor text shown on the compendium detail view once defeated. */
+  lore?: string;
 }
 
 export interface GameConfig {
