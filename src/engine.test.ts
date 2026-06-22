@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from './engine';
 import { Monster } from './types';
 import { TILE, isWalkable } from './tiles';
+import type { RNG } from './rng';
 
 const makeUi = () => ({
   renderLogs: () => {},
@@ -91,6 +92,18 @@ const isWalkableForTest = (engine: GameEngine, x: number, y: number) =>
   y < engine.ROWS &&
   isWalkable(engine.map[y]?.[x]);
 
+const setChanceRoll = (engine: GameEngine, roll: number) => {
+  const rng: RNG = {
+    seed: 1,
+    next: () => roll,
+    int: max => Math.min(max - 1, Math.floor(roll * max)),
+    range: (min, max) => Math.min(max, min + Math.floor(roll * (max - min + 1))),
+    chance: p => roll < p,
+    pick: arr => arr[0],
+  };
+  (engine as any).rng = rng;
+};
+
 describe('GameEngine boss victory conditions', () => {
   it('does not win the game when a boss-tagged Marcus dies before floor 20', () => {
     const engine = makeBossKiller(1);
@@ -137,6 +150,82 @@ describe('GameEngine stair travel', () => {
     expect(engine.player.y).toBe(2);
     expect(engine.map[2][3]).toBe(TILE.STAIRS_DOWN);
     expect(engine.items).toEqual([{ type: 'food', symbol: '%', color: '#ff9900', x: 4, y: 2 }]);
+  });
+
+  it('keeps revealed secret doors revealed after leaving and returning to a floor', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4, TILE.CORRIDOR);
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    engine.map[2][4] = TILE.STAIRS_DOWN;
+    setChanceRoll(engine, 0);
+
+    engine.search();
+    engine.handlePlayerMove(1, 0);
+    expect(engine.map[2][3]).toBe(TILE.DOOR);
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.dungeonFloor).toBe(2);
+    engine.monsters = [];
+    stepOffAndBackOnto(engine, TILE.STAIRS_UP);
+
+    expect(engine.dungeonFloor).toBe(1);
+    expect(engine.map[2][3]).toBe(TILE.DOOR);
+  });
+});
+
+describe('GameEngine secret-door search', () => {
+  it('reveals an adjacent secret door when explicit search succeeds', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    setChanceRoll(engine, 0);
+
+    const found = engine.search();
+
+    expect(found).toBe(true);
+    expect(engine.map[2][3]).toBe(TILE.DOOR);
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('You found a hidden door.');
+  });
+
+  it('spends a turn on failed explicit search without changing the map', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    setChanceRoll(engine, 0.99);
+
+    const found = engine.search();
+
+    expect(found).toBe(false);
+    expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('You search carefully.');
+  });
+
+  it('can reveal a secret door by bumping into it from a corridor', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.player.x).toBe(2);
+    expect(engine.player.y).toBe(2);
+    expect(engine.map[2][3]).toBe(TILE.DOOR);
+    expect(engine.turn).toBe(1);
+  });
+
+  it('does not search when the run has ended', () => {
+    const engine = makeRunner();
+    engine.gameOver = true;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+
+    const found = engine.search();
+
+    expect(found).toBe(false);
+    expect(engine.turn).toBe(0);
+    expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
   });
 });
 

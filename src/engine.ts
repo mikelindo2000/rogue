@@ -5,7 +5,7 @@ import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inv
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
 import { computeStrike } from './combat';
-import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES } from './tiles';
+import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
 import {
   loadDiscovery,
@@ -270,7 +270,54 @@ export class GameEngine {
       }
 
       this.processTurn();
+    } else if (this.tryBumpSearch(tx, ty)) {
+      this.processTurn();
     }
+  }
+
+  public search(): boolean {
+    if (this.gameOver || this.gameWon) return false;
+
+    const found = this.tryRevealNearbySecret(0.25);
+    this.addLog(found ? "You found a hidden door." : "You search carefully.");
+    this.processTurn();
+    return found;
+  }
+
+  private tryBumpSearch(tx: number, ty: number): boolean {
+    if (tx < 0 || tx >= this.COLS || ty < 0 || ty >= this.ROWS) return false;
+    const currentTile = this.map[this.player.y]?.[this.player.x];
+    if (currentTile !== TILE.CORRIDOR && currentTile !== TILE.DOOR) return false;
+    if (!isSecretDoor(this.map[ty]?.[tx])) return false;
+
+    const found = this.rng.chance(0.15);
+    if (found) {
+      this.revealSecretDoor(tx, ty);
+      this.addLog("You found a hidden door.");
+    } else {
+      this.addLog("You search carefully.");
+    }
+    return true;
+  }
+
+  private tryRevealNearbySecret(chance: number): boolean {
+    for (const [dx, dy] of [
+      [0, -1], [1, -1], [1, 0], [1, 1],
+      [0, 1], [-1, 1], [-1, 0], [-1, -1],
+    ]) {
+      const x = this.player.x + dx;
+      const y = this.player.y + dy;
+      if (!isSecretDoor(this.map[y]?.[x])) continue;
+      if (!this.rng.chance(chance)) return false;
+      this.revealSecretDoor(x, y);
+      return true;
+    }
+    return false;
+  }
+
+  private revealSecretDoor(x: number, y: number) {
+    this.map[y][x] = TILE.DOOR;
+    this.updateFOV();
   }
 
   /**

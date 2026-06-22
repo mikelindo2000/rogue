@@ -16,6 +16,7 @@ import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import { snapshotDiscovery, type DiscoveryState } from './discovery';
+import { enrichMonsterMentionsHtml, escapeHtml } from './ui/monsterMention';
 
 type DoorOrientation = 'horizontal' | 'vertical';
 
@@ -441,6 +442,9 @@ export class GameUI {
       this.drawCorridor(map, m, style);
     } else if (tile === TILE.WALL_H || tile === TILE.WALL_V) {
       this.drawWall(m, style, tile);
+    } else if (tile === TILE.SECRET_DOOR) {
+      const orientation = this.getDoorOrientation(map, gx, gy);
+      this.drawWall(m, style, orientation === 'horizontal' ? TILE.WALL_H : TILE.WALL_V);
     } else if (isCorner(tile)) {
       this.drawCorner(m, style, tile);
     } else if (tile === TILE.DOOR) {
@@ -1344,22 +1348,15 @@ export class GameUI {
     if (logs.length === 0) return;
     this.logSeq++;
 
-    const msg = logs[logs.length - 1];
+    const msg = enrichMonsterMentionsHtml(logs[logs.length - 1]);
     const line: LogLineView = { n: this.logSeq, html: msg, highlight: /loot/i.test(msg) };
     const next = [...ui.logs, line];
     while (next.length > 60) next.shift();
     ui.logs = next;
   }
 
-  private escapeHtml(s: string): string {
-    return s.replace(
-      /[&<>"]/g,
-      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c
-    );
-  }
-
   public getStyledItemName(name: string, rarity: string): string {
-    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${this.escapeHtml(name)}</span>`;
+    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${escapeHtml(name)}</span>`;
   }
 
   /** Push board-derived overlay state (stairs proximity, nearest visible
