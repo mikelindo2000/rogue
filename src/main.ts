@@ -42,13 +42,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const keyboard = new KeyboardManager();
   keyboard.setContextActive('game', true);
 
-  const move = (dx: number, dy: number) => () => {
-    if (!overlayOpen()) engine.handlePlayerMove(dx, dy);
+  const RUN_DOUBLE_TAP_MS = 260;
+  let lastMove: { key: string; at: number } | null = null;
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+  const move = (dx: number, dy: number, key: string) => (e: KeyboardEvent) => {
+    if (overlayOpen()) return;
+
+    const now = nowMs();
+    const doubleTapped = !e.repeat && lastMove?.key === key && now - lastMove.at <= RUN_DOUBLE_TAP_MS;
+    const shouldRun = e.shiftKey || doubleTapped;
+    lastMove = shouldRun ? null : { key, at: now };
+
+    if (shouldRun) {
+      engine.handlePlayerRun(dx, dy);
+    } else {
+      engine.handlePlayerMove(dx, dy);
+    }
   };
-  keyboard.register({ keys: ['w', 'ArrowUp'], description: 'Move up', context: 'game', callback: move(0, -1) });
-  keyboard.register({ keys: ['s', 'ArrowDown'], description: 'Move down', context: 'game', callback: move(0, 1) });
-  keyboard.register({ keys: ['a', 'ArrowLeft'], description: 'Move left', context: 'game', callback: move(-1, 0) });
-  keyboard.register({ keys: ['d', 'ArrowRight'], description: 'Move right', context: 'game', callback: move(1, 0) });
+  keyboard.register({ keys: ['w', 'ArrowUp'], description: 'Move/run up', context: 'game', callback: move(0, -1, 'up') });
+  keyboard.register({ keys: ['s', 'ArrowDown'], description: 'Move/run down', context: 'game', callback: move(0, 1, 'down') });
+  keyboard.register({ keys: ['a', 'ArrowLeft'], description: 'Move/run left', context: 'game', callback: move(-1, 0, 'left') });
+  keyboard.register({ keys: ['d', 'ArrowRight'], description: 'Move/run right', context: 'game', callback: move(1, 0, 'right') });
 
   keyboard.register({
     keys: ['e'],

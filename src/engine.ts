@@ -221,18 +221,79 @@ export class GameEngine {
 
       // Stairs check
       if (this.map[ty][tx] === TILE.STAIRS) {
-        this.dungeonFloor++;
-        // Log the descent before generating the floor, so any messages the
-        // generator emits (e.g. the floor-20 boss announcement) read in order.
-        this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);
-        this.generateFloor();
-        this.ui.updateDropdowns(this.player);
-        this.updateUI();
+        this.descendThroughPortal();
         return;
       }
 
       this.processTurn();
     }
+  }
+
+  /**
+   * Run in a straight line, classic Rogue-style. Each traversed tile still
+   * costs a normal turn, but the command repeats movement until something
+   * demands attention: a wall, a monster in the next tile, death/victory, a
+   * portal, or the doorway at the end of a corridor.
+   */
+  public handlePlayerRun(dx: number, dy: number) {
+    if (this.gameOver || this.gameWon || (dx === 0 && dy === 0)) return;
+
+    let previousTile = this.map[this.player.y]?.[this.player.x];
+    const maxSteps = this.COLS + this.ROWS;
+
+    for (let step = 0; step < maxSteps; step++) {
+      const tx = this.player.x + dx;
+      const ty = this.player.y + dy;
+
+      if (
+        tx < 0 ||
+        tx >= this.COLS ||
+        ty < 0 ||
+        ty >= this.ROWS ||
+        !isWalkable(this.map[ty]?.[tx])
+      ) {
+        break;
+      }
+
+      if (this.monsters.some(mon => mon.x === tx && mon.y === ty)) break;
+
+      const wasInCorridor = previousTile === TILE.CORRIDOR;
+      this.player.x = tx;
+      this.player.y = ty;
+
+      this.checkItems();
+
+      const currentTile = this.map[ty][tx];
+      if (currentTile === TILE.STAIRS) {
+        this.descendThroughPortal();
+        return;
+      }
+
+      this.processTurn();
+
+      if (this.gameOver || this.gameWon) return;
+      if (wasInCorridor && currentTile === TILE.DOOR) return;
+      if (this.hasAdjacentMonster()) return;
+
+      previousTile = currentTile;
+    }
+  }
+
+  private descendThroughPortal() {
+    this.dungeonFloor++;
+    // Log the descent before generating the floor, so any messages the
+    // generator emits (e.g. the floor-20 boss announcement) read in order.
+    this.addLog(`Traveled through portal to Floor ${this.dungeonFloor}!`);
+    this.generateFloor();
+    this.ui.updateDropdowns(this.player);
+    this.updateUI();
+  }
+
+  private hasAdjacentMonster(): boolean {
+    return this.monsters.some(mon =>
+      Math.abs(mon.x - this.player.x) <= 1 &&
+      Math.abs(mon.y - this.player.y) <= 1
+    );
   }
 
   private executeStrike(monster: Monster, weapon: GearItem) {
