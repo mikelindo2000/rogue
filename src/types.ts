@@ -103,6 +103,11 @@ export type ItemSpawn = DistributiveOmit<Item, 'x' | 'y'>;
 export interface Monster {
   x: number;
   y: number;
+  /** Stable discovery key, carried from the template at spawn (via spread).
+   *  Optional — discovery falls back to a slug of `name` when absent. Keep this
+   *  in sync with the template `id` so sightings/kills key the same way the
+   *  bestiary does. */
+  id?: string;
   symbol: string;
   name: string;
   hp: number;

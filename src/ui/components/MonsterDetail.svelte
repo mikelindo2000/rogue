@@ -26,7 +26,11 @@
 <Modal open={monster !== null} title={monster?.name ?? ''} onClose={onClose}>
   {#if monster}
     <div class="body">
-      <MonsterStage {monster} />
+      <!-- Remount the stage when the monster changes so a future prev/next
+           detail-view navigation animates the right creature. -->
+      {#key monster}
+        <MonsterStage {monster} />
+      {/key}
 
       <div class="meta">
         <div class="glyph-chip" style:color={monster.color}>
