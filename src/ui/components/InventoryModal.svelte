@@ -240,17 +240,30 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    background:
-      linear-gradient(90deg, var(--surface-app) 0%, color-mix(in srgb, var(--surface-app) 78%, transparent) 45%, transparent 100%),
-      var(--item-art) right 12px bottom 8px / min(78%, 330px) auto no-repeat;
+    background: var(--item-art) right 8px center / min(86%, 360px) auto no-repeat;
     opacity: 0.8;
-    filter: saturate(0.95) contrast(1.03);
+    filter: saturate(1.05) contrast(1.08) brightness(1.12);
+    pointer-events: none;
+  }
+
+  .detail-pane::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      90deg,
+      var(--surface-app) 0%,
+      color-mix(in srgb, var(--surface-app) 92%, transparent) 42%,
+      color-mix(in srgb, var(--surface-app) 44%, transparent) 70%,
+      transparent 100%
+    );
     pointer-events: none;
   }
 
   .detail-pane > * {
     position: relative;
-    z-index: 1;
+    z-index: 2;
   }
 
   .hero {
