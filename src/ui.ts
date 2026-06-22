@@ -13,6 +13,7 @@ import {
 } from './ui/store.svelte';
 import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
 import { SLOT_ICON } from './ui/icons';
+import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import { snapshotDiscovery, type DiscoveryState } from './discovery';
 
@@ -1151,6 +1152,7 @@ export class GameUI {
       const ref: InventoryRef = { kind: 'food' };
       cells.push({
         icon: 'leaf',
+        artUrl: foodArtUrl(),
         rarityColor: rarityVar('common'),
         count: player.inventory.food > 1 ? player.inventory.food : undefined,
         label: `Rations ×${player.inventory.food}`,
@@ -1166,6 +1168,7 @@ export class GameUI {
       const ref: InventoryRef = { kind: 'potion', potionType: type };
       cells.push({
         icon: 'potion',
+        artUrl: potionArtUrl(type),
         rarityColor: 'var(--rarity-rare)',
         count: n > 1 ? n : undefined,
         label: `Potion of ${titleCase(type)}${n > 1 ? ` ×${n}` : ''}`,
@@ -1180,6 +1183,7 @@ export class GameUI {
         const ref: InventoryRef = { kind: 'weapon', index: i };
         cells.push({
           icon: 'sword',
+          artUrl: gearArtUrl(w),
           rarityColor: rarityVar(w.rarity),
           label: `${w.name} (+${w.dmg ?? 0})`,
           detail: `${this.weaponTypeLabel(w.type)} weapon. ${w.dmg ?? 0} damage.`,
@@ -1195,6 +1199,7 @@ export class GameUI {
           const ref: InventoryRef = { kind: 'armor', slot, index: i };
           cells.push({
             icon: SLOT_ICON[slot],
+            artUrl: gearArtUrl(a),
             rarityColor: rarityVar(a.rarity),
             label: `${a.name} (${a.def}/${a.maxDef})`,
             detail: `${titleCase(slot)} armor. ${a.def ?? 0}/${a.maxDef ?? a.def ?? 0} defense.`,
@@ -1210,6 +1215,7 @@ export class GameUI {
         const ref: InventoryRef = { kind: 'shield', index: i };
         cells.push({
           icon: 'shield-dome',
+          artUrl: gearArtUrl(s),
           rarityColor: rarityVar(s.rarity),
           label: `${s.name} (${s.def}/${s.maxDef})`,
           detail: `Off-hand shield. ${s.def ?? 0}/${s.maxDef ?? s.def ?? 0} defense.`,

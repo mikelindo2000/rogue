@@ -93,7 +93,7 @@
       </div>
 
       {#if selected}
-        <section class="detail-pane" aria-label="Selected item">
+        <section class="detail-pane" aria-label="Selected item" style={`--item-art: url("${selected.artUrl}")`}>
           <div class="hero">
             <span class="hero-icon" style:color={selected.rarityColor}>
               <Icon name={selected.icon} size={28} stroke={1.35} />
@@ -226,11 +226,31 @@
   }
 
   .detail-pane {
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 18px;
     padding: 18px;
     background: var(--surface-app);
+  }
+
+  .detail-pane::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+      linear-gradient(90deg, var(--surface-app) 0%, color-mix(in srgb, var(--surface-app) 78%, transparent) 45%, transparent 100%),
+      var(--item-art) right 12px bottom 8px / min(78%, 330px) auto no-repeat;
+    opacity: 0.8;
+    filter: saturate(0.95) contrast(1.03);
+    pointer-events: none;
+  }
+
+  .detail-pane > * {
+    position: relative;
+    z-index: 1;
   }
 
   .hero {

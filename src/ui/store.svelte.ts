@@ -34,6 +34,7 @@ export interface EquipSlotView {
 /** One cell in the right-rail inventory grid. */
 export interface InventoryCell {
   icon: IconName;
+  artUrl: string;
   rarityColor: string;
   count?: number; // shown as a badge when > 1
   label: string; // accessible name / tooltip
