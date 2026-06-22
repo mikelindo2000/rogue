@@ -43,6 +43,14 @@ Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
    `rng` and return a result (the engine applies it) over functions that mutate
    and log inline. Pure functions are what the test suite can pin down.
 
+5. **Assert invariants, fail loud**: use `assert(cond, msg)` from `src/assert.ts`
+   for cheap conditions that must always hold (e.g. the generator asserts a room
+   was placed and the player/stairs land on walkable tiles). Use
+   `devAssert(() => check(), msg)` for deeper/expensive checks that should run in
+   dev and tests but never risk throwing in a player's production session (e.g.
+   the map generator's reachability flood-fill). A violated invariant should
+   surface immediately, not corrupt state for a later mysterious crash.
+
 ---
 
 ## Game Balance

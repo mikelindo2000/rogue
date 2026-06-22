@@ -1,8 +1,38 @@
 import { Item, ItemSpawn, Monster, PotionType } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { rollLootRarity, generateGearItem } from './items';
-import { TILE } from './tiles';
+import { TILE, isWalkable } from './tiles';
 import { RNG } from './rng';
+import { assert, devAssert } from './assert';
+
+/** Flood fill over walkable tiles: is (tx,ty) reachable from (sx,sy)? */
+function isReachable(
+  map: string[][],
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  cols: number,
+  rows: number
+): boolean {
+  const seen = new Set<number>([sy * cols + sx]);
+  const stack: [number, number][] = [[sx, sy]];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  while (stack.length) {
+    const [x, y] = stack.pop()!;
+    if (x === tx && y === ty) return true;
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      const key = ny * cols + nx;
+      if (seen.has(key) || !isWalkable(map[ny][nx])) continue;
+      seen.add(key);
+      stack.push([nx, ny]);
+    }
+  }
+  return false;
+}
 
 interface Room {
   x: number;
@@ -94,6 +124,13 @@ export function generateLevel(
   const rooms: Room[] = [];
 
   const { map: M } = BALANCE;
+  // Fail loud if the board can't fit even one max-size room — a bad BALANCE
+  // edit or caller dimension should surface here, not as a carving glitch.
+  assert(
+    cols > M.roomMaxW + 2 && rows > M.roomMaxH + 2,
+    `map ${cols}x${rows} too small for max room ${M.roomMaxW}x${M.roomMaxH}`
+  );
+
   const maxRooms = dungeonFloor === 20 ? M.maxRoomsBossFloor : M.maxRoomsDefault;
   for (let roomAttempts = 0; roomAttempts < M.roomAttempts; roomAttempts++) {
     if (rooms.length >= maxRooms) break;
@@ -141,11 +178,17 @@ export function generateLevel(
     rooms.push(center);
   }
 
+  // The first room always places (no collisions on an empty board); guard the
+  // assumption explicitly so a future generation change can't silently produce
+  // a roomless level and crash on `rooms[0]`.
+  assert(rooms.length > 0, `no rooms generated on floor ${dungeonFloor}`);
+
   // Wrap rooms in walls and stamp doorways where corridors meet them.
   decorateWalls(map, cols, rows);
 
   const playerX = rooms[0].x;
   const playerY = rooms[0].y;
+  assert(isWalkable(map[playerY]?.[playerX]), `player start (${playerX},${playerY}) not walkable on floor ${dungeonFloor}`);
 
   let stairsX = -1;
   let stairsY = -1;
@@ -153,6 +196,12 @@ export function generateLevel(
     stairsX = rooms[rooms.length - 1].x;
     stairsY = rooms[rooms.length - 1].y;
     map[stairsY][stairsX] = TILE.STAIRS;
+    assert(isWalkable(map[stairsY][stairsX]), `stairs (${stairsX},${stairsY}) not walkable on floor ${dungeonFloor}`);
+    // Deeper, dev-only check: the descent must actually be reachable on foot.
+    devAssert(
+      () => isReachable(map, playerX, playerY, stairsX, stairsY, cols, rows),
+      `stairs unreachable from start on floor ${dungeonFloor} (seed ${rng.seed})`
+    );
   }
 
   // Spawn Marcus the Brave on floor 1 for testing
