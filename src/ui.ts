@@ -1,5 +1,5 @@
-import { Player, Monster, Item, StatusEffects } from './types';
-import { RARITY_CONFIG, getScaledXpRequirements } from './config';
+import { Player, Monster, Item, StatusEffects, GearItem, ARMOR_SLOTS } from './types';
+import { RARITY_CONFIG, BALANCE, getScaledXpRequirements } from './config';
 import { TILE } from './tiles';
 import { TILE_COLORS, TILE_DEFAULT_COLOR, DIM_ALPHA, PLAYER_COLORS } from './theme';
 import type { GameSelect, SelectOption } from './components/game-select';
@@ -99,8 +99,9 @@ export class GameUI {
     if (statGold) statGold.innerText = `Gold: ${player.gold}`;
     if (statDefense) statDefense.innerText = `Total DEF: ${totalDef}`;
 
-    const status = player.hunger === 0 ? "Starving" : player.hunger < 190 ? "Fatigued" : player.hunger < 425 ? "Hungry" : "Satiated";
-    const color = player.hunger === 0 ? "#ff0000" : player.hunger < 190 ? "#ff5500" : player.hunger < 425 ? "#ffaa00" : "#0f0";
+    const { hungerFatigued, hungerHungry } = BALANCE.player;
+    const status = player.hunger === 0 ? "Starving" : player.hunger < hungerFatigued ? "Fatigued" : player.hunger < hungerHungry ? "Hungry" : "Satiated";
+    const color = player.hunger === 0 ? "#ff0000" : player.hunger < hungerFatigued ? "#ff5500" : player.hunger < hungerHungry ? "#ffaa00" : "#0f0";
     if (statHunger) {
       statHunger.innerText = `Hunger: ${status}`;
       statHunger.style.color = color;
@@ -124,7 +125,7 @@ export class GameUI {
   }
 
   public updateDropdowns(player: Player) {
-    const rarityColor = (item: any) => RARITY_CONFIG[item.rarity || 'common'].color;
+    const rarityColor = (item: GearItem) => RARITY_CONFIG[item.rarity || 'common'].color;
 
     // Main Hand
     this.setSelectOptions('sel-main', player.inventory.weapons.map((w, i) => ({
@@ -171,9 +172,8 @@ export class GameUI {
     this.setSelectOptions('sel-off', offOptions);
 
     // Helm, Chest, Legs, Gauntlets, Boots
-    const slots = ['helm', 'chest', 'legs', 'gauntlets', 'boots'];
-    slots.forEach(slot => {
-      this.setSelectOptions(`sel-${slot}`, (player.inventory[slot] as any[]).map((a: any, i: number) => ({
+    ARMOR_SLOTS.forEach(slot => {
+      this.setSelectOptions(`sel-${slot}`, player.inventory[slot].map((a, i) => ({
         value: String(i),
         label: `${a.name} (${a.def}/${a.maxDef})`,
         color: rarityColor(a),

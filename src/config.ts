@@ -30,6 +30,93 @@ export const DEFAULT_TUNABLES: TunableConfig = {
   foodHungerRestore: 300
 };
 
+/**
+ * Fixed game-balance constants. Unlike `TunableConfig` (which the player can
+ * adjust at runtime), these are the designer-set knobs that used to be magic
+ * numbers scattered through the engine, map generator, AI, and loot tables.
+ * Tuning difficulty or generation should mean editing values here — not
+ * hunting through logic.
+ */
+export const BALANCE = {
+  map: {
+    roomAttempts: 35,
+    maxRoomsDefault: 7,
+    maxRoomsBossFloor: 4,
+    roomMinW: 5,
+    roomMaxW: 10,
+    roomMinH: 4,
+    roomMaxH: 8,
+    spawn: {
+      foodChance: 0.28,
+      consumableChance: 0.65,
+      goldCut: 0.25, // cumulative thresholds within the consumable roll
+      potionCut: 0.65,
+      scrollCut: 0.85,
+      gearChance: 0.45,
+      monsterChance: 0.82,
+    },
+  },
+  fov: {
+    rays: 72,
+    angleStepDeg: 5,
+  },
+  player: {
+    regenInterval: 15, // turns between +1 HP regen
+    levelUpHpMultiplier: 1.15,
+    hungerFatigued: 190, // status-label thresholds
+    hungerHungry: 425,
+  },
+  combat: {
+    playerHitBonus: 2,
+    monsterHitBonus: 1,
+    defenseDivisor: 4,
+    monsterDamageScale: 0.5,
+    strengthBonus: 10,
+    disarmDivisor: 2,
+    staffFireBonus: 3,
+    staffArcaneHeal: 2,
+    frostFreezeChance: 0.25,
+    frostFreezeTurns: 1,
+  },
+  monster: {
+    wanderSkipChance: 0.4,
+    aggroRange: 6,
+  },
+  status: {
+    vigorTurns: 100,
+    midasTurns: 100,
+    strengthTurns: 100,
+    invisTurns: 50,
+    armorTurns: 100,
+    vigorHpMultiplier: 2,
+    armorDefBonus: 100,
+    midasGoldMultiplier: 1.2,
+  },
+  potions: {
+    healAmount: 12,
+  },
+  scroll: {
+    vigorCut: 0.25, // cumulative thresholds
+    fatigueCut: 0.5,
+    midasCut: 0.75,
+    fatigueHunger: 100,
+    trapDamage: 5,
+  },
+  gold: {
+    variance: 0.1, // +/- 10%
+  },
+  loot: {
+    legendaryMinFloor: 12,
+    epicFloorScale: 0.006,
+    rareBase: 0.1,
+    rareFloorScale: 0.012,
+    uncommonBase: 0.25,
+    uncommonFloorScale: 0.01,
+    gearDmgFloorScale: 1.5,
+    gearDefFloorScale: 1.0,
+  },
+} as const;
+
 export const RARITY_CONFIG: Record<string, RarityConfig> = {
   common: { name: "Common", color: "#ffffff", multiplier: 1.0 },
   uncommon: { name: "Uncommon", color: "#1eff00", multiplier: 1.2 },

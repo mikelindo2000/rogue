@@ -1,5 +1,5 @@
-import { Player, StatusEffects, GearItem } from './types';
-import { getConfig, getScaledXpRequirements } from './config';
+import { Player, StatusEffects, ARMOR_SLOTS, EquipSlot } from './types';
+import { getConfig, getScaledXpRequirements, BALANCE } from './config';
 
 export function createPlayer(): Player {
   const tunables = getConfig();
@@ -41,12 +41,9 @@ export function createPlayer(): Player {
 
 export function getTotalDef(player: Player, statusEffects: StatusEffects): number {
   let def = 0;
-  const armorSlots = ['helm', 'chest', 'legs', 'gauntlets', 'boots'];
-  
-  armorSlots.forEach(slot => {
-    const gearList = player.inventory[slot] as GearItem[];
-    const equippedIdx = player.equipped[slot] as number;
-    const gear = gearList[equippedIdx];
+
+  ARMOR_SLOTS.forEach(slot => {
+    const gear = player.inventory[slot][player.equipped[slot]];
     if (gear && gear.def !== undefined) {
       def += gear.def;
     }
@@ -61,7 +58,7 @@ export function getTotalDef(player: Player, statusEffects: StatusEffects): numbe
   }
 
   if (statusEffects.armorTurns > 0) {
-    def += 100;
+    def += BALANCE.status.armorDefBonus;
   }
 
   return def;
@@ -78,8 +75,8 @@ export function gainXp(player: Player, amount: number, addLog: (msg: string) => 
   while (player.xp >= req && player.level < 20) {
     player.xp -= req;
     player.level++;
-    player.maxHp = Math.floor(player.maxHp * 1.15);
-    player.hp = statusEffects.vigorTurns > 0 ? player.maxHp * 2 : player.maxHp;
+    player.maxHp = Math.floor(player.maxHp * BALANCE.player.levelUpHpMultiplier);
+    player.hp = statusEffects.vigorTurns > 0 ? player.maxHp * BALANCE.status.vigorHpMultiplier : player.maxHp;
     addLog(`LEVEL UP! You are now Level ${player.level}! Max HP increased!`);
     req = xpReqs[player.level] || 209800;
     leveledUp = true;
@@ -90,7 +87,7 @@ export function gainXp(player: Player, amount: number, addLog: (msg: string) => 
 
 export function handleEquipItem(
   player: Player,
-  slot: string,
+  slot: EquipSlot,
   value: string,
   addLog: (msg: string) => void
 ) {

@@ -1,22 +1,25 @@
 import { Monster, Player, StatusEffects } from './types';
-import { getScaledMonsterAtk } from './config';
+import { getScaledMonsterAtk, BALANCE } from './config';
 import { isWalkable } from './tiles';
+import { RNG } from './rng';
+import { computeMonsterDamage } from './combat';
 
 export function wanderMonster(
   m: Monster,
   map: string[][],
   cols: number,
   rows: number,
-  monsters: Monster[]
+  monsters: Monster[],
+  rng: RNG
 ) {
-  if (Math.random() < 0.4) return;
+  if (rng.chance(BALANCE.monster.wanderSkipChance)) return;
   const dirs = [
     { x: 1, y: 0 },
     { x: -1, y: 0 },
     { x: 0, y: 1 },
     { x: 0, y: -1 }
   ];
-  const d = dirs[Math.floor(Math.random() * dirs.length)];
+  const d = rng.pick(dirs);
   if (!d) return;
 
   const tx = m.x + d.x;
@@ -43,7 +46,8 @@ export function processMonsterAI(
   cols: number,
   rows: number,
   totalDef: number,
-  addLog: (msg: string) => void
+  addLog: (msg: string) => void,
+  rng: RNG
 ) {
   monsters.forEach(m => {
     if (m.frozenTurns > 0) {
@@ -54,38 +58,29 @@ export function processMonsterAI(
     const dist = Math.abs(m.x - player.x) + Math.abs(m.y - player.y);
 
     if (statusEffects.invisTurns > 0) {
-      wanderMonster(m, map, cols, rows, monsters);
+      wanderMonster(m, map, cols, rows, monsters, rng);
       return;
     }
 
     if (dist === 1) {
-      // Scale monster base attack on-the-fly using the slider config value
-      const activeAtk = getScaledMonsterAtk(m.atk);
-      const rawDmg = Math.floor(Math.random() * activeAtk) + 1;
       let isSwipe = false;
-
       if (m.name === 'Marcus the Brave') {
-        if (m.swipeTurn === undefined) {
-          m.swipeTurn = false;
-        }
-        if (m.swipeTurn) {
-          isSwipe = true;
-        }
+        if (m.swipeTurn === undefined) m.swipeTurn = false;
+        if (m.swipeTurn) isSwipe = true;
         m.swipeTurn = !m.swipeTurn;
       }
 
-      let dmg = Math.max(1, Math.floor((rawDmg - Math.floor(totalDef / 4)) * 0.5));
-      if (isSwipe) {
-        dmg *= 2;
-      }
+      // Scale monster base attack on-the-fly using the slider config value
+      const dmg = computeMonsterDamage({
+        scaledAtk: getScaledMonsterAtk(m.atk),
+        totalDef,
+        swipe: isSwipe,
+        rng
+      });
 
       player.hp -= dmg;
-      if (isSwipe) {
-        addLog(`${m.name} uses Swipe! hits for ${dmg} dmg.`);
-      } else {
-        addLog(`${m.name} hits for ${dmg} dmg.`);
-      }
-    } else if (dist < 6) {
+      addLog(isSwipe ? `${m.name} uses Swipe! hits for ${dmg} dmg.` : `${m.name} hits for ${dmg} dmg.`);
+    } else if (dist < BALANCE.monster.aggroRange) {
       const stepX = m.x + Math.sign(player.x - m.x);
       const stepY = m.y + Math.sign(player.y - m.y);
 

@@ -1,7 +1,8 @@
-import { Item, Monster } from './types';
-import { MONSTER_DATABASE } from './config';
+import { Item, ItemSpawn, Monster, PotionType } from './types';
+import { MONSTER_DATABASE, BALANCE } from './config';
 import { rollLootRarity, generateGearItem } from './items';
 import { TILE } from './tiles';
+import { RNG } from './rng';
 
 interface Room {
   x: number;
@@ -76,7 +77,8 @@ export function generateLevel(
   dungeonFloor: number,
   playerLevel: number,
   cols: number,
-  rows: number
+  rows: number,
+  rng: RNG
 ): {
   map: string[][];
   playerX: number;
@@ -91,13 +93,14 @@ export function generateLevel(
   const items: Item[] = [];
   const rooms: Room[] = [];
 
-  const maxRooms = dungeonFloor === 20 ? 4 : 7;
-  for (let roomAttempts = 0; roomAttempts < 35; roomAttempts++) {
+  const { map: M } = BALANCE;
+  const maxRooms = dungeonFloor === 20 ? M.maxRoomsBossFloor : M.maxRoomsDefault;
+  for (let roomAttempts = 0; roomAttempts < M.roomAttempts; roomAttempts++) {
     if (rooms.length >= maxRooms) break;
-    const w = Math.floor(Math.random() * 6) + 5;
-    const h = Math.floor(Math.random() * 5) + 4;
-    const x = Math.floor(Math.random() * (cols - w - 2)) + 1;
-    const y = Math.floor(Math.random() * (rows - h - 2)) + 1;
+    const w = rng.range(M.roomMinW, M.roomMaxW);
+    const h = rng.range(M.roomMinH, M.roomMaxH);
+    const x = rng.int(cols - w - 2) + 1;
+    const y = rng.int(rows - h - 2) + 1;
 
     // Check collision with existing rooms
     if (rooms.some(r => x < r.x1 + r.w && x + w > r.x1 && y < r.y1 + r.h && y + h > r.y1)) {
@@ -156,12 +159,7 @@ export function generateLevel(
   if (dungeonFloor === 1) {
     const marcus = MONSTER_DATABASE.find(m => m.name === 'Marcus the Brave');
     if (marcus) {
-      monsters.push({
-        x: rooms[0].x + 2,
-        y: rooms[0].y,
-        frozenTurns: 0,
-        ...JSON.parse(JSON.stringify(marcus))
-      });
+      monsters.push({ ...marcus, x: rooms[0].x + 2, y: rooms[0].y, frozenTurns: 0 });
     }
   }
 
@@ -170,27 +168,16 @@ export function generateLevel(
     const r = rooms[rooms.length - 1];
     const bosses = MONSTER_DATABASE.filter(m => m.special === 'boss');
     bosses.forEach((boss, index) => {
-      monsters.push({
-        x: r.x + index,
-        y: r.y,
-        frozenTurns: 0,
-        ...JSON.parse(JSON.stringify(boss))
-      });
+      monsters.push({ ...boss, x: r.x + index, y: r.y, frozenTurns: 0 });
     });
   } else {
     // Normal floor item and monster spawns
-    const spawnItem = (room: Room, type: Item['type'], sym: string, color: string, data: any = null) => {
-      const rx = room.x1 + Math.floor(Math.random() * (room.w - 2)) + 1;
-      const ry = room.y1 + Math.floor(Math.random() * (room.h - 2)) + 1;
+    const spawn = BALANCE.map.spawn;
+    const spawnAt = (room: Room, item: ItemSpawn) => {
+      const rx = room.x1 + rng.int(room.w - 2) + 1;
+      const ry = room.y1 + rng.int(room.h - 2) + 1;
       if (!items.some(it => it.x === rx && it.y === ry)) {
-        items.push({
-          x: rx,
-          y: ry,
-          type: type,
-          symbol: sym,
-          color: color,
-          data: data ? JSON.parse(JSON.stringify(data)) : null
-        });
+        items.push({ ...item, x: rx, y: ry } as Item);
       }
     };
 
@@ -198,57 +185,51 @@ export function generateLevel(
       const room = rooms[i];
 
       // Spawn food
-      if (Math.random() < 0.28) {
-        spawnItem(room, 'food', '%', '#ff9900');
+      if (rng.chance(spawn.foodChance)) {
+        spawnAt(room, { type: 'food', symbol: '%', color: '#ff9900' });
       }
 
       // Spawn miscellaneous consumables
-      if (Math.random() < 0.65) {
-        const rand = Math.random();
-        if (rand < 0.25) {
-          spawnItem(room, 'gold', '$', '#ffff55');
-        } else if (rand < 0.65) {
-          const potionPool = ['healing', 'strength', 'invisibility', 'armor'];
-          const chosenP = potionPool[Math.floor(Math.random() * potionPool.length)];
-          spawnItem(room, 'potion', '!', '#00ffff', { potionType: chosenP });
-        } else if (rand < 0.85) {
-          spawnItem(room, 'scroll', '?', '#cc66ff');
+      if (rng.chance(spawn.consumableChance)) {
+        const rand = rng.next();
+        if (rand < spawn.goldCut) {
+          spawnAt(room, { type: 'gold', symbol: '$', color: '#ffff55' });
+        } else if (rand < spawn.potionCut) {
+          const potionPool: PotionType[] = ['healing', 'strength', 'invisibility', 'armor'];
+          const chosenP = rng.pick(potionPool);
+          spawnAt(room, { type: 'potion', symbol: '!', color: '#00ffff', data: { potionType: chosenP } });
+        } else if (rand < spawn.scrollCut) {
+          spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
         } else {
-          spawnItem(room, 'repair_scroll', '?', '#ff00ff');
+          spawnAt(room, { type: 'repair_scroll', symbol: '?', color: '#ff00ff' });
         }
       }
 
       // Spawn gear
-      if (Math.random() < 0.45) {
-        const rarity = rollLootRarity(dungeonFloor);
-        const gear = generateGearItem(dungeonFloor, rarity);
+      if (rng.chance(spawn.gearChance)) {
+        const rarity = rollLootRarity(dungeonFloor, rng);
+        const gear = generateGearItem(dungeonFloor, rarity, rng);
         if (gear) {
           const cat = gear.category;
-          const sym = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff' ? ')' : '[';
-          const color = gear.color;
-          spawnItem(room, 'gear', sym, color, gear);
+          const isWeapon = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff';
+          spawnAt(room, { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear });
         }
       }
 
       // Spawn monsters
-      if (Math.random() < 0.82) {
+      if (rng.chance(spawn.monsterChance)) {
         const validMobs = MONSTER_DATABASE.filter(m =>
           dungeonFloor >= m.minFloor &&
           playerLevel >= m.minFloor &&
           m.special !== 'boss'
         );
         if (validMobs.length > 0) {
-          const tmpl = validMobs[Math.floor(Math.random() * validMobs.length)];
+          const tmpl = rng.pick(validMobs);
           const mx = room.x1 + 1;
           const my = room.y1 + 1;
           // Avoid spawning directly on top of another monster
           if (!monsters.some(m => m.x === mx && m.y === my)) {
-            monsters.push({
-              x: mx,
-              y: my,
-              frozenTurns: 0,
-              ...JSON.parse(JSON.stringify(tmpl))
-            });
+            monsters.push({ ...tmpl, x: mx, y: my, frozenTurns: 0 });
           }
         }
       }

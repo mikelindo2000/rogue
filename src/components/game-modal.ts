@@ -1,3 +1,5 @@
+import { GAME_EVENTS } from '../events';
+
 export class GameModal extends HTMLElement {
   private rendered = false;
 
@@ -54,7 +56,7 @@ export class GameModal extends HTMLElement {
       this.style.display = isOpen ? 'flex' : 'none';
       
       // Dispatch an event to allow parent containers/engine to pause/resume game actions
-      this.dispatchEvent(new CustomEvent('modal-state-change', {
+      this.dispatchEvent(new CustomEvent(GAME_EVENTS.MODAL_STATE_CHANGE, {
         bubbles: true,
         detail: { open: isOpen, modal: this }
       }));

@@ -1,3 +1,5 @@
+import { GAME_EVENTS } from '../events';
+
 export interface SelectOption {
   value: string;
   label: string;
@@ -137,7 +139,7 @@ export class GameSelect extends HTMLElement {
     this.panel.focus();
 
     document.addEventListener('click', this.outsideClick);
-    this.dispatchEvent(new CustomEvent('dropdown-state-change', { bubbles: true, detail: { open: true } }));
+    this.dispatchEvent(new CustomEvent(GAME_EVENTS.DROPDOWN_STATE_CHANGE, { bubbles: true, detail: { open: true } }));
   }
 
   public close() {
@@ -146,7 +148,7 @@ export class GameSelect extends HTMLElement {
     this.classList.remove('is-open');
     this.trigger.setAttribute('aria-expanded', 'false');
     document.removeEventListener('click', this.outsideClick);
-    this.dispatchEvent(new CustomEvent('dropdown-state-change', { bubbles: true, detail: { open: false } }));
+    this.dispatchEvent(new CustomEvent(GAME_EVENTS.DROPDOWN_STATE_CHANGE, { bubbles: true, detail: { open: false } }));
   }
 
   private outsideClick(e: MouseEvent) {

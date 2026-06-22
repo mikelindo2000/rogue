@@ -1,10 +1,12 @@
-import { Player, Monster, Item, StatusEffects } from './types';
+import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, ARMOR_SLOTS } from './types';
 import { GameUI } from './ui';
 import { generateLevel } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem } from './player';
-import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, getConfig, getScaledMonsterHP } from './config';
+import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
+import { computeStrike } from './combat';
 import { isWalkable, blocksSight, TILE } from './tiles';
+import { RNG, makeRng, randomSeed } from './rng';
 
 export class GameEngine {
   public map: string[][] = [];
@@ -31,14 +33,21 @@ export class GameEngine {
   public readonly TILE_SIZE = 20;
   public readonly VISION_RADIUS = 6;
 
+  /** Seed and RNG for the current run; reproducible when seeded explicitly. */
+  public seed: number = 0;
+  private rng: RNG;
+
   private ui: GameUI;
 
   constructor(ui: GameUI) {
     this.ui = ui;
     this.player = createPlayer();
+    this.rng = makeRng(randomSeed());
   }
 
-  public initGame() {
+  public initGame(seed: number = randomSeed()) {
+    this.seed = seed;
+    this.rng = makeRng(seed);
     this.player = createPlayer();
     this.dungeonFloor = 1;
     this.gameOver = false;
@@ -66,7 +75,7 @@ export class GameEngine {
   }
 
   public generateFloor() {
-    const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS);
+    const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng);
     this.map = levelData.map;
     this.player.x = levelData.playerX;
     this.player.y = levelData.playerY;
@@ -102,9 +111,9 @@ export class GameEngine {
       this.explored[this.player.y][this.player.x] = true;
     }
 
-    const numRays = 72;
+    const numRays = BALANCE.fov.rays;
     for (let i = 0; i < numRays; i++) {
-      const angle = (i * 5) * (Math.PI / 180);
+      const angle = (i * BALANCE.fov.angleStepDeg) * (Math.PI / 180);
       const dx = Math.cos(angle);
       const dy = Math.sin(angle);
       let cx = this.player.x + 0.5;
@@ -167,31 +176,35 @@ export class GameEngine {
     }
   }
 
-  private executeStrike(monster: Monster, weapon: any) {
-    let dmgBase = this.player.baseAtk + weapon.dmg;
-    if (this.statusEffects.strengthTurns > 0) dmgBase += 10;
-    if (this.player.disarmedHits > 0) {
-      dmgBase = Math.floor(dmgBase / 2);
-      this.player.disarmedHits--;
+  private executeStrike(monster: Monster, weapon: GearItem) {
+    const outcome = computeStrike({
+      baseAtk: this.player.baseAtk,
+      weapon,
+      strengthActive: this.statusEffects.strengthTurns > 0,
+      disarmed: this.player.disarmedHits > 0,
+      rng: this.rng
+    });
+
+    if (this.player.disarmedHits > 0) this.player.disarmedHits--;
+    outcome.messages.forEach(msg => this.addLog(msg));
+
+    if (outcome.selfHeal > 0) {
+      this.player.hp = Math.min(this.vigorMaxHp(), this.player.hp + outcome.selfHeal);
+    }
+    if (outcome.freezeTurns > 0) {
+      monster.frozenTurns = outcome.freezeTurns;
+      this.addLog(`${monster.name} frozen!`);
     }
 
-    if (weapon.type === 'staff') {
-      if (weapon.magic === 'fire') {
-        dmgBase += 3;
-        this.addLog("Flames erupt!");
-      } else if (weapon.magic === 'arcane') {
-        const vigorMaxHp = this.statusEffects.vigorTurns > 0 ? this.player.maxHp * 2 : this.player.maxHp;
-        this.player.hp = Math.min(vigorMaxHp, this.player.hp + 2);
-        this.addLog("Siphoned health!");
-      } else if (weapon.magic === 'frost' && Math.random() < 0.25) {
-        monster.frozenTurns = 1;
-        this.addLog(`${monster.name} frozen!`);
-      }
-    }
+    monster.hp -= outcome.damage;
+    this.addLog(`You strike ${monster.name} for ${outcome.damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+  }
 
-    const damage = Math.max(1, Math.floor(Math.random() * dmgBase) + 2);
-    monster.hp -= damage;
-    this.addLog(`You strike ${monster.name} for ${damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+  /** Max HP accounting for the Vigor buff (doubled). */
+  private vigorMaxHp(): number {
+    return this.statusEffects.vigorTurns > 0
+      ? this.player.maxHp * BALANCE.status.vigorHpMultiplier
+      : this.player.maxHp;
   }
 
   public playerAttack(monster: Monster) {
@@ -248,12 +261,12 @@ export class GameEngine {
 
       if (item.type === 'gold') {
         const baseGold = CHEST_GOLD_TABLE[this.player.level] || 15;
-        const minGold = Math.round(baseGold * 0.9);
-        const maxGold = Math.round(baseGold * 1.1);
-        let g = Math.floor(Math.random() * (maxGold - minGold + 1)) + minGold;
+        const minGold = Math.round(baseGold * (1 - BALANCE.gold.variance));
+        const maxGold = Math.round(baseGold * (1 + BALANCE.gold.variance));
+        let g = this.rng.range(minGold, maxGold);
 
         if (this.statusEffects.midasTurns > 0) {
-          g = Math.floor(g * 1.2);
+          g = Math.floor(g * BALANCE.status.midasGoldMultiplier);
         }
 
         this.player.gold += g;
@@ -278,48 +291,44 @@ export class GameEngine {
           this.addLog("Looted Rations. Added to inventory.");
         }
       } else if (item.type === 'potion') {
-        const pType = item.data?.potionType || 'healing';
+        const pType = item.data.potionType;
         this.player.inventory.potions.push(pType);
         this.addLog(`Picked up a Potion of ${pType.charAt(0).toUpperCase() + pType.slice(1)}.`);
       } else if (item.type === 'scroll') {
-        const r = Math.random();
-        if (r < 0.25) {
-          this.statusEffects.vigorTurns = 100;
-          this.player.hp = this.player.maxHp * 2;
+        const { scroll, status } = BALANCE;
+        const r = this.rng.next();
+        if (r < scroll.vigorCut) {
+          this.statusEffects.vigorTurns = status.vigorTurns;
+          this.player.hp = this.player.maxHp * status.vigorHpMultiplier;
           this.addLog("Vigor! HP doubled.");
-        } else if (r < 0.50) {
-          this.player.hunger = 100;
+        } else if (r < scroll.fatigueCut) {
+          this.player.hunger = scroll.fatigueHunger;
           this.addLog("Suddenly fatigued!");
-        } else if (r < 0.75) {
-          this.statusEffects.midasTurns = 100;
+        } else if (r < scroll.midasCut) {
+          this.statusEffects.midasTurns = status.midasTurns;
           this.addLog("Midas scroll active.");
         } else {
-          this.player.hp -= 5;
-          this.addLog("Trap scroll triggered! -5 HP.");
+          this.player.hp -= scroll.trapDamage;
+          this.addLog(`Trap scroll triggered! -${scroll.trapDamage} HP.`);
         }
       } else if (item.type === 'repair_scroll') {
-        const armorSlots = ['helm', 'chest', 'legs', 'gauntlets', 'boots', 'shield'];
-        armorSlots.forEach(slot => {
-          const list = this.player.inventory[slot] as any[];
-          if (list) {
-            list.forEach(gear => {
-              if (gear.maxDef !== undefined) {
-                gear.def = gear.maxDef;
-              }
-            });
-          }
+        const repairSlots: GearSlot[] = [...ARMOR_SLOTS, 'shield'];
+        repairSlots.forEach(slot => {
+          this.player.inventory[slot].forEach(gear => {
+            if (gear.maxDef !== undefined) gear.def = gear.maxDef;
+          });
         });
         this.addLog("All equipped armor repaired.");
       } else if (item.type === 'gear') {
         const c = item.data.category;
-        const styledName = this.ui.getStyledItemName(item.data.name, item.data.rarity);
+        const styledName = this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common');
 
         if (c.includes('sword') || c.includes('mace') || c === 'dagger' || c === 'staff') {
-          item.data.type = c;
+          item.data.type = c as GearItem['type'];
           this.player.inventory.weapons.push(item.data);
           this.addLog(`Looted: ${styledName} (+${item.data.dmg} ATK).`);
         } else {
-          this.player.inventory[c].push(item.data);
+          this.player.inventory[c as GearSlot].push(item.data);
           this.addLog(`Looted: ${styledName} (${item.data.def} DEF).`);
         }
       }
@@ -336,18 +345,17 @@ export class GameEngine {
     const pType = this.player.inventory.potions[index];
 
     if (pType === 'healing') {
-      const vigorMaxHp = this.statusEffects.vigorTurns > 0 ? this.player.maxHp * 2 : this.player.maxHp;
-      this.player.hp = Math.min(this.player.hp + 12, vigorMaxHp);
+      this.player.hp = Math.min(this.player.hp + BALANCE.potions.healAmount, this.vigorMaxHp());
       this.addLog("Drank Potion of Healing. Recouped some health.");
     } else if (pType === 'strength') {
-      this.statusEffects.strengthTurns = 100;
-      this.addLog("Drank Potion of Strength! Attack power boosted by +10.");
+      this.statusEffects.strengthTurns = BALANCE.status.strengthTurns;
+      this.addLog(`Drank Potion of Strength! Attack power boosted by +${BALANCE.combat.strengthBonus}.`);
     } else if (pType === 'invisibility') {
-      this.statusEffects.invisTurns = 50;
+      this.statusEffects.invisTurns = BALANCE.status.invisTurns;
       this.addLog("Drank Potion of Invisibility! Monsters lose track of you.");
     } else if (pType === 'armor') {
-      this.statusEffects.armorTurns = 100;
-      this.addLog("Drank Potion of Armor! Defenses boosted by +100.");
+      this.statusEffects.armorTurns = BALANCE.status.armorTurns;
+      this.addLog(`Drank Potion of Armor! Defenses boosted by +${BALANCE.status.armorDefBonus}.`);
     }
 
     this.player.inventory.potions.splice(index, 1);
@@ -373,7 +381,7 @@ export class GameEngine {
     }
   }
 
-  public equipGear(slot: string, value: string) {
+  public equipGear(slot: EquipSlot, value: string) {
     handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.ui.updateDropdowns(this.player);
     this.updateUI();
@@ -411,10 +419,9 @@ export class GameEngine {
       this.player.hp--;
       this.addLog("Starving!");
     } else {
-      const vigorMaxHp = this.statusEffects.vigorTurns > 0 ? this.player.maxHp * 2 : this.player.maxHp;
-      if (this.player.hp < vigorMaxHp) {
+      if (this.player.hp < this.vigorMaxHp()) {
         this.player.regenTurns++;
-        if (this.player.regenTurns >= 15) {
+        if (this.player.regenTurns >= BALANCE.player.regenInterval) {
           this.player.hp++;
           this.player.regenTurns = 0;
         }
@@ -441,7 +448,8 @@ export class GameEngine {
       this.COLS,
       this.ROWS,
       totalDef,
-      (msg) => this.addLog(msg)
+      (msg) => this.addLog(msg),
+      this.rng
     );
 
     if (this.player.hp <= 0) {

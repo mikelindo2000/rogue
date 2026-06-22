@@ -2,6 +2,8 @@ import { GameUI } from './ui';
 import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
+import { GAME_EVENTS } from './events';
+import { EquipSlot } from './types';
 import './components/monster-compendium';
 import './components/game-select';
 
@@ -34,12 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
     keyboard.setContextActive('game', modalCount === 0 && dropdownCount === 0);
   };
 
-  document.addEventListener('modal-state-change', (e: any) => {
+  document.addEventListener(GAME_EVENTS.MODAL_STATE_CHANGE, (e: any) => {
     modalCount = Math.max(0, modalCount + (e.detail.open ? 1 : -1));
     syncContexts();
   });
 
-  document.addEventListener('dropdown-state-change', (e: any) => {
+  document.addEventListener(GAME_EVENTS.DROPDOWN_STATE_CHANGE, (e: any) => {
     dropdownCount = Math.max(0, dropdownCount + (e.detail.open ? 1 : -1));
     syncContexts();
   });
@@ -108,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Hook drop-down selections
-  const bindEquipSelector = (id: string, slot: string) => {
+  const bindEquipSelector = (id: string, slot: EquipSlot) => {
     const el = document.getElementById(id) as HTMLSelectElement;
     if (el) {
       el.addEventListener('change', () => {
