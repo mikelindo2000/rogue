@@ -314,10 +314,15 @@ export class GameEngine {
     if (outcome.freezeTurns > 0) {
       monster.frozenTurns = outcome.freezeTurns;
       this.addLog(`${monster.name} frozen!`);
+      this.ui.fxFreeze(monster.x, monster.y);
     }
 
     monster.hp -= outcome.damage;
     this.addLog(`You strike ${monster.name} for ${outcome.damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+
+    // Combat flavor: lunge the player into the blow and pop a damage number.
+    this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
+    this.ui.fxHit(monster.x, monster.y, outcome.damage, monster.hp <= 0);
   }
 
   /** Max HP accounting for the Vigor buff (doubled). */
@@ -343,6 +348,7 @@ export class GameEngine {
 
     if (monster.hp <= 0) {
       this.addLog(`The ${monster.name} dies!`);
+      this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
 
       let xpGained = 0;
       const floorTable = MONSTER_XP_TABLE[this.player.level];
@@ -562,6 +568,7 @@ export class GameEngine {
     const totalDef = getTotalDef(this.player, this.statusEffects);
 
     // Monsters turn
+    const hpBeforeMonsters = this.player.hp;
     processMonsterAI(
       this.monsters,
       this.player,
@@ -573,6 +580,7 @@ export class GameEngine {
       (msg) => this.addLog(msg),
       this.rng
     );
+    if (this.player.hp < hpBeforeMonsters) this.ui.fxPlayerHit();
 
     if (this.player.hp <= 0) {
       this.gameOver = true;

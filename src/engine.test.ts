@@ -8,6 +8,11 @@ const makeUi = () => ({
   updateDropdowns: () => {},
   updateStats: () => {},
   render: () => {},
+  fxStrike: () => {},
+  fxHit: () => {},
+  fxFreeze: () => {},
+  fxDeath: () => {},
+  fxPlayerHit: () => {},
 });
 
 const makeBoss = (name = 'Marcus the Brave'): Monster => ({

@@ -29,6 +29,88 @@ interface TileMetrics {
   passage: number;
 }
 
+/** A transient combat animation. Board-anchored effects carry their own tile
+ *  coords (and, for deaths, their own glyph) so they outlive the entity that
+ *  spawned them. All durations are in milliseconds. */
+interface Fx {
+  kind: 'strike' | 'hit' | 'dmg' | 'death' | 'freeze' | 'phit';
+  start: number;
+  life: number;
+  x?: number;
+  y?: number;
+  fromX?: number;
+  fromY?: number;
+  toX?: number;
+  toY?: number;
+  text?: string;
+  crit?: boolean;
+  glyph?: string;
+  color?: string;
+  jx?: number;
+}
+
+const FX_LIFE = {
+  strike: 280,
+  hit: 340,
+  dmg: 820,
+  death: 460,
+  freeze: 560,
+  phit: 300,
+} as const;
+
+/** Snapshot of the board for a single frame — lets the animation loop repaint
+ *  between turns without the turn-based engine driving every frame. */
+interface Scene {
+  map: string[][];
+  explored: boolean[][];
+  visible: boolean[][];
+  player: Player;
+  monsters: Monster[];
+  items: Item[];
+  tileSize: number;
+  cols: number;
+  rows: number;
+  dungeonFloor: number;
+  gameOver: boolean;
+  gameWon: boolean;
+}
+
+/** Selectable visual styles for the player avatar. */
+export type PlayerSprite = 'rogue' | 'knight' | 'adventurer' | 'mage';
+
+export interface PlayerSpriteOption {
+  id: PlayerSprite;
+  name: string;
+  blurb: string;
+}
+
+/** Ordered catalog of avatars. A character-select UI will enumerate this; for
+ *  now the choice is made in code via GameUI.setPlayerSprite(). */
+export const PLAYER_SPRITE_OPTIONS: PlayerSpriteOption[] = [
+  { id: 'rogue', name: 'Rogue', blurb: 'Hooded cloak with glowing eyes.' },
+  { id: 'knight', name: 'Knight', blurb: 'Plumed helm and a drawn sword.' },
+  { id: 'adventurer', name: 'Adventurer', blurb: 'A plucky everyman hero.' },
+  { id: 'mage', name: 'Mage', blurb: 'Pointed hat and a glowing staff.' },
+];
+
+export const DEFAULT_PLAYER_SPRITE: PlayerSprite = 'knight';
+
+/** Avatar colors for a living player. Fixed (not floor-themed) so the hero
+ *  stays a high-contrast blue against the green floor dots on every floor;
+ *  death/victory still recolor to the floor's red/green for state feedback. */
+const PLAYER_ARMOR = '#3f8cff';
+const PLAYER_ACCENT = '#ffd34d';
+
+/** Working colors a player sprite draws with, resolved per floor and run state. */
+interface PlayerPalette {
+  armor: string;
+  armorDark: string;
+  armorLight: string;
+  accent: string;
+  dark: string;
+  skin: string;
+}
+
 export class GameUI {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -36,6 +118,16 @@ export class GameUI {
   /** Monotonic gutter number for the accumulating UI log history. Reset by
    *  resetLog() when a new run starts. */
   private logSeq = 0;
+
+  /** Latest board snapshot, repainted by the animation loop. */
+  private scene: Scene | null = null;
+  /** In-flight combat effects; the rAF loop runs only while this is non-empty. */
+  private fx: Fx[] = [];
+  private rafId: number | null = null;
+
+  /** Which avatar the player draws as. Settable in code today; a character-
+   *  select UI will drive it later via setPlayerSprite(). */
+  private playerSprite: PlayerSprite = DEFAULT_PLAYER_SPRITE;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -60,7 +152,27 @@ export class GameUI {
     gameOver: boolean,
     gameWon: boolean
   ) {
-    const style = getDungeonStyle(dungeonFloor);
+    // Snapshot the board so the animation loop can repaint between turns
+    // without the turn-based engine having to drive every frame.
+    this.scene = { map, explored, visible, player, monsters, items, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
+
+    // Overlay store state only needs refreshing on real turns, not per frame.
+    this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
+
+    this.paint();
+    this.ensureLoop();
+  }
+
+  /** Paint one frame from the current scene snapshot plus any in-flight combat
+   *  effects. Called once per turn by render(), and repeatedly by the rAF loop
+   *  while effects are alive. */
+  private paint(ts?: number) {
+    const s = this.scene;
+    if (!s) return;
+    const t = ts ?? this.nowMs();
+    this.fx = this.fx.filter(f => t - f.start < f.life);
+
+    const style = getDungeonStyle(s.dungeonFloor);
     this.ctx.fillStyle = style.background;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.imageSmoothingEnabled = false;
@@ -69,41 +181,200 @@ export class GameUI {
 
     // Draw Map. Tiles in view render at full strength; remembered-but-unseen
     // tiles fade back, the way an explored dungeon dims behind you in Rogue.
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (!explored[r]?.[c]) continue;
-        const tile = map[r][c];
+    for (let r = 0; r < s.rows; r++) {
+      for (let c = 0; c < s.cols; c++) {
+        if (!s.explored[r]?.[c]) continue;
+        const tile = s.map[r][c];
         if (tile === TILE.VOID) continue;
 
-        this.ctx.globalAlpha = visible[r]?.[c] ? 1 : DIM_ALPHA;
-        this.drawDungeonTile(map, tile, c, r, tileSize, style);
+        this.ctx.globalAlpha = s.visible[r]?.[c] ? 1 : DIM_ALPHA;
+        this.drawDungeonTile(s.map, tile, c, r, s.tileSize, style);
       }
     }
     this.ctx.globalAlpha = 1;
 
     // Draw Items (only those not standing in darkness should glow brightly)
-    items.forEach(i => {
-      if (!explored[i.y]?.[i.x]) return;
-      this.ctx.globalAlpha = visible[i.y]?.[i.x] ? 1 : DIM_ALPHA;
+    s.items.forEach(i => {
+      if (!s.explored[i.y]?.[i.x]) return;
+      this.ctx.globalAlpha = s.visible[i.y]?.[i.x] ? 1 : DIM_ALPHA;
       this.ctx.fillStyle = i.color;
-      this.drawGlyph(i.symbol, i.x, i.y, tileSize, 0.66);
+      this.drawGlyph(i.symbol, i.x, i.y, s.tileSize, 0.66);
     });
     this.ctx.globalAlpha = 1;
 
-    // Draw Monsters
-    monsters.forEach(m => {
-      if (visible[m.y]?.[m.x]) {
-        this.ctx.fillStyle = m.frozenTurns > 0 ? '#00ffff' : m.color;
-        this.drawGlyph(m.symbol, m.x, m.y, tileSize, 0.76);
-      }
+    // Frost bursts sit under the glyphs.
+    for (const f of this.fx) {
+      if (f.kind === 'freeze') this.drawFrostBurst(f, t, s.tileSize);
+    }
+
+    // Draw Monsters — bold, optically centered on the tile dot, with the
+    // hit shake/flash applied to whichever monster is being struck.
+    s.monsters.forEach(m => {
+      if (!s.visible[m.y]?.[m.x]) return;
+      const h = this.hitAt(t, m.x, m.y);
+      let color = m.frozenTurns > 0 ? '#00ffff' : m.color;
+      if (h.flash > 0) color = this.blend(color, '#ffffff', h.flash);
+      this.ctx.fillStyle = color;
+      this.drawGlyph(m.symbol, m.x, m.y, s.tileSize, 0.95, { weight: 800, sizeRatio: 0.98, dx: h.shakeX, embolden: 0.08 });
     });
 
-    // Draw Player
-    this.drawPlayer(player.x, player.y, tileSize, style, gameOver, gameWon);
+    // Dying monsters fade + shrink in place. The monster is already gone from
+    // the board, so the effect carries its own glyph and color.
+    for (const f of this.fx) {
+      if (f.kind !== 'death') continue;
+      const p = Math.min(1, (t - f.start) / f.life);
+      const m = this.tileMetrics(f.x!, f.y!, s.tileSize);
+      this.ctx.save();
+      this.ctx.globalAlpha = 1 - p;
+      this.ctx.translate(m.cx, m.cy);
+      this.ctx.scale(1 - p * 0.5, 1 - p * 0.5);
+      this.ctx.translate(-m.cx, -m.cy);
+      this.ctx.fillStyle = f.color!;
+      this.drawGlyph(f.glyph!, f.x!, f.y!, s.tileSize, 0.95, { weight: 800, sizeRatio: 0.98, embolden: 0.08 });
+      this.ctx.restore();
+    }
+    this.ctx.globalAlpha = 1;
 
-    // Mirror board-derived state into the UI store (stairs proximity, the
-    // nearest visible monster, run state) for the chrome overlays.
-    this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
+    // Draw Player (with attack lunge + damage flash)
+    const pf = this.playerFx(t, s.tileSize);
+    this.drawPlayer(s.player.x, s.player.y, s.tileSize, style, s.gameOver, s.gameWon, pf.dx, pf.dy, pf.flash);
+
+    // Floating damage numbers, painted last so they read above everything.
+    for (const f of this.fx) {
+      if (f.kind !== 'dmg') continue;
+      const e = t - f.start;
+      if (e < 0) continue;
+      const p = e / f.life;
+      const m = this.tileMetrics(f.x!, f.y!, s.tileSize);
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.max(0, 1 - p);
+      this.ctx.fillStyle = f.crit ? '#ffd44d' : '#ff6a5a';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'alphabetic';
+      const fs = Math.round(s.tileSize * (f.crit ? 0.8 : 0.62));
+      this.ctx.font = `800 ${fs}px "Fira Code", monospace`;
+      this.ctx.fillText(f.text!, m.cx + (f.jx ?? 0) * s.tileSize, m.cy - s.tileSize * 0.2 - p * s.tileSize * 1.4);
+      this.ctx.restore();
+    }
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** Spin a requestAnimationFrame loop while effects are alive; it stops itself
+   *  on the first frame with no remaining effects. */
+  private ensureLoop() {
+    if (this.rafId != null || this.fx.length === 0) return;
+    if (typeof requestAnimationFrame === 'undefined') return;
+    const step = (ts: number) => {
+      this.paint(ts);
+      this.rafId = this.fx.length > 0 ? requestAnimationFrame(step) : null;
+    };
+    this.rafId = requestAnimationFrame(step);
+  }
+
+  private nowMs(): number {
+    return typeof performance !== 'undefined' ? performance.now() : 0;
+  }
+
+  /** Aggregate the player's attack-lunge offset and damage flash for frame t. */
+  private playerFx(t: number, tileSize: number): { dx: number; dy: number; flash: number } {
+    let dx = 0;
+    let dy = 0;
+    let flash = 0;
+    for (const f of this.fx) {
+      const e = t - f.start;
+      if (f.kind === 'strike' && e >= 0 && e < f.life) {
+        const dirx = Math.sign((f.toX ?? 0) - (f.fromX ?? 0));
+        const diry = Math.sign((f.toY ?? 0) - (f.fromY ?? 0));
+        const amp = Math.sin((e / f.life) * Math.PI) * tileSize * 0.42;
+        dx += dirx * amp;
+        dy += diry * amp;
+      } else if (f.kind === 'phit') {
+        flash = Math.max(flash, 1 - e / f.life);
+      }
+    }
+    return { dx, dy, flash: Math.max(0, flash) };
+  }
+
+  /** Flash strength and horizontal shake for a struck monster at (x, y). */
+  private hitAt(t: number, x: number, y: number): { flash: number; shakeX: number } {
+    let flash = 0;
+    let shakeX = 0;
+    for (const f of this.fx) {
+      if (f.kind !== 'hit' || f.x !== x || f.y !== y) continue;
+      const e = t - f.start;
+      flash = Math.max(flash, 1 - e / 300);
+      shakeX += Math.sin(e / 24) * 6 * Math.max(0, 1 - e / f.life);
+    }
+    return { flash: Math.max(0, flash), shakeX };
+  }
+
+  private drawFrostBurst(f: Fx, t: number, tileSize: number) {
+    const p = Math.min(1, (t - f.start) / f.life);
+    const m = this.tileMetrics(f.x!, f.y!, tileSize);
+    this.ctx.save();
+    this.ctx.globalAlpha = (1 - p) * 0.8;
+    this.ctx.strokeStyle = '#8fe9ff';
+    this.ctx.lineWidth = Math.max(1.5, tileSize * 0.08);
+    this.ctx.beginPath();
+    this.ctx.arc(m.cx, m.cy, tileSize * (0.2 + p * 0.35), 0, Math.PI * 2);
+    this.ctx.stroke();
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  private blend(a: string, b: string, t: number): string {
+    const pa = this.hexRgb(a);
+    const pb = this.hexRgb(b);
+    if (!pa || !pb) return a;
+    const ch = (i: number) => Math.round(pa[i] + (pb[i] - pa[i]) * t);
+    return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
+  }
+
+  private hexRgb(h: string): [number, number, number] | null {
+    if (!h.startsWith('#') || h.length < 7) return null;
+    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  }
+
+  // --- Combat animation triggers (invoked by the engine during combat) ---
+
+  /** Lunge the player a fraction of a tile toward the struck monster. */
+  public fxStrike(fromX: number, fromY: number, toX: number, toY: number) {
+    this.fx.push({ kind: 'strike', start: this.nowMs(), life: FX_LIFE.strike, fromX, fromY, toX, toY });
+    this.ensureLoop();
+  }
+
+  /** Flash + shake the monster at (x, y) and float a damage number off it. */
+  public fxHit(x: number, y: number, damage: number, crit = false) {
+    const start = this.nowMs();
+    this.fx.push({ kind: 'hit', start, life: FX_LIFE.hit, x, y });
+    this.fx.push({ kind: 'dmg', start, life: FX_LIFE.dmg, x, y, text: `${crit ? '✦' : '-'}${damage}`, crit, jx: Math.random() * 0.4 - 0.2 });
+    this.ensureLoop();
+  }
+
+  public fxFreeze(x: number, y: number) {
+    this.fx.push({ kind: 'freeze', start: this.nowMs(), life: FX_LIFE.freeze, x, y });
+    this.ensureLoop();
+  }
+
+  public fxDeath(x: number, y: number, glyph: string, color: string) {
+    this.fx.push({ kind: 'death', start: this.nowMs(), life: FX_LIFE.death, x, y, glyph, color });
+    this.ensureLoop();
+  }
+
+  public fxPlayerHit() {
+    this.fx.push({ kind: 'phit', start: this.nowMs(), life: FX_LIFE.phit });
+    this.ensureLoop();
+  }
+
+  /** Choose the player's avatar style and repaint. Intended for a future
+   *  character-select UI; the current selection persists for the session. */
+  public setPlayerSprite(sprite: PlayerSprite) {
+    this.playerSprite = sprite;
+    this.paint();
+  }
+
+  public getPlayerSprite(): PlayerSprite {
+    return this.playerSprite;
   }
 
   private tileMetrics(gx: number, gy: number, tileSize: number): TileMetrics {
@@ -379,51 +650,281 @@ export class GameUI {
     tileSize: number,
     style: DungeonStyle,
     gameOver: boolean,
-    gameWon: boolean
+    gameWon: boolean,
+    dx = 0,
+    dy = 0,
+    flash = 0
   ) {
     const m = this.tileMetrics(gx, gy, tileSize);
-    const [headX, headY] = this.grid(m, 2, 0.6);
-    const [headRight] = this.grid(m, 6, 4.6);
-    const [bodyX, bodyY] = this.grid(m, 2.4, 4.5);
-    const [bodyRight, bodyBottom] = this.grid(m, 5.6, 8);
-    const head = headRight - headX;
-    const bodyW = bodyRight - bodyX;
-    const bodyH = bodyBottom - bodyY;
-    const bodyColor = gameOver ? style.playerDead : gameWon ? style.playerWon : style.playerBody;
-
-    this.ctx.fillStyle = bodyColor;
-    this.ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
-
-    this.ctx.strokeStyle = gameOver ? style.playerDead : gameWon ? style.playerWon : style.playerHead;
-    this.ctx.lineWidth = Math.max(2, Math.round(tileSize * 0.1));
-    this.ctx.strokeRect(headX, headY, head, head);
-
-    this.ctx.fillStyle = gameOver ? style.playerDead : style.playerFace;
-    const eye = Math.max(1, Math.round(tileSize * 0.08));
-    const [leftEyeX, eyeY] = this.grid(m, 3.1, 2);
-    const [rightEyeX] = this.grid(m, 4.7, 2);
-    const [mouthX, mouthY] = this.grid(m, 3.2, 3.5);
-    const [mouthRight] = this.grid(m, 4.8, 3.5);
-    this.ctx.fillRect(leftEyeX, eyeY, eye, eye);
-    this.ctx.fillRect(rightEyeX, eyeY, eye, eye);
-    this.ctx.fillRect(mouthX, mouthY, mouthRight - mouthX, eye);
-  }
-
-  private drawGlyph(ch: string, gx: number, gy: number, tileSize: number, maxWidthRatio: number) {
-    const m = this.tileMetrics(gx, gy, tileSize);
-    const maxWidth = Math.round(tileSize * maxWidthRatio);
-    let fontSize = Math.max(12, Math.floor(tileSize * 0.72));
+    const pal = this.playerPalette(style, gameOver, gameWon, flash);
 
     this.ctx.save();
-    this.ctx.textBaseline = 'middle';
-    this.ctx.textAlign = 'center';
-    this.ctx.font = `700 ${fontSize}px "Fira Code", monospace`;
-    const width = this.ctx.measureText(ch).width;
-    if (width > maxWidth) {
-      fontSize = Math.max(10, Math.floor(fontSize * (maxWidth / width)));
-      this.ctx.font = `700 ${fontSize}px "Fira Code", monospace`;
+    this.ctx.translate(m.cx + dx, m.cy + dy);
+    switch (this.playerSprite) {
+      case 'rogue':
+        this.drawRogue(tileSize, pal);
+        break;
+      case 'adventurer':
+        this.drawAdventurer(tileSize, pal);
+        break;
+      case 'mage':
+        this.drawMage(tileSize, pal);
+        break;
+      case 'knight':
+      default:
+        this.drawKnight(tileSize, pal);
+        break;
     }
-    this.ctx.fillText(ch, m.cx, m.cy);
+    this.ctx.restore();
+  }
+
+  /** Resolve the avatar's working colors from the floor palette and run state.
+   *  Every sprite derives its shades from these so a loss recolors the whole
+   *  figure red, a win green, and a monster's blow flashes it toward red. */
+  private playerPalette(
+    style: DungeonStyle,
+    gameOver: boolean,
+    gameWon: boolean,
+    flash: number
+  ): PlayerPalette {
+    let armor = gameOver ? style.playerDead : gameWon ? style.playerWon : PLAYER_ARMOR;
+    let accent = gameOver ? style.playerDead : gameWon ? style.playerWon : PLAYER_ACCENT;
+    let skin = gameOver ? style.playerDead : gameWon ? style.playerWon : '#e7c69a';
+    const dark = gameOver ? style.playerDead : style.playerFace;
+    if (flash > 0) {
+      armor = this.blend(armor, '#ff5555', flash * 0.85);
+      accent = this.blend(accent, '#ff5555', flash * 0.85);
+      skin = this.blend(skin, '#ff5555', flash * 0.85);
+    }
+    return {
+      armor,
+      armorDark: this.blend(armor, '#000000', 0.45),
+      armorLight: this.blend(armor, '#ffffff', 0.12),
+      accent,
+      dark,
+      skin,
+    };
+  }
+
+  /** Hooded cloak silhouette with glowing eyes in the shadow. */
+  private drawRogue(T: number, pal: PlayerPalette) {
+    const ctx = this.ctx;
+    ctx.fillStyle = pal.armorDark;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.47 * T);
+    ctx.bezierCurveTo(0.30 * T, -0.40 * T, 0.31 * T, -0.12 * T, 0.25 * T, 0.08 * T);
+    ctx.lineTo(0.35 * T, 0.47 * T);
+    ctx.lineTo(-0.35 * T, 0.47 * T);
+    ctx.lineTo(-0.25 * T, 0.08 * T);
+    ctx.bezierCurveTo(-0.31 * T, -0.12 * T, -0.30 * T, -0.40 * T, 0, -0.47 * T);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner robe panel
+    ctx.fillStyle = pal.armor;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.16 * T);
+    ctx.lineTo(0.13 * T, 0.46 * T);
+    ctx.lineTo(-0.13 * T, 0.46 * T);
+    ctx.closePath();
+    ctx.fill();
+
+    // Face shadow + glowing eyes
+    ctx.fillStyle = pal.dark;
+    ctx.beginPath();
+    ctx.ellipse(0.03 * T, -0.20 * T, 0.14 * T, 0.17 * T, 0, 0, Math.PI * 2);
+    ctx.fill();
+    this.disc(-0.04 * T, -0.21 * T, Math.max(0.7, 0.035 * T), pal.accent);
+    this.disc(0.10 * T, -0.21 * T, Math.max(0.7, 0.035 * T), pal.accent);
+
+    // Belt
+    this.roundFill(-0.13 * T, 0.04 * T, 0.26 * T, 0.04 * T, 0.02 * T, pal.accent);
+  }
+
+  /** Plumed helm with a visor slit, pauldrons, and a drawn sword. */
+  private drawKnight(T: number, pal: PlayerPalette) {
+    const ctx = this.ctx;
+
+    // Plume crest atop the helm
+    ctx.fillStyle = pal.accent;
+    ctx.beginPath();
+    ctx.moveTo(-0.02 * T, -0.40 * T);
+    ctx.quadraticCurveTo(0.22 * T, -0.52 * T, 0.15 * T, -0.30 * T);
+    ctx.quadraticCurveTo(0.05 * T, -0.34 * T, -0.02 * T, -0.40 * T);
+    ctx.fill();
+
+    // Breastplate (tapered)
+    ctx.fillStyle = pal.armor;
+    ctx.beginPath();
+    ctx.moveTo(-0.22 * T, -0.02 * T);
+    ctx.lineTo(0.22 * T, -0.02 * T);
+    ctx.lineTo(0.17 * T, 0.40 * T);
+    ctx.lineTo(-0.17 * T, 0.40 * T);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pauldrons + helm
+    this.disc(-0.23 * T, 0.02 * T, 0.12 * T, pal.armor);
+    this.disc(0.23 * T, 0.02 * T, 0.12 * T, pal.armor);
+    this.disc(0, -0.18 * T, 0.20 * T, pal.armor);
+
+    // Visor: horizontal slot with a vertical breathing slit
+    ctx.fillStyle = pal.dark;
+    ctx.fillRect(-0.15 * T, -0.21 * T, 0.30 * T, Math.max(2, 0.06 * T));
+    ctx.fillRect(-0.045 * T, -0.30 * T, Math.max(2, 0.09 * T), 0.19 * T);
+
+    // Eye glints inside the visor
+    ctx.fillStyle = pal.accent;
+    const g = Math.max(1, Math.round(0.05 * T));
+    ctx.fillRect(-0.10 * T, -0.20 * T, g, g);
+    ctx.fillRect(0.06 * T, -0.20 * T, g, g);
+
+    // Sword held at the side
+    ctx.strokeStyle = pal.accent;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2, 0.06 * T);
+    ctx.beginPath();
+    ctx.moveTo(0.33 * T, 0.36 * T);
+    ctx.lineTo(0.33 * T, -0.34 * T);
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1.5, 0.045 * T);
+    ctx.beginPath();
+    ctx.moveTo(0.24 * T, 0.13 * T);
+    ctx.lineTo(0.42 * T, 0.13 * T);
+    ctx.stroke();
+  }
+
+  /** A plucky everyman hero — round head, hair, torso, arms, legs. */
+  private drawAdventurer(T: number, pal: PlayerPalette) {
+    const ctx = this.ctx;
+    // Legs
+    this.roundFill(-0.15 * T, 0.24 * T, 0.11 * T, 0.24 * T, 0.04 * T, pal.armorDark);
+    this.roundFill(0.05 * T, 0.24 * T, 0.11 * T, 0.24 * T, 0.04 * T, pal.armorDark);
+    // Torso
+    this.roundFill(-0.17 * T, -0.04 * T, 0.34 * T, 0.34 * T, 0.07 * T, pal.armor);
+    // Arms
+    this.roundFill(-0.26 * T, 0.0 * T, 0.10 * T, 0.26 * T, 0.05 * T, pal.armorLight);
+    this.roundFill(0.16 * T, -0.07 * T, 0.10 * T, 0.25 * T, 0.05 * T, pal.armorLight);
+    // Head
+    this.disc(0, -0.22 * T, 0.155 * T, pal.skin);
+    // Hair
+    ctx.fillStyle = pal.armorDark;
+    ctx.beginPath();
+    ctx.arc(0, -0.24 * T, 0.16 * T, Math.PI * 1.05, Math.PI * 2.0);
+    ctx.fill();
+    // Eyes
+    this.disc(-0.05 * T, -0.21 * T, Math.max(0.6, 0.022 * T), pal.dark);
+    this.disc(0.05 * T, -0.21 * T, Math.max(0.6, 0.022 * T), pal.dark);
+  }
+
+  /** Pointed hat, robe, and a glowing staff. */
+  private drawMage(T: number, pal: PlayerPalette) {
+    const ctx = this.ctx;
+    // Robe
+    ctx.fillStyle = pal.armor;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.04 * T);
+    ctx.lineTo(0.31 * T, 0.46 * T);
+    ctx.lineTo(-0.31 * T, 0.46 * T);
+    ctx.closePath();
+    ctx.fill();
+    // Robe highlight
+    ctx.fillStyle = pal.armorLight;
+    ctx.beginPath();
+    ctx.moveTo(0, 0.06 * T);
+    ctx.lineTo(0.10 * T, 0.46 * T);
+    ctx.lineTo(-0.10 * T, 0.46 * T);
+    ctx.closePath();
+    ctx.fill();
+    // Face
+    this.disc(0, -0.11 * T, 0.135 * T, pal.skin);
+    // Hat brim
+    ctx.fillStyle = pal.armorDark;
+    ctx.beginPath();
+    ctx.ellipse(0, -0.17 * T, 0.27 * T, 0.06 * T, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Hat cone (with a bent tip)
+    ctx.beginPath();
+    ctx.moveTo(-0.20 * T, -0.18 * T);
+    ctx.lineTo(0.20 * T, -0.18 * T);
+    ctx.quadraticCurveTo(0.12 * T, -0.42 * T, 0.05 * T, -0.56 * T);
+    ctx.quadraticCurveTo(-0.04 * T, -0.34 * T, -0.20 * T, -0.18 * T);
+    ctx.closePath();
+    ctx.fill();
+    // Hat band
+    this.roundFill(-0.17 * T, -0.22 * T, 0.34 * T, 0.05 * T, 0.02 * T, pal.accent);
+    // Staff
+    ctx.strokeStyle = pal.armorDark;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2, 0.05 * T);
+    ctx.beginPath();
+    ctx.moveTo(0.30 * T, 0.47 * T);
+    ctx.lineTo(0.30 * T, -0.28 * T);
+    ctx.stroke();
+    // Glowing orb
+    this.disc(0.30 * T, -0.33 * T, Math.max(1.5, 0.07 * T), pal.accent);
+  }
+
+  private disc(x: number, y: number, r: number, color: string) {
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, r, 0, Math.PI * 2);
+    this.ctx.fill();
+  }
+
+  private roundFill(x: number, y: number, w: number, h: number, r: number, color: string) {
+    const c = this.ctx;
+    c.fillStyle = color;
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+    c.fill();
+  }
+
+  private drawGlyph(
+    ch: string,
+    gx: number,
+    gy: number,
+    tileSize: number,
+    maxWidthRatio: number,
+    opts: { weight?: number; sizeRatio?: number; dx?: number; embolden?: number } = {}
+  ) {
+    const m = this.tileMetrics(gx, gy, tileSize);
+    const weight = opts.weight ?? 700;
+    const sizeRatio = opts.sizeRatio ?? 0.72;
+    const dx = opts.dx ?? 0;
+    const maxWidth = Math.round(tileSize * maxWidthRatio);
+    let fontSize = Math.max(12, Math.floor(tileSize * sizeRatio));
+
+    this.ctx.save();
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'alphabetic';
+    this.ctx.font = `${weight} ${fontSize}px "Fira Code", monospace`;
+    let metrics = this.ctx.measureText(ch);
+    if (metrics.width > maxWidth) {
+      fontSize = Math.max(10, Math.floor(fontSize * (maxWidth / metrics.width)));
+      this.ctx.font = `${weight} ${fontSize}px "Fira Code", monospace`;
+      metrics = this.ctx.measureText(ch);
+    }
+    // Center the glyph's actual ink box on the tile center (the floor dot), so
+    // monsters sit squarely on the cell they occupy regardless of the symbol.
+    const asc = metrics.actualBoundingBoxAscent ?? fontSize * 0.7;
+    const desc = metrics.actualBoundingBoxDescent ?? 0;
+    const x = m.cx + dx;
+    const y = m.cy + (asc - desc) / 2;
+    // Fira Code tops out at weight 700, so to push monsters bolder still we
+    // stroke each glyph in its own fill color, fattening every stem.
+    if (opts.embolden) {
+      this.ctx.lineJoin = 'round';
+      this.ctx.strokeStyle = this.ctx.fillStyle as string;
+      this.ctx.lineWidth = Math.max(1, fontSize * opts.embolden);
+      this.ctx.strokeText(ch, x, y);
+    }
+    this.ctx.fillText(ch, x, y);
     this.ctx.restore();
   }
 
