@@ -7,44 +7,7 @@
     <link rel="stylesheet" href="./src/styles.css">
 </head>
 <body>
-    <div id="game-app">
-        <!-- Main Game Area -->
-        <div id="game-container">
-            <div id="ui-container">
-                <div id="ui-stats">
-                    <span id="stat-floor">Floor: 1/20</span>
-                    <span id="stat-level">Level: 1</span>
-                    <span id="stat-hp">HP: 30/30</span>
-                    <span id="stat-gold">Gold: 0</span>
-                    <span id="stat-defense">Total DEF: 1</span>
-                    <span id="stat-hunger">Hunger: Satiated</span>
-                </div>
-                <div id="ui-equipment">
-                    <div><label>Main Hand</label><game-select id="sel-main"></game-select></div>
-                    <div><label>Off-Hand</label><game-select id="sel-off"></game-select></div>
-                    <div><label>Helm</label><game-select id="sel-helm"></game-select></div>
-                    <div><label>Chest</label><game-select id="sel-chest"></game-select></div>
-                    <div><label>Legs</label><game-select id="sel-legs"></game-select></div>
-                    <div><label>Gauntlets</label><game-select id="sel-gauntlets"></game-select></div>
-                    <div><label>Boots</label><game-select id="sel-boots"></game-select></div>
-                    <div><label class="label-potions">Potions</label><game-select id="sel-potions" placeholder="Use Potion..."></game-select></div>
-                    <div><label class="label-food">Food (<span id="ui-food">0</span>/4)</label><button id="btn-eat" class="btn-eat">Eat</button></div>
-                </div>
-            </div>
-            
-            <canvas id="gameCanvas" width="920" height="580"></canvas>
-            
-            <div id="message-log"></div>
-            
-            <div id="xp-container">
-                <div id="xp-bar"></div>
-                <span id="xp-text">0 / 1400 XP</span>
-        </div>
-    </div>
-    
-    <!-- Custom Components -->
-    <monster-compendium id="compendium"></monster-compendium>
-
+    <div id="app"></div>
     <script type="module" src="./src/main.ts"></script>
 </body>
 </html>
