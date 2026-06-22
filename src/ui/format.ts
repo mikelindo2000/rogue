@@ -43,7 +43,8 @@ export function hungerView(
   return { status: 'Satiated', pct, tone: 'ok' };
 }
 
-/** Cosmetic per-floor names (flavor only — the game has no floor names). */
+/** Flavor name shown in the top bar for each of the 20 floors, descending from
+ *  the entrance halls toward the final boss floor. Not part of game logic. */
 const FLOOR_NAMES = [
   'The Sunless Halls',
   'The Weeping Caverns',
@@ -54,7 +55,17 @@ const FLOOR_NAMES = [
   'The Ember Deeps',
   'The Hollow Reliquary',
   'The Bone Orchard',
-  'The Silent Abyss',
+  'The Rusted Catacombs',
+  'The Whispering Mire',
+  'The Cinder Wastes',
+  'The Fungal Warrens',
+  'The Obsidian Span',
+  'The Frostbound Vault',
+  'The Screaming Dark',
+  'The Molten Sanctum',
+  'The Sundered Throne',
+  'The Abyssal Gate',
+  'The Heart of the Deep',
 ];
 
 export function floorName(floor: number): string {
