@@ -54,6 +54,8 @@ export class GameEngine {
   public seed: number = 0;
   private rng: RNG;
   private floorStates: Map<number, FloorState> = new Map();
+  private searchHintShown = false;
+  private secretsFoundThisRun = 0;
 
   private ui: GameUI;
 
@@ -85,6 +87,8 @@ export class GameEngine {
       armorTurns: 0
     };
     this.floorStates.clear();
+    this.searchHintShown = false;
+    this.secretsFoundThisRun = 0;
     this.logs = ["Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors."];
 
     this.generateFloor();
@@ -123,6 +127,10 @@ export class GameEngine {
       const bosses = this.monsters.filter(m => m.special === 'boss');
       const bossNames = bosses.map(b => b.name).join(" and ");
       this.addLog(`${bossNames} await!`);
+    }
+    if (this.dungeonFloor === 3 && this.hasSecretDoors() && !this.searchHintShown) {
+      this.searchHintShown = true;
+      this.addLog("Some dead ends hide doors. Press Space to search nearby walls.");
     }
 
     this.updateFOV();
@@ -272,6 +280,8 @@ export class GameEngine {
       this.processTurn();
     } else if (this.tryBumpSearch(tx, ty)) {
       this.processTurn();
+    } else {
+      this.maybeShowDeadEndSearchHint(tx, ty);
     }
   }
 
@@ -317,7 +327,27 @@ export class GameEngine {
 
   private revealSecretDoor(x: number, y: number) {
     this.map[y][x] = TILE.DOOR;
+    this.secretsFoundThisRun++;
     this.updateFOV();
+  }
+
+  private hasSecretDoors(): boolean {
+    return this.map.some(row => row.some(tile => isSecretDoor(tile)));
+  }
+
+  private maybeShowDeadEndSearchHint(tx: number, ty: number) {
+    if (this.searchHintShown || this.secretsFoundThisRun > 0 || this.dungeonFloor < 3) return;
+    if (tx < 0 || tx >= this.COLS || ty < 0 || ty >= this.ROWS) return;
+    if (this.map[this.player.y]?.[this.player.x] !== TILE.CORRIDOR) return;
+    if (isWalkable(this.map[ty]?.[tx])) return;
+
+    const exits = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) =>
+      isWalkable(this.map[this.player.y + dy]?.[this.player.x + dx])
+    );
+    if (exits.length > 1) return;
+
+    this.searchHintShown = true;
+    this.addLog("Dead end. Press Space to search nearby walls.");
   }
 
   /**

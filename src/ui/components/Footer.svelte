@@ -20,6 +20,10 @@
     <span class="lbl">eat</span>
   </span>
   <span class="hint">
+    <KeyCap>Space</KeyCap>
+    <span class="lbl">search</span>
+  </span>
+  <span class="hint">
     <KeyCap>m</KeyCap>
     <span class="lbl">bestiary</span>
   </span>

@@ -81,6 +81,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   keyboard.register({
+    keys: [' '],
+    description: 'Search nearby walls',
+    context: 'game',
+    callback: () => {
+      if (!overlayOpen()) engine.search();
+    },
+  });
+
+  keyboard.register({
     keys: ['r'],
     description: 'Restart (when the run has ended)',
     context: 'game',
