@@ -12,7 +12,7 @@
   {#if ui.stairsNearby}
     <div class="stairs-pill">
       <span class="caret">&gt;</span>
-      <span class="text">Descend stairs nearby</span>
+      <span class="text">Stairs nearby</span>
     </div>
   {/if}
 

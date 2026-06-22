@@ -447,7 +447,7 @@ export class GameUI {
       this.drawDoor(map, m, style);
     } else if (STAIR_TILES.has(tile)) {
       this.drawFloorDot(m, style.floorDotDim);
-      this.drawStairs(m, style);
+      this.drawStairs(m, style, tile);
     }
   }
 
@@ -649,17 +649,60 @@ export class GameUI {
     this.ctx.stroke();
   }
 
-  private drawStairs(m: TileMetrics, style: DungeonStyle) {
-    const [x1, y1] = this.grid(m, 3, 2.4);
-    const [x2, y2] = this.grid(m, 5.5, 4);
-    const [x3, y3] = this.grid(m, 3, 5.6);
+  private drawStairs(m: TileMetrics, style: DungeonStyle, tile: string) {
+    const up = tile === TILE.STAIRS_UP;
+    const treads = up
+      ? [
+          [4.4, 2.1, 6.2],
+          [3.3, 3.7, 5.1],
+          [2.2, 5.3, 4.0],
+        ]
+      : [
+          [2.2, 2.1, 4.0],
+          [3.3, 3.7, 5.1],
+          [4.4, 5.3, 6.2],
+        ];
+    const lineWidth = Math.max(2, Math.round(m.size * 0.09));
+
+    this.ctx.save();
+    this.ctx.lineCap = 'square';
+    this.ctx.lineJoin = 'miter';
     this.ctx.strokeStyle = style.stairs;
-    this.ctx.lineWidth = Math.max(2, Math.round(m.size * 0.1));
+    this.ctx.lineWidth = lineWidth;
+
+    for (let i = 0; i < treads.length; i++) {
+      const [x1g, yg, x2g] = treads[i];
+      const [x1, y] = this.grid(m, x1g, yg);
+      const [x2] = this.grid(m, x2g, yg);
+      this.ctx.beginPath();
+      this.ctx.moveTo(x1, y);
+      this.ctx.lineTo(x2, y);
+      this.ctx.stroke();
+
+      if (i < treads.length - 1) {
+        const [, nextYg] = treads[i + 1];
+        const riserXg = up ? x1g : x2g;
+        const [rx, ry1] = this.grid(m, riserXg, yg);
+        const [, ry2] = this.grid(m, riserXg, nextYg);
+        this.ctx.beginPath();
+        this.ctx.moveTo(rx, ry1);
+        this.ctx.lineTo(rx, ry2);
+        this.ctx.stroke();
+      }
+    }
+
+    this.ctx.fillStyle = style.stairs;
+    const arrowY = up ? 1.2 : 6.8;
+    const arrowTip = this.grid(m, up ? 5.8 : 5.0, arrowY);
+    const left = this.grid(m, up ? 5.2 : 4.4, up ? 1.9 : 6.1);
+    const right = this.grid(m, up ? 6.4 : 5.6, up ? 1.9 : 6.1);
     this.ctx.beginPath();
-    this.ctx.moveTo(x1, y1);
-    this.ctx.lineTo(x2, y2);
-    this.ctx.lineTo(x3, y3);
-    this.ctx.stroke();
+    this.ctx.moveTo(arrowTip[0], arrowTip[1]);
+    this.ctx.lineTo(left[0], left[1]);
+    this.ctx.lineTo(right[0], right[1]);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.restore();
   }
 
   private drawPlayer(
