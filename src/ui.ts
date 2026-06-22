@@ -1,7 +1,7 @@
 import { Player, Monster, Item, StatusEffects, GearItem, ARMOR_SLOTS } from './types';
 import { RARITY_CONFIG, BALANCE, getScaledXpRequirements } from './config';
-import { TILE } from './tiles';
-import { TILE_COLORS, TILE_DEFAULT_COLOR, DIM_ALPHA, PLAYER_COLORS } from './theme';
+import { TILE, isCorner } from './tiles';
+import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
 import type { GameSelect, SelectOption } from './components/game-select';
 
 export class GameUI {
@@ -29,11 +29,15 @@ export class GameUI {
     tileSize: number,
     cols: number,
     rows: number,
+    dungeonFloor: number,
     gameOver: boolean,
     gameWon: boolean
   ) {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.font = '700 18px "Fira Code", monospace';
+    const style = getDungeonStyle(dungeonFloor);
+    this.ctx.fillStyle = style.background;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.font = `700 ${Math.max(14, Math.floor(tileSize * 0.78))}px "Fira Code", monospace`;
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
 
@@ -51,8 +55,7 @@ export class GameUI {
         if (tile === TILE.VOID) continue;
 
         this.ctx.globalAlpha = visible[r]?.[c] ? 1 : DIM_ALPHA;
-        this.ctx.fillStyle = TILE_COLORS[tile] || TILE_DEFAULT_COLOR;
-        glyph(tile, c, r);
+        this.drawDungeonTile(tile, c, r, tileSize, style);
       }
     }
     this.ctx.globalAlpha = 1;
@@ -75,9 +78,207 @@ export class GameUI {
     });
 
     // Draw Player
-    this.ctx.fillStyle = gameOver ? PLAYER_COLORS.dead : gameWon ? PLAYER_COLORS.won : PLAYER_COLORS.alive;
-    const playerSymbol = gameOver ? 'X' : gameWon ? 'W' : '@';
-    glyph(playerSymbol, player.x, player.y);
+    this.drawPlayer(player.x, player.y, tileSize, style, gameOver, gameWon);
+  }
+
+  private drawDungeonTile(
+    tile: string,
+    gx: number,
+    gy: number,
+    tileSize: number,
+    style: DungeonStyle
+  ) {
+    if (tile === TILE.FLOOR) {
+      this.drawFloorDot(gx, gy, tileSize, style.floorDot);
+    } else if (tile === TILE.CORRIDOR) {
+      this.drawCorridor(gx, gy, tileSize, style);
+    } else if (tile === TILE.WALL_H || tile === TILE.WALL_V) {
+      this.drawWall(gx, gy, tileSize, style, tile);
+    } else if (isCorner(tile)) {
+      this.drawCorner(gx, gy, tileSize, style, tile);
+    } else if (tile === TILE.DOOR) {
+      this.drawDoor(gx, gy, tileSize, style);
+    } else if (tile === TILE.STAIRS) {
+      this.drawFloorDot(gx, gy, tileSize, style.floorDotDim);
+      this.drawStairs(gx, gy, tileSize, style);
+    }
+  }
+
+  private drawFloorDot(gx: number, gy: number, tileSize: number, color: string) {
+    const dotW = Math.max(4, Math.round(tileSize * 0.28));
+    const dotH = Math.max(2, Math.round(tileSize * 0.12));
+    const x = gx * tileSize + Math.round((tileSize - dotW) / 2);
+    const y = gy * tileSize + Math.round((tileSize - dotH) / 2);
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(x, y, dotW, dotH);
+  }
+
+  private drawCorridor(gx: number, gy: number, tileSize: number, style: DungeonStyle) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    this.ctx.fillStyle = style.corridor;
+    this.ctx.fillRect(x, y, tileSize, tileSize);
+
+    const step = Math.max(3, Math.round(tileSize / 5));
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(x, y, tileSize, tileSize);
+    this.ctx.clip();
+    this.ctx.fillStyle = style.corridorDark;
+    for (let py = -tileSize; py < tileSize * 2; py += step) {
+      for (let px = 0; px < tileSize; px += step) {
+        const offsetX = x + px;
+        const offsetY = y + py + px;
+        this.ctx.fillRect(offsetX, offsetY, Math.max(1, Math.floor(step / 2)), Math.max(1, Math.floor(step / 2)));
+      }
+    }
+    this.ctx.restore();
+  }
+
+  private drawWall(
+    gx: number,
+    gy: number,
+    tileSize: number,
+    style: DungeonStyle,
+    tile: string
+  ) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    const lineWidth = Math.max(2, Math.round(tileSize * 0.11));
+    const gap = Math.max(3, Math.round(tileSize * 0.2));
+    const center = Math.floor(tileSize / 2);
+
+    // The map now carries explicit `-`/`|` glyphs, so the wall orientation comes
+    // straight from the tile rather than being re-inferred from neighbours.
+    if (tile === TILE.WALL_H) {
+      this.drawDoubleLine(x, y + center - gap / 2, x + tileSize, y + center - gap / 2, lineWidth, style);
+      this.drawDoubleLine(x, y + center + gap / 2, x + tileSize, y + center + gap / 2, lineWidth, style);
+    } else {
+      this.drawDoubleLine(x + center - gap / 2, y, x + center - gap / 2, y + tileSize, lineWidth, style);
+      this.drawDoubleLine(x + center + gap / 2, y, x + center + gap / 2, y + tileSize, lineWidth, style);
+    }
+  }
+
+  /**
+   * Draw a room corner as an L-join: the horizontal pair runs toward the
+   * adjacent `-` wall, the vertical pair toward the adjacent `|` wall, and the
+   * two meet at the cell centre — so the four corner glyphs read distinctly.
+   */
+  private drawCorner(
+    gx: number,
+    gy: number,
+    tileSize: number,
+    style: DungeonStyle,
+    tile: string
+  ) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    const lineWidth = Math.max(2, Math.round(tileSize * 0.11));
+    const gap = Math.max(3, Math.round(tileSize * 0.2));
+    const center = Math.floor(tileSize / 2);
+
+    const atLeft = tile === TILE.CORNER_TL || tile === TILE.CORNER_BL;
+    const atTop = tile === TILE.CORNER_TL || tile === TILE.CORNER_TR;
+
+    // Horizontal leg points toward the wall that continues away from the corner.
+    const hx1 = atLeft ? x + center : x;
+    const hx2 = atLeft ? x + tileSize : x + center;
+    this.drawDoubleLine(hx1, y + center - gap / 2, hx2, y + center - gap / 2, lineWidth, style);
+    this.drawDoubleLine(hx1, y + center + gap / 2, hx2, y + center + gap / 2, lineWidth, style);
+
+    const vy1 = atTop ? y + center : y;
+    const vy2 = atTop ? y + tileSize : y + center;
+    this.drawDoubleLine(x + center - gap / 2, vy1, x + center - gap / 2, vy2, lineWidth, style);
+    this.drawDoubleLine(x + center + gap / 2, vy1, x + center + gap / 2, vy2, lineWidth, style);
+  }
+
+  /** Render a door as Rogue's `+` glyph: a bright plus in the door colour. */
+  private drawDoor(gx: number, gy: number, tileSize: number, style: DungeonStyle) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    const center = Math.floor(tileSize / 2);
+    const arm = Math.round(tileSize * 0.4);
+    const thick = Math.max(3, Math.round(tileSize * 0.2));
+    const half = Math.round(thick / 2);
+
+    this.ctx.fillStyle = style.door;
+    this.ctx.fillRect(x + center - arm, y + center - half, arm * 2, thick);
+    this.ctx.fillRect(x + center - half, y + center - arm, thick, arm * 2);
+  }
+
+  private drawDoubleLine(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    lineWidth: number,
+    style: Pick<DungeonStyle, 'wall' | 'wallShadow' | 'wallHighlight'>
+  ) {
+    this.ctx.strokeStyle = style.wallShadow;
+    this.ctx.lineWidth = lineWidth + 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(Math.round(x1), Math.round(y1));
+    this.ctx.lineTo(Math.round(x2), Math.round(y2));
+    this.ctx.stroke();
+
+    this.ctx.strokeStyle = style.wall;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.beginPath();
+    this.ctx.moveTo(Math.round(x1), Math.round(y1));
+    this.ctx.lineTo(Math.round(x2), Math.round(y2));
+    this.ctx.stroke();
+
+    this.ctx.strokeStyle = style.wallHighlight;
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.moveTo(Math.round(x1), Math.round(y1 - 1));
+    this.ctx.lineTo(Math.round(x2), Math.round(y2 - 1));
+    this.ctx.stroke();
+  }
+
+  private drawStairs(gx: number, gy: number, tileSize: number, style: DungeonStyle) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    this.ctx.strokeStyle = style.stairs;
+    this.ctx.lineWidth = Math.max(2, Math.round(tileSize * 0.1));
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + tileSize * 0.3, y + tileSize * 0.3);
+    this.ctx.lineTo(x + tileSize * 0.7, y + tileSize * 0.5);
+    this.ctx.lineTo(x + tileSize * 0.3, y + tileSize * 0.7);
+    this.ctx.stroke();
+  }
+
+  private drawPlayer(
+    gx: number,
+    gy: number,
+    tileSize: number,
+    style: DungeonStyle,
+    gameOver: boolean,
+    gameWon: boolean
+  ) {
+    const x = gx * tileSize;
+    const y = gy * tileSize;
+    const head = Math.max(9, Math.round(tileSize * 0.58));
+    const bodyW = Math.max(8, Math.round(tileSize * 0.48));
+    const bodyH = Math.max(9, Math.round(tileSize * 0.62));
+    const headX = x + Math.round((tileSize - head) / 2);
+    const headY = y + Math.max(0, Math.round(tileSize * 0.05));
+    const bodyX = x + Math.round((tileSize - bodyW) / 2);
+    const bodyY = y + Math.round(tileSize * 0.54);
+    const bodyColor = gameOver ? style.playerDead : gameWon ? style.playerWon : style.playerBody;
+
+    this.ctx.fillStyle = bodyColor;
+    this.ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+
+    this.ctx.strokeStyle = gameOver ? style.playerDead : gameWon ? style.playerWon : style.playerHead;
+    this.ctx.lineWidth = Math.max(2, Math.round(tileSize * 0.1));
+    this.ctx.strokeRect(headX, headY, head, head);
+
+    this.ctx.fillStyle = gameOver ? style.playerDead : style.playerFace;
+    const eye = Math.max(1, Math.round(tileSize * 0.08));
+    this.ctx.fillRect(headX + Math.round(head * 0.28), headY + Math.round(head * 0.34), eye, eye);
+    this.ctx.fillRect(headX + Math.round(head * 0.62), headY + Math.round(head * 0.34), eye, eye);
+    this.ctx.fillRect(headX + Math.round(head * 0.32), headY + Math.round(head * 0.68), Math.round(head * 0.36), eye);
   }
 
   public updateStats(player: Player, dungeonFloor: number, statusEffects: StatusEffects, totalDef: number) {

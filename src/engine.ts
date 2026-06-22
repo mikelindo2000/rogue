@@ -5,7 +5,7 @@ import { createPlayer, getTotalDef, gainXp, handleEquipItem } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { processMonsterAI } from './monster';
 import { computeStrike } from './combat';
-import { isWalkable, blocksSight, TILE } from './tiles';
+import { isWalkable, blocksSight, isWall, TILE } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
 
 export class GameEngine {
@@ -133,6 +133,57 @@ export class GameEngine {
         if (blocksSight(this.map[mapY][mapX])) break;
       }
     }
+
+    // Standing in a room lights the whole room at once, walls included — the way
+    // a lit room reveals in Rogue. This also fills the gaps the raycast leaves
+    // along room walls: rays run parallel to a one-tile-thick wall and only
+    // graze a few of its cells, so the rest would stay dark.
+    this.revealRoom(this.player.x, this.player.y);
+  }
+
+  /**
+   * Flood the contiguous room floor the player is standing on and reveal it
+   * along with its full bounding ring of walls, corners, and doors. No-op when
+   * the player is in a corridor or doorway (handled by the raycast above).
+   */
+  private revealRoom(px: number, py: number) {
+    const isInterior = (ch: string | undefined) => ch === TILE.FLOOR || ch === TILE.STAIRS;
+    if (!isInterior(this.map[py]?.[px])) return;
+
+    const reveal = (x: number, y: number) => {
+      if (x < 0 || x >= this.COLS || y < 0 || y >= this.ROWS) return;
+      this.visible[y][x] = true;
+      this.explored[y][x] = true;
+    };
+
+    const seen = new Set<number>([py * this.COLS + px]);
+    const stack: [number, number][] = [[px, py]];
+    while (stack.length) {
+      const [x, y] = stack.pop()!;
+      reveal(x, y);
+
+      // Light the bounding wall ring (including diagonal corners) for this cell.
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nx = x + dc;
+          const ny = y + dr;
+          const ch = this.map[ny]?.[nx];
+          if (isWall(ch) || ch === TILE.DOOR) reveal(nx, ny);
+        }
+      }
+
+      // Continue the flood across the room's floor (orthogonal only).
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dc;
+        const ny = y + dr;
+        if (nx < 0 || nx >= this.COLS || ny < 0 || ny >= this.ROWS) continue;
+        const key = ny * this.COLS + nx;
+        if (seen.has(key) || !isInterior(this.map[ny][nx])) continue;
+        seen.add(key);
+        stack.push([nx, ny]);
+      }
+    }
   }
 
   public handlePlayerMove(dx: number, dy: number) {
@@ -243,7 +294,7 @@ export class GameEngine {
       if (monster.special === 'boss') {
         this.addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
         const anyBossesLeft = this.monsters.some(m => m.special === 'boss' && m !== monster);
-        if (!anyBossesLeft) {
+        if (this.dungeonFloor === 20 && !anyBossesLeft) {
           this.gameWon = true;
           this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
         }
@@ -478,6 +529,7 @@ export class GameEngine {
       this.TILE_SIZE,
       this.COLS,
       this.ROWS,
+      this.dungeonFloor,
       this.gameOver,
       this.gameWon
     );

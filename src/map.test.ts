@@ -178,4 +178,102 @@ describe('generateLevel', () => {
       }
     }
   });
+
+  // ---- Classic-Rogue room structure -----------------------------------------
+
+  interface ParsedRoom {
+    l: number;
+    t: number;
+    r: number;
+    b: number;
+  }
+
+  /**
+   * Recover each room rectangle from its corner glyphs: find a top-left corner,
+   * walk right to the top-right and down to the bottom-left, and confirm the
+   * fourth corner closes the box. Throws on any malformed rectangle so the
+   * tests double as a structural sanity check on generation.
+   */
+  function parseRooms(map: string[][]): ParsedRoom[] {
+    const rooms: ParsedRoom[] = [];
+    for (let t = 0; t < map.length; t++) {
+      for (let l = 0; l < map[t].length; l++) {
+        if (map[t][l] !== TILE.CORNER_TL) continue;
+
+        // A wall run may be pierced by a single `+` door, so accept doors while
+        // scanning toward the next corner.
+        let r = l + 1;
+        while (r < map[t].length && (map[t][r] === TILE.WALL_H || map[t][r] === TILE.DOOR)) r++;
+        expect(map[t][r], `top-right corner missing for TL (${l},${t})`).toBe(TILE.CORNER_TR);
+
+        let b = t + 1;
+        while (b < map.length && (map[b][l] === TILE.WALL_V || map[b][l] === TILE.DOOR)) b++;
+        expect(map[b][l], `bottom-left corner missing for TL (${l},${t})`).toBe(TILE.CORNER_BL);
+
+        expect(map[b][r], `bottom-right corner missing for TL (${l},${t})`).toBe(TILE.CORNER_BR);
+        rooms.push({ l, t, r, b });
+      }
+    }
+    return rooms;
+  }
+
+  function rectsOverlap(a: ParsedRoom, b: ParsedRoom): boolean {
+    return a.l <= b.r && b.l <= a.r && a.t <= b.b && b.t <= a.b;
+  }
+
+  it('builds rooms with four distinct corner glyphs (seeds 1..40)', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const { map } = gen(4, seed);
+      const rooms = parseRooms(map);
+      // The 3x3 grid keeps at least four real rooms on every floor.
+      expect(rooms.length, `seed ${seed}: too few rooms`).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('never overlaps two rooms (seeds 1..40, floors 1/8/15)', () => {
+    for (const floor of [1, 8, 15]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const rooms = parseRooms(gen(floor, seed).map);
+        for (let i = 0; i < rooms.length; i++) {
+          for (let j = i + 1; j < rooms.length; j++) {
+            expect(
+              rectsOverlap(rooms[i], rooms[j]),
+              `floor ${floor}, seed ${seed}: rooms ${JSON.stringify(rooms[i])} and ${JSON.stringify(rooms[j])} overlap`
+            ).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it('opens at most one door (hall) per room wall (seeds 1..40)', () => {
+    const countDoors = (cells: string[]) => cells.filter(c => c === TILE.DOOR).length;
+    for (let seed = 1; seed <= 40; seed++) {
+      const { map } = gen(6, seed);
+      for (const { l, t, r, b } of parseRooms(map)) {
+        const top: string[] = [];
+        const bottom: string[] = [];
+        for (let c = l + 1; c < r; c++) {
+          top.push(map[t][c]);
+          bottom.push(map[b][c]);
+        }
+        const left: string[] = [];
+        const right: string[] = [];
+        for (let row = t + 1; row < b; row++) {
+          left.push(map[row][l]);
+          right.push(map[row][r]);
+        }
+        for (const [side, cells] of [['top', top], ['bottom', bottom], ['left', left], ['right', right]] as const) {
+          expect(
+            countDoors(cells),
+            `seed ${seed}: room (${l},${t})-(${r},${b}) ${side} wall has multiple doors`
+          ).toBeLessThanOrEqual(1);
+          // Every non-door wall cell is a real wall glyph — never raw void.
+          for (const cell of cells) {
+            expect(cell === TILE.DOOR || cell === TILE.WALL_H || cell === TILE.WALL_V).toBe(true);
+          }
+        }
+      }
+    }
+  });
 });

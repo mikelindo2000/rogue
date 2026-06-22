@@ -39,13 +39,22 @@ export const DEFAULT_TUNABLES: TunableConfig = {
  */
 export const BALANCE = {
   map: {
-    roomAttempts: 35,
-    maxRoomsDefault: 7,
-    maxRoomsBossFloor: 4,
-    roomMinW: 5,
-    roomMaxW: 10,
-    roomMinH: 4,
-    roomMaxH: 8,
+    // Original Rogue lays one room into each cell of a 3x3 grid, then links
+    // neighbouring cells with passages. The grid guarantees rooms never
+    // overlap and that each wall sprouts at most one corridor.
+    gridCols: 3,
+    gridRows: 3,
+    // Chance a grid cell holds no room — a "gone room" in Rogue parlance,
+    // reduced to a single corridor junction the passages thread through.
+    goneRoomChance: 0.18,
+    // After the spanning tree links every cell, each remaining adjacency has
+    // this chance to add a loop-forming extra passage.
+    extraConnChance: 0.15,
+    // Room dimensions are the FLOOR interior; walls/corners wrap outside it.
+    roomMinW: 4,
+    roomMaxW: 11,
+    roomMinH: 3,
+    roomMaxH: 6,
     spawn: {
       foodChance: 0.28,
       consumableChance: 0.65,
