@@ -89,16 +89,32 @@ To add a new setting that players can adjust dynamically:
 
 ## UI Component Architecture
 
-1. **Native Web Components Only**:
-   - Avoid introducing React, Vue, Angular, or other heavy runtime libraries.
-   - Build reusable UI parts as Custom Elements (`window.customElements.define`) in the `src/components/` directory.
+The UI chrome (everything around the dungeon canvas) is built in **Svelte 5**.
+The dungeon board itself stays on `<canvas>` and is rendered imperatively by
+`GameUI.render()` — do not move the board into Svelte or change how it draws.
 
-2. **Light DOM vs. Shadow DOM**:
-   - Use Light DOM (direct `innerHTML` modification without creating a Shadow Root) for custom elements that need to share the main CSS stylesheet rules, theme variables, and global fonts defined in `src/styles.css`.
-   - Ensure you guard `connectedCallback()` rendering with a `rendered` boolean flag to prevent duplicate initialization loops.
+1. **Svelte 5, runes, light components**:
+   - Build reusable UI in `src/ui/components/` (shared building blocks in
+     `src/ui/components/primitives/`). Use runes: `$props()`, `$state`,
+     `$derived`, `$effect`. Use the `onclick=` event syntax (not `on:click`).
+   - Keep components small and token-driven (see Styling Guidelines). The
+     composition root is `src/ui/App.svelte`, mounted in `src/main.ts`.
+   - Avoid heavier UI frameworks (React/Vue/Angular). Svelte compiles away; the
+     reactive layer only drives once-per-turn HUD chrome, never the canvas loop.
 
-3. **Event Communication**:
-   - Custom components should communicate state transitions (e.g. open/close) to the application engine by dispatching bubbling `CustomEvent`s.
+2. **Engine ↔ UI state bridge** (`src/ui/store.svelte.ts`):
+   - The engine is the imperative source of truth. After each turn it pushes a
+     plain snapshot into the reactive `ui` object via `GameUI`
+     (`updateStats`/`updateDropdowns`/`renderLogs`), and components render from
+     it. Mutating `ui`'s properties / reassigning its arrays is reactive across
+     modules — no manual subscriptions.
+   - User actions flow the other way through `actions` (equip/usePotion/eat/…),
+     wired to engine methods in `src/main.ts`. Add new HUD data as fields on
+     `UIState`; add new side effects as `actions` hooks.
+
+3. **Design = source of truth**: components are implemented from the Claude
+   Design project (see `design/SPEC.md`). When changing the look, update the
+   tokens/components to match the design rather than hardcoding values.
 
 ---
 
@@ -108,9 +124,11 @@ To add a new setting that players can adjust dynamically:
    - Do **NOT** bind direct `keydown` event listeners to the window or document for game actions.
    - Always register key shortcuts with the global `KeyboardManager` instance created in `src/main.ts`.
 
-2. **Binding Contexts**:
-   - Assign bindings to distinct contexts: `'game'` (normal exploration), `'modal'` (active menu overlays), or `'global'`.
-   - Active contexts must be toggled on state changes (e.g., when a modal opens, deactivate `'game'` and activate `'modal'`).
+2. **Overlay suspension**:
+   - Movement/action shortcuts no-op while a menu or modal is open. `src/main.ts`
+     guards them with `overlayOpen()`, which checks for an open
+     `[role="menu"]` (Popover) or `[role="dialog"]` (Modal). Give any new overlay
+     one of those roles so it suspends the game automatically.
 
 3. **Form Input Focus Safety**:
    - `KeyboardManager` automatically filters out shortcuts when typing inside form elements (like input search fields), except for the `Escape` key which is allowed to bubble or trigger close actions. Keep this behavior intact when adding fields.
@@ -119,30 +137,34 @@ To add a new setting that players can adjust dynamically:
 
 ## Styling Guidelines
 
-1. **Modular CSS**:
-   - `src/styles.css` is an entry point that only `@import`s the font and the
-     modules in `src/styles/`. Each concern lives in its own file:
-     `base.css` (design tokens + body), `layout.css`, `hud.css`, `canvas.css`,
-     `dropdown.css`, `modal.css`, `compendium.css`.
-   - Add new component styles as a new file in `src/styles/` and import it from
-     `styles.css`. Keep rules grouped by the component they style.
+1. **Tokens + scoped styles**:
+   - `src/styles.css` only imports `src/ui/styles/global.css` (fonts, reset,
+     body, scrollbars), which in turn imports `src/ui/styles/tokens.css`.
+   - Per-component styling lives in each `.svelte` file's scoped `<style>` block.
+     There is no global per-component CSS file anymore.
 
 2. **Design Tokens**:
-   - Colors, fonts, radii, and easing curves are defined as CSS custom
-     properties in `:root` (`src/styles/base.css`). Reference them
-     (`var(--phosphor)`, `var(--border)`, `var(--ease)`, etc.) instead of
-     hardcoding hex values, so the theme stays centralized.
-   - Canvas (dungeon) colors can't live in CSS; they are centralized in
-     `src/theme.ts` and the tile vocabulary in `src/tiles.ts`.
+   - All chrome colors, fonts, radii, spacing, shadows, and easing are CSS custom
+     properties in `:root` (`src/ui/styles/tokens.css`), extracted from the
+     design. Reference them (`var(--surface-rail)`, `var(--accent)`,
+     `var(--r-md)`, `var(--ease)`, …) — never hardcode a hex value. The only
+     acceptable raw colors are black scrims/shadows and `color-mix()` over a
+     token; data-driven colors (monster/rarity colors from the store) are passed
+     through as values.
+   - Canvas (dungeon) colors can't live in CSS; they stay centralized in
+     `src/theme.ts` with the tile vocabulary in `src/tiles.ts`. Do not retheme
+     the board here.
 
 3. **Visual Theme**:
-   - Maintain the radial dark background gradient and green-phosphor accent
-     (`var(--phosphor)`). The dungeon view follows the original Rogue: rooms
-     bounded by `-`/`|` walls with `.` floor, dark `#` corridors, `+` doors.
-   - Use Outfit font for headers and descriptive stats, and Fira Code monospace
-     font for raw data grid layouts, symbols, and logs.
+   - Dark surfaces with an amber/gold accent (`var(--accent)`), `Geist` for body
+     text and `Space Grotesk` for headings/numbers (tabular). The dungeon view
+     still follows the original Rogue board (rooms with `-`/`|` walls, `.` floor,
+     `#` corridors, `+` doors) — unchanged.
 
-4. **Aesthetic Transitions**:
-   - Always add smooth micro-animations (`cubic-bezier` transitions, keyframe
-     scale-ups, blur backdrops) for modals, panels, or dropdowns to keep the
-     design premium and cohesive.
+4. **Accessibility & motion**:
+   - Interactive elements are real `<button>`s with `aria-label`s; bars use
+     `role="progressbar"` with aria values; decorative SVG is `aria-hidden`.
+     A global `:focus-visible` ring (`--focus-ring`) covers keyboard focus —
+     don't `outline: none` without a visible replacement.
+   - Keep micro-animations (cubic-bezier transitions, scale-ups, blur backdrops)
+     for menus/modals/panels. Reduced-motion is handled globally in `global.css`.
