@@ -92,7 +92,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.5;
+    opacity: 0.35;
     transition: opacity 1000ms ease-in-out;
   }
   .bg-image.fade-out {
@@ -107,7 +107,7 @@
       opacity: 0;
     }
     to {
-      opacity: 0.5;
+      opacity: 0.35;
     }
   }
   canvas {
