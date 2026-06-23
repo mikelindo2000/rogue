@@ -11,3 +11,18 @@ Rogue must be fully playable from the keyboard, in the spirit of the original Ro
 - Add mnemonic shortcuts where they match Rogue-style verbs, such as `e` for equip, without breaking existing global shortcuts.
 - Preserve focus visibly and predictably after opening, closing, changing selection, or performing an action.
 - Include keyboard behavior in verification for any UI or gameplay feature.
+
+## Sound & Audio Assets
+
+Rogue has a sound-effects and music layer. Two docs govern it — read them before touching audio:
+
+- [`design/SOUND_EFFECTS_SYSTEM_PLAN.md`](design/SOUND_EFFECTS_SYSTEM_PLAN.md) — the architecture: typed `SoundEvent`s emitted by `GameEngine` through a `SoundSink`, resolved to assets by the audio service. The engine never knows filenames or calls ElevenLabs.
+- [`design/SOUND_EFFECT_ASSET_PROMPTS.md`](design/SOUND_EFFECT_ASSET_PROMPTS.md) — the **house production guide**: the sonic identity, the exact reproducible prompt for every clip, the ElevenLabs generation recipe, naming/layout, and the music catalogue.
+
+Rules:
+
+- Never call ElevenLabs (or any audio-generation API) from runtime/game code. Generation is an offline asset-production step. The game ships only the local files under `public/audio/` and the manifest that indexes them.
+- Every sound-worthy event must keep its visual/log feedback. Sound is additive; it is never the only feedback.
+- **Adding a monster:** combat/death cues resolve by a cascade (`monsterId → archetype → special → generic`), so most monsters need no new asset. Only author a clip for a signature creature or a new archetype. When you do, follow the house guide, append the new asset's prompt to its table, regenerate with the recipe, and add a manifest entry — never add a one-off `emit` call per creature.
+- **Adding an event/cue:** add the `SoundEvent` in `src/audio/events.ts`, emit it from the relevant engine path, then add the asset + prompt row in the house guide and a manifest entry. Keep prompts in the guide so every clip stays reproducible.
+- The ElevenLabs API key lives in `~/.secrets` (`ELEVENLABS_API_KEY`); never echo or commit it.
