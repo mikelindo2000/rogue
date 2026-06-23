@@ -5,8 +5,11 @@ import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inv
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
-import { resolveBehavior } from './ai/archetypes';
+import { resolveBehavior, archetypeOf } from './ai/archetypes';
 import { computeStrike } from './combat';
+import { type SoundSink, noopSink } from './audio/events';
+import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equipment';
+import { VitalsSoundTracker } from './audio/vitals';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
 import type { SaveGameV1 } from './persistence/savegame';
@@ -62,6 +65,12 @@ export class GameEngine {
 
   private ui: GameUI;
 
+  /** Domain-level sound events. Default no-op sink; main.ts injects the browser
+   *  audio service. Engine code never names assets or touches audio APIs. */
+  private sound: SoundSink;
+  /** Stateful crossing detection for HP/hunger warning cues. */
+  private vitals: VitalsSoundTracker;
+
   /** Cross-run record of which monsters the player has met. Loaded once and
    *  persisted on change — it intentionally survives initGame/restart. */
   public discovery: DiscoveryState;
@@ -74,8 +83,10 @@ export class GameEngine {
     this.onRunChanged?.();
   }
 
-  constructor(ui: GameUI) {
+  constructor(ui: GameUI, sound: SoundSink = noopSink) {
     this.ui = ui;
+    this.sound = sound;
+    this.vitals = new VitalsSoundTracker(BALANCE.player.hungerHungry, BALANCE.player.hungerFatigued);
     this.player = createPlayer();
     this.rng = makeRng(randomSeed());
     this.discovery = loadDiscovery();
@@ -100,6 +111,7 @@ export class GameEngine {
     this.floorStates.clear();
     this.searchHintShown = false;
     this.secretsFoundThisRun = 0;
+    this.vitals.reset();
     this.logs = ["Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors."];
 
     this.generateFloor();
@@ -341,6 +353,7 @@ export class GameEngine {
     this.map[y][x] = TILE.DOOR;
     this.secretsFoundThisRun++;
     this.updateFOV();
+    this.sound.emit({ type: 'map.secretReveal' });
   }
 
   private hasSecretDoors(): boolean {
@@ -422,6 +435,7 @@ export class GameEngine {
 
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
+    this.sound.emit({ type: 'map.stairs', dir: delta > 0 ? 'down' : 'up' });
 
     // Log the transition before loading the floor, so any messages the
     // generator emits (e.g. the floor-20 boss announcement) read in order.
@@ -487,6 +501,7 @@ export class GameEngine {
       this.addLog(`${monster.name} flits aside!`);
       this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
       this.ui.fxMonsterDodge(monster, this.player.x, this.player.y);
+      this.sound.emit({ type: 'combat.miss', actor: 'monster' });
       return;
     }
 
@@ -512,6 +527,7 @@ export class GameEngine {
 
     monster.hp -= outcome.damage;
     this.addLog(`You strike ${monster.name} for ${outcome.damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+    this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: outcome.damage });
 
     // Combat flavor: lunge the player into the blow and pop a damage number.
     this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
@@ -542,6 +558,12 @@ export class GameEngine {
     if (monster.hp <= 0) {
       this.addLog(`The ${monster.name} dies!`);
       this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
+      this.sound.emit({
+        type: 'combat.death',
+        monsterId: monsterId(monster),
+        archetype: archetypeOf(monster),
+        special: monster.special,
+      });
 
       markDefeated(this.discovery, monsterId(monster), this.dungeonFloor);
       saveDiscovery(this.discovery);
@@ -558,6 +580,7 @@ export class GameEngine {
         const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
         if (leveled) {
           this.ui.updateDropdowns(this.player);
+          this.sound.emit({ type: 'player.levelUp' });
         }
       } else {
         this.addLog(`No experience gained (Level delta too high).`);
@@ -604,6 +627,7 @@ export class GameEngine {
           const leveled = gainXp(this.player, g, (msg) => this.addLog(msg), this.statusEffects);
           if (leveled) {
             this.ui.updateDropdowns(this.player);
+            this.sound.emit({ type: 'player.levelUp' });
           }
         } else {
           this.addLog(`At Level 20, chests no longer provide bonus Experience.`);
@@ -663,6 +687,12 @@ export class GameEngine {
       if (pickedUp) {
         this.items.splice(idx, 1);
         this.ui.updateDropdowns(this.player);
+        const kind =
+          item.type === 'gold' ? 'gold' :
+          item.type === 'food' ? 'food' :
+          item.type === 'potion' ? 'potion' :
+          item.type === 'gear' ? 'gear' : 'scroll'; // scroll / repair_scroll
+        this.sound.emit({ type: 'item.pickup', kind });
       }
     }
   }
@@ -685,6 +715,7 @@ export class GameEngine {
       this.addLog(`Drank Potion of Armor! Defenses boosted by +${BALANCE.status.armorDefBonus}.`);
     }
 
+    this.sound.emit({ type: 'item.consume', kind: 'potion' });
     this.player.inventory.potions.splice(index, 1);
     this.ui.updateDropdowns(this.player);
     this.processTurn();
@@ -712,6 +743,7 @@ export class GameEngine {
         this.player.hunger = Math.min(this.player.hunger + tunables.foodHungerRestore, tunables.hungerMax);
         this.addLog("Ate rations. Hunger restored.");
       }
+      this.sound.emit({ type: 'item.consume', kind: 'food' });
       this.updateUI();
       this.processTurn();
       return true;
@@ -722,16 +754,29 @@ export class GameEngine {
   }
 
   public equipGear(slot: EquipSlot, value: string) {
-    handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
+    const before = snapshotEquipped(this.player);
+    const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
+    this.emitEquipSounds(before, ok);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
     this.autosave();
+  }
+
+  /** Emit equip/unequip/rejected cues from a before/after equipped diff. */
+  private emitEquipSounds(before: EquipSnapshot, ok: boolean) {
+    const events = diffEquipped(before, snapshotEquipped(this.player));
+    if (events.length > 0) {
+      events.forEach(e => this.sound.emit(e));
+    } else if (!ok) {
+      this.sound.emit({ type: 'equipment.rejected' });
+    }
   }
 
   public equipInventoryItem(ref: InventoryRef): boolean {
     if (ref.kind === 'food' || ref.kind === 'potion') {
       this.addLog("That item cannot be equipped.");
       this.ui.updateDropdowns(this.player);
+      this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
 
@@ -739,10 +784,13 @@ export class GameEngine {
     if (!target) {
       this.addLog("That item cannot be equipped.");
       this.ui.updateDropdowns(this.player);
+      this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
 
+    const before = snapshotEquipped(this.player);
     const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
+    this.emitEquipSounds(before, equipped);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
     if (equipped) this.autosave();
@@ -764,7 +812,9 @@ export class GameEngine {
   public performInventoryAction(ref: InventoryRef, action: InventoryAction): boolean {
     if (action === 'equip') return this.equipInventoryItem(ref);
     if (action === 'equipOffHand' && ref.kind === 'weapon') {
+      const before = snapshotEquipped(this.player);
       const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
+      this.emitEquipSounds(before, equipped);
       this.ui.updateDropdowns(this.player);
       this.updateUI();
       if (equipped) this.autosave();
@@ -820,6 +870,7 @@ export class GameEngine {
     if (this.player.hp <= 0) {
       this.gameOver = true;
       this.addLog("GAME OVER. Press R.");
+      this.sound.emit({ type: 'player.death' });
       this.updateUI();
       this.updateFOV();
       this.draw();
@@ -847,17 +898,33 @@ export class GameEngine {
         whiff: (x, y) => this.ui.fxWhiff(x, y),
       }
     );
-    if (this.player.hp < hpBeforeMonsters) this.ui.fxPlayerHit();
+    if (this.player.hp < hpBeforeMonsters) {
+      this.ui.fxPlayerHit();
+      this.sound.emit({ type: 'combat.hit', actor: 'monster', target: 'player' });
+    }
 
     if (this.player.hp <= 0) {
       this.gameOver = true;
       this.addLog("GAME OVER. Press R.");
+      this.sound.emit({ type: 'player.death' });
+    } else {
+      this.emitVitalSounds();
     }
 
     this.updateUI();
     this.updateFOV();
     this.draw();
     this.autosave();
+  }
+
+  /** Feed current vitals to the crossing tracker and emit any warning cues. */
+  private emitVitalSounds() {
+    const events = this.vitals.update({
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      hunger: this.player.hunger,
+    });
+    events.forEach(e => this.sound.emit(e));
   }
 
   public updateUI() {
