@@ -519,6 +519,125 @@ describe('GameEngine run movement', () => {
     expect(monster.hp).toBe(10);
     expect(engine.turn).toBe(2);
   });
+
+  const carveCol = (engine: GameEngine, x: number, y1: number, y2: number, tile: string = TILE.CORRIDOR) => {
+    for (let y = y1; y <= y2; y++) engine.map[y][x] = tile;
+  };
+
+  it('follows a corridor around a bend instead of stopping at the wall', () => {
+    const engine = makeRunner();
+    // L-shaped corridor: east along y=2 to x=5, then south down x=5 to y=6.
+    carveRow(engine, 2, 2, 5, TILE.CORRIDOR);
+    carveCol(engine, 5, 2, 6);
+
+    engine.handlePlayerRun(1, 0);
+
+    // Turned the corner at (5,2) and ran to the dead end at (5,6): 7 tiles.
+    expect(engine.player.x).toBe(5);
+    expect(engine.player.y).toBe(6);
+    expect(engine.turn).toBe(7);
+  });
+
+  it('stops at a corridor junction so the player chooses the branch', () => {
+    const engine = makeRunner();
+    // T-junction at (5,2): horizontal hall crossed by a vertical branch.
+    carveRow(engine, 2, 2, 8, TILE.CORRIDOR);
+    carveCol(engine, 5, 1, 4);
+
+    engine.handlePlayerRun(1, 0);
+
+    expect(engine.player.x).toBe(5);
+    expect(engine.player.y).toBe(2);
+    expect(engine.turn).toBe(3);
+  });
+
+  it('runs out of a room, through the doorway, and follows the corridor', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4, TILE.FLOOR); // room floor
+    engine.map[2][5] = TILE.DOOR;
+    carveRow(engine, 2, 6, 9, TILE.CORRIDOR); // corridor beyond the door
+
+    engine.handlePlayerRun(1, 0);
+
+    // Straight through the room and door, then down the corridor to its end.
+    expect(engine.player.x).toBe(9);
+    expect(engine.player.y).toBe(2);
+    expect(engine.turn).toBe(7);
+  });
+
+  it('honours the pressed direction for the first step when starting on a junction', () => {
+    const engine = makeRunner();
+    // Player begins ON a junction: corridors run east and south from (2,2).
+    carveRow(engine, 2, 2, 6, TILE.CORRIDOR);
+    carveCol(engine, 2, 2, 5);
+
+    engine.handlePlayerRun(1, 0);
+
+    // Moves east as pressed (not south), then follows the hall to the dead end.
+    expect(engine.player.x).toBe(6);
+    expect(engine.player.y).toBe(2);
+    expect(engine.turn).toBe(4);
+  });
+
+  it('terminates in a closed loop corridor instead of circling until maxSteps', () => {
+    const engine = makeRunner();
+    // A square loop of corridor; the player starts at the top-left corner.
+    carveRow(engine, 2, 2, 6, TILE.CORRIDOR);
+    carveRow(engine, 6, 2, 6, TILE.CORRIDOR);
+    carveCol(engine, 2, 2, 6);
+    carveCol(engine, 6, 2, 6);
+
+    engine.handlePlayerRun(1, 0);
+
+    // One lap around the loop is 16 tiles; without the visited guard the run
+    // would burn maxSteps (COLS+ROWS = 75) turns. It must stop at/under one lap.
+    expect(engine.turn).toBeLessThanOrEqual(16);
+    expect(engine.turn).toBeGreaterThan(0);
+  });
+
+  it('stops at a 4-way junction (three onward options)', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 8, TILE.CORRIDOR); // east-west hall through (5,2)
+    carveCol(engine, 5, 0, 4); // full vertical cross at x=5
+
+    engine.handlePlayerRun(1, 0);
+
+    expect(engine.player.x).toBe(5);
+    expect(engine.player.y).toBe(2);
+    expect(engine.turn).toBe(3);
+  });
+
+  it('stops at a corridor dead end reached around a bend', () => {
+    const engine = makeRunner();
+    // East to (4,2), then the only continuation is a short south stub ending at (4,4).
+    carveRow(engine, 2, 2, 4, TILE.CORRIDOR);
+    carveCol(engine, 4, 2, 4);
+
+    engine.handlePlayerRun(1, 0);
+
+    expect(engine.player.x).toBe(4);
+    expect(engine.player.y).toBe(4);
+    expect(engine.turn).toBe(4);
+  });
+
+  it('stops one tile short of a monster waiting around a blind corner', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 5, TILE.CORRIDOR);
+    carveCol(engine, 5, 2, 6); // corridor turns south at (5,2)
+    const monster = makeBoss('Lurker');
+    monster.x = 5;
+    monster.y = 5;
+    monster.hp = 10;
+    monster.frozenTurns = 10;
+    engine.monsters = [monster];
+
+    engine.handlePlayerRun(1, 0);
+
+    // Follows the bend south, then halts adjacent to the monster at (5,5).
+    expect(engine.player.x).toBe(5);
+    expect(engine.player.y).toBe(4);
+    expect(monster.hp).toBe(10);
+  });
 });
 
 describe('GameEngine inventory commands', () => {
