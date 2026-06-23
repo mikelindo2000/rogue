@@ -5,13 +5,12 @@ import { TILE, STAIR_TILES, isCorner, isWalkable } from './tiles';
 import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
 import {
   ui,
-  type EquipOption,
-  type EquipSlotView,
   type InventoryActionView,
   type InventoryCell,
   type LogLineView,
 } from './ui/store.svelte';
 import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
+import { buildEquipmentView } from './ui/equipmentView';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
@@ -1085,124 +1084,12 @@ export class GameUI {
 
   /** Rebuild the equipment, inventory, and potion views in the store. */
   public updateDropdowns(player: Player) {
-    ui.equipment = this.buildEquipment(player);
+    ui.equipment = buildEquipmentView(player);
     const inv = this.buildInventory(player);
     ui.inventoryItems = inv.cells;
     ui.inventory = inv.cells.slice(0, ui.inventoryMax);
     ui.inventoryCount = inv.count;
     ui.potions = player.inventory.potions.map((p, i) => ({ idx: i, label: titleCase(p) }));
-  }
-
-  private buildEquipment(player: Player): EquipSlotView[] {
-    const views: EquipSlotView[] = [];
-    const weapons = player.inventory.weapons;
-    const mainIdx = player.equipped.mainHand;
-    const main = weapons[mainIdx];
-
-    views.push({
-      slot: 'mainHand',
-      label: 'Main hand',
-      icon: SLOT_ICON.mainHand,
-      itemName: main && main.name !== 'None' ? main.name : '',
-      rarityColor: rarityVar(main?.rarity),
-      empty: !main || main.name === 'None',
-      options: weapons.map((w, i) => ({
-        value: String(i),
-        label: `${w.name} (+${w.dmg ?? 0})`,
-        rarityColor: rarityVar(w.rarity),
-        selected: mainIdx === i,
-      })),
-    });
-
-    const is2H = main?.type?.startsWith('2h_') || main?.type === 'staff';
-    const off = player.equipped.offHand;
-    let offName = 'None';
-    let offRarity: string | undefined = 'common';
-    if (off.startsWith('shield:')) {
-      const s = player.inventory.shield[Number(off.split(':')[1])];
-      if (s) {
-        offName = s.name;
-        offRarity = s.rarity;
-      }
-    } else if (off.startsWith('weapon:')) {
-      const w = weapons[Number(off.split(':')[1])];
-      if (w) {
-        offName = w.name;
-        offRarity = w.rarity;
-      }
-    }
-
-    let offOptions: EquipOption[];
-    if (is2H) {
-      offOptions = [
-        {
-          value: 'none:0',
-          label: 'Disabled (2H weapon)',
-          rarityColor: rarityVar('common'),
-          selected: true,
-          disabled: true,
-        },
-      ];
-    } else {
-      offOptions = [
-        { value: 'none:0', label: 'None', rarityColor: rarityVar('common'), selected: off === 'none:0' },
-      ];
-      player.inventory.shield.forEach((sh, i) => {
-        if (i !== 0) {
-          const val = 'shield:' + i;
-          offOptions.push({
-            value: val,
-            label: `${sh.name} (${sh.def}/${sh.maxDef})`,
-            rarityColor: rarityVar(sh.rarity),
-            selected: off === val,
-          });
-        }
-      });
-      if (main?.type === 'dagger') {
-        weapons.forEach((w, i) => {
-          if (w.type === 'dagger' && i !== mainIdx) {
-            const val = 'weapon:' + i;
-            offOptions.push({
-              value: val,
-              label: `${w.name} (+${w.dmg ?? 0})`,
-              rarityColor: rarityVar(w.rarity),
-              selected: off === val,
-            });
-          }
-        });
-      }
-    }
-    views.push({
-      slot: 'offHand',
-      label: 'Off-hand',
-      icon: SLOT_ICON.offHand,
-      itemName: is2H || offName === 'None' ? '' : offName,
-      rarityColor: rarityVar(offRarity),
-      empty: is2H || offName === 'None',
-      options: offOptions,
-    });
-
-    for (const slot of ARMOR_SLOTS) {
-      const list = player.inventory[slot];
-      const idx = player.equipped[slot];
-      const cur = list[idx];
-      views.push({
-        slot,
-        label: titleCase(slot),
-        icon: SLOT_ICON[slot],
-        itemName: cur && cur.name !== 'None' ? cur.name : '',
-        rarityColor: rarityVar(cur?.rarity),
-        empty: !cur || cur.name === 'None',
-        options: list.map((a, i) => ({
-          value: String(i),
-          label: a.name === 'None' ? 'None' : `${a.name} (${a.def}/${a.maxDef})`,
-          rarityColor: rarityVar(a.rarity),
-          selected: idx === i,
-        })),
-      });
-    }
-
-    return views;
   }
 
   private buildInventory(player: Player): { cells: InventoryCell[]; count: number } {

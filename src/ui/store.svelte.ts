@@ -15,6 +15,7 @@ import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 export interface EquipOption {
   value: string; // engine equip value (index or "shield:2" etc.)
   label: string;
+  meta?: string;
   rarityColor: string; // var(--rarity-…)
   selected: boolean;
   disabled?: boolean;
@@ -27,8 +28,13 @@ export interface EquipSlotView {
   label: string; // "Main hand"
   icon: IconName;
   itemName: string; // "" when empty
+  emptyLabel?: string;
+  statLabel: string;
   rarityColor: string;
   empty: boolean;
+  availableCount: number;
+  availableLabel: string;
+  hasUpgrade: boolean;
   options: EquipOption[];
 }
 
