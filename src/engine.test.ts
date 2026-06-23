@@ -755,14 +755,6 @@ describe('scroll system', () => {
     expect(engine.items.length).toBe(0);
   });
 
-  it('still applies an opaque scroll’s random effect on pickup (backward compat)', () => {
-    const engine = setup();
-    engine.items = [{ type: 'scroll', x: 5, y: 5, symbol: '?', color: '#cc66ff' }];
-    engine.checkItems();
-    expect(engine.player.inventory.scrolls.length).toBe(0); // not carried
-    expect(engine.items.length).toBe(0);                    // consumed on pickup
-  });
-
   it('reading Scroll of Light in a dark room lights it, consumes, and costs a turn', () => {
     const engine = setup(true);
     engine.player.inventory.scrolls = ['light'];

@@ -318,6 +318,55 @@ describe('savegame validation', () => {
     expect(parsed?.trapEffects).toEqual({ bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 });
   });
 
+  it('migrates a legacy repair_scroll floor item to a typed Scroll of Repair', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.items = [{ type: 'repair_scroll', symbol: '?', color: '#ff00ff', x: 2, y: 2 }];
+
+    const parsed = validateSaveGame(snap);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.items[0]).toMatchObject({ type: 'scroll', data: { scrollType: 'repair' } });
+  });
+
+  it('migrates a legacy anonymous scroll floor item to a typed Scroll of Light', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.items = [{ type: 'scroll', symbol: '?', color: '#cc66ff', x: 2, y: 2 }];
+
+    const parsed = validateSaveGame(snap);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.items[0]).toMatchObject({ type: 'scroll', data: { scrollType: 'light' } });
+  });
+
+  it('migrates legacy scroll items inside saved floorStates too', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    const fsItems = [{ type: 'repair_scroll', symbol: '?', color: '#ff00ff', x: 3, y: 3 }];
+    snap.floorStates = [[2, { map: snap.map, explored: snap.explored, monsters: [], items: fsItems }]];
+
+    const parsed = validateSaveGame(snap) as any;
+
+    expect(parsed).not.toBeNull();
+    expect(parsed.floorStates[0][1].items[0]).toMatchObject({ type: 'scroll', data: { scrollType: 'repair' } });
+  });
+
+  it('backfills a missing scroll inventory and rejects an unknown carried scroll type', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const ok = engine.snapshot() as any;
+    delete ok.player.inventory.scrolls;
+    expect(validateSaveGame(ok)?.player.inventory.scrolls).toEqual([]);
+
+    const bad = engine.snapshot() as any;
+    bad.player.inventory.scrolls = ['light', 'not_a_real_scroll'];
+    expect(validateSaveGame(bad)).toBeNull();
+  });
+
   it('normalizes legacy damaged gear during validation', () => {
     const engine = newEngine();
     engine.initGame(SEED);

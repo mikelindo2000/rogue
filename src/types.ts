@@ -155,10 +155,10 @@ interface ItemBase {
 export type Item =
   | (ItemBase & { type: 'gold' })
   | (ItemBase & { type: 'food' })
-  // A scroll with `data.scrollType` is a named, carryable scroll (picked up into
-  // inventory). Without it, the legacy opaque random-effect scroll (used on pickup).
-  | (ItemBase & { type: 'scroll'; data?: { scrollType: ScrollType } })
-  | (ItemBase & { type: 'repair_scroll' })
+  // Every scroll is a named, carryable scroll (picked up into inventory, read on
+  // demand). The legacy opaque random-effect scroll and separate repair_scroll
+  // item have been retired; old saves are migrated on load (savegame.ts).
+  | (ItemBase & { type: 'scroll'; data: { scrollType: ScrollType } })
   | (ItemBase & { type: 'potion'; data: { potionType: PotionType } })
   | (ItemBase & { type: 'gear'; data: FloorGear })
   | (ItemBase & { type: 'wand'; data: WandItem });

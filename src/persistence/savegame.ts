@@ -34,6 +34,35 @@ function normalizeWands(player: Player): void {
   }
 }
 
+/** Backfill the scroll inventory for saves written before it existed, and drop a
+ *  malformed entry rather than corrupt the pack. Parallel to normalizeWands. */
+function normalizeScrolls(player: Player): void {
+  const inv = player.inventory;
+  if (!Array.isArray(inv.scrolls)) {
+    inv.scrolls = [];
+    return;
+  }
+  inv.scrolls = inv.scrolls.filter(s => KNOWN_SCROLL_TYPES.has(s as string));
+}
+
+/** In-place migration of legacy floor items from pre-overhaul (V2/V3) saves: the
+ *  separate `repair_scroll` becomes a typed Scroll of Repair, and the old
+ *  anonymous random-effect `scroll` (no data) becomes a Scroll of Light — a safe,
+ *  always-implemented common — so stepping on it no longer silently vanishes.
+ *  Mutates the array entries; non-scroll items are untouched. */
+function migrateLegacyScrollItems(items: unknown[]): void {
+  for (const it of items) {
+    if (!isObject(it)) continue;
+    if (it.type === 'repair_scroll') {
+      it.type = 'scroll';
+      it.data = { scrollType: 'repair' };
+      if (typeof it.symbol !== 'string') it.symbol = '?';
+    } else if (it.type === 'scroll' && it.data === undefined) {
+      it.data = { scrollType: 'light' };
+    }
+  }
+}
+
 export interface SaveGameV2 {
   seed: number;
   rngState: number;
@@ -60,7 +89,7 @@ export interface SaveGameV2 {
 }
 
 const STORAGE_KEY = 'rogue_savegame';
-const VERSION = 3;
+const VERSION = 4;
 
 function store(backend?: Storage | null): Store<SaveGameV2 | null> {
   return defineStore<SaveGameV2 | null>({
@@ -68,13 +97,15 @@ function store(backend?: Storage | null): Store<SaveGameV2 | null> {
     version: VERSION,
     defaults: null,
     fallback: () => null,
-    // V2 -> V3 added inventory.wands (+ per-wand cooldown). The on-disk shape is
-    // otherwise compatible, so a V2 blob is handed straight to validateSaveGame,
-    // which backfills the missing wand field via normalizeWands. Older versions
-    // are discarded. Coordinate further bumps with the rings / potion-dipping
-    // plans (see design/planning/wands_and_staves_plan.md §persistence).
+    // V2 -> V3 added inventory.wands (+ per-wand cooldown). V3 -> V4 retired the
+    // anonymous random-effect scroll and the separate repair_scroll floor item in
+    // favour of the typed scroll catalog. All three on-disk shapes are otherwise
+    // compatible, so a V2/V3 blob is handed straight to validateSaveGame, which
+    // backfills wands (normalizeWands) and migrates legacy scroll items
+    // (migrateLegacyScrollItems). Older versions are discarded. Coordinate further
+    // bumps with the rings / potion-dipping plans.
     migrate: (data, storedVersion) =>
-      storedVersion === 2 && data ? (data as SaveGameV2) : null,
+      (storedVersion === 2 || storedVersion === 3) && data ? (data as SaveGameV2) : null,
     backend: backend !== undefined ? backend : resolveBackend(),
   });
 }
@@ -175,12 +206,15 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
   }
 
   if (!Array.isArray(raw.items)) return null;
+  // Upgrade legacy scroll floor items (repair_scroll / anonymous scroll) before
+  // validating, so a pre-overhaul save loads as typed scrolls instead of rejecting.
+  migrateLegacyScrollItems(raw.items);
   for (const it of raw.items) {
     if (!isObject(it)) return null;
     if (typeof it.x !== 'number' || typeof it.y !== 'number' || typeof it.type !== 'string') return null;
-    // A typed scroll must carry a known scrollType — guard against a corrupt or
-    // future-version blob splicing an undefined type into the scroll inventory.
-    if (it.type === 'scroll' && it.data !== undefined) {
+    // Every typed scroll must carry a known scrollType — guard against a corrupt
+    // or future-version blob splicing an unknown type into the scroll inventory.
+    if (it.type === 'scroll') {
       if (!isObject(it.data) || !KNOWN_SCROLL_TYPES.has(it.data.scrollType as string)) return null;
     }
     // A wand floor item must carry a known wandType — guard against a corrupt or
@@ -219,6 +253,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
       }
     }
     if (!Array.isArray(fs.monsters) || !Array.isArray(fs.items)) return null;
+    migrateLegacyScrollItems(fs.items as unknown[]);
     if (fs.traps !== undefined && !validateTrapArray(fs.traps, fs.map)) return null;
   }
 
@@ -242,12 +277,23 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
       if (!isObject(w) || !KNOWN_WAND_TYPES.has(w.wandType as string)) return null;
     }
   }
+  // `scrolls` is the carried scroll stack. Optional for backward compat (very old
+  // saves predate it — backfilled below). When present every entry must be a
+  // known scroll type; an unknown type rejects the blob rather than splicing a
+  // bad value into the read flow.
+  if (p.inventory.scrolls !== undefined) {
+    if (!Array.isArray(p.inventory.scrolls)) return null;
+    for (const s of p.inventory.scrolls) {
+      if (!KNOWN_SCROLL_TYPES.has(s as string)) return null;
+    }
+  }
 
   const stats = normalizeRunStats(raw.stats, raw.seed as number);
   if (!stats) return null;
   const player = structuredClone(raw.player) as Player;
   normalizeAllGearHealth(player);
   normalizeWands(player);
+  normalizeScrolls(player);
 
   return {
     ...(raw as unknown as Omit<SaveGameV2, 'stats'>),

@@ -1012,7 +1012,7 @@ export class GameEngine {
           item.type === 'food' ? 'food' :
           item.type === 'potion' ? 'potion' :
           item.type === 'gear' ? 'gear' :
-          item.type === 'wand' ? 'wand' : 'scroll'; // scroll / repair_scroll
+          item.type === 'wand' ? 'wand' : 'scroll';
         this.sound.emit({ type: 'item.pickup', kind });
       }
     }
@@ -1128,7 +1128,12 @@ export class GameEngine {
         return true;
       }
       case 'sleep': {
-        this.trapEffects.sleepTurns = Math.max(this.trapEffects.sleepTurns, BALANCE.scrolls.sleepTurns);
+        // The read itself spends a turn (processTurn below) — that is the first
+        // turn the player is helpless; the remaining sleepTurns tick on later
+        // inputs. Subtract one so the total helpless span equals the configured
+        // duration rather than duration + 1.
+        const remaining = Math.max(0, BALANCE.scrolls.sleepTurns - 1);
+        this.trapEffects.sleepTurns = Math.max(this.trapEffects.sleepTurns, remaining);
         this.addLog("You read the Scroll of Sleep. Your eyes grow heavy and you slump to the floor!");
         return true;
       }
@@ -1262,7 +1267,7 @@ export class GameEngine {
     let count = 0;
     for (const it of this.items) {
       if (it.type !== kind) continue;
-      if (this.explored[it.y]) this.explored[it.y][it.x] = true;
+      if (this.explored[it.y]?.[it.x] !== undefined) this.explored[it.y][it.x] = true;
       count++;
     }
     if (count > 0) this.updateUI();

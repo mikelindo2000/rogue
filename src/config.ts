@@ -67,9 +67,6 @@ export const BALANCE = {
       wandCut: 0.90,
       gearChance: 0.45,
       monsterChance: 0.82,
-      // Of the generic scrolls that spawn on floor 3+, this fraction become a
-      // Scroll of Light instead (the rest stay the random-effect scroll).
-      lightScrollCut: 0.5,
     },
     // Dark rooms (original-Rogue style): a room with no ambient light reveals
     // only the player's immediate 3x3 until lit. Never on floors 1-2 (learn the
@@ -165,16 +162,7 @@ export const BALANCE = {
   potions: {
     healAmount: 12,
   },
-  scroll: {
-    vigorCut: 0.25, // cumulative thresholds
-    fatigueCut: 0.5,
-    midasCut: 0.75,
-    fatigueHunger: 100,
-    trapDamage: 5,
-  },
   // Read-on-demand scroll effects (see design/planning/scrolls_overhaul_plan.md).
-  // Distinct from the legacy `scroll` block above, which tuned the retired
-  // random-on-pickup scroll and is removed once that path is gone.
   scrolls: {
     sleepTurns: 4,        // Scroll of Sleep: turns the player is out
     holdMonsterTurns: 8,  // Scroll of Hold Monster: turns held in place
