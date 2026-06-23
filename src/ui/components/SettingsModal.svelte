@@ -23,6 +23,7 @@
 
   let active = $state<SectionId>('audio');
   const volumePct = $derived(Math.round(ui.audioVolume * 100));
+  const musicVolumePct = $derived(Math.round(ui.musicVolume * 100));
 
   function close() {
     actions.setSettingsOpen(false);
@@ -50,6 +51,15 @@
 
   function toggleMute() {
     actions.setAudioMuted(!ui.audioMuted);
+  }
+
+  function onMusicVolumeInput(e: Event) {
+    const v = Number((e.currentTarget as HTMLInputElement).value);
+    actions.setMusicVolume(v / 100);
+  }
+
+  function toggleMusicMute() {
+    actions.setMusicMuted(!ui.musicMuted);
   }
 </script>
 
@@ -79,12 +89,14 @@
       {#if active === 'audio'}
         <header class="panel-head">
           <h3>Audio</h3>
-          <p>Sound effects play as you explore, fight, and survive. Every cue also has on-screen feedback.</p>
+          <p>Sound effects and music play as you explore, fight, and survive. Every cue also has on-screen feedback.</p>
         </header>
+
+        <p class="group-label">Sound effects</p>
 
         <div class="field">
           <div class="field-text">
-            <span class="field-label">Mute all sound</span>
+            <span class="field-label">Mute sound effects</span>
             <span class="field-desc">Silence every effect. Your choice is remembered.</span>
           </div>
           <button
@@ -100,7 +112,7 @@
 
         <div class="field" class:disabled={ui.audioMuted}>
           <div class="field-text">
-            <span class="field-label">Volume</span>
+            <span class="field-label">Effects volume</span>
             <span class="field-desc">Overall loudness of sound effects.</span>
           </div>
           <div class="volume">
@@ -113,7 +125,7 @@
               step="1"
               value={volumePct}
               disabled={ui.audioMuted}
-              aria-label="Volume"
+              aria-label="Effects volume"
               aria-valuetext="{volumePct} percent"
               oninput={onVolumeInput}
             />
@@ -129,6 +141,47 @@
           <button class="btn" onclick={() => actions.testSound()} disabled={ui.audioMuted}>
             Play sample
           </button>
+        </div>
+
+        <p class="group-label">Music</p>
+
+        <div class="field">
+          <div class="field-text">
+            <span class="field-label">Mute music</span>
+            <span class="field-desc">Silence the background score, independent of effects.</span>
+          </div>
+          <button
+            class="switch"
+            role="switch"
+            aria-checked={ui.musicMuted}
+            onclick={toggleMusicMute}
+          >
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+            <span class="switch-state">{ui.musicMuted ? 'On' : 'Off'}</span>
+          </button>
+        </div>
+
+        <div class="field" class:disabled={ui.musicMuted}>
+          <div class="field-text">
+            <span class="field-label">Music volume</span>
+            <span class="field-desc">Loudness of the background score.</span>
+          </div>
+          <div class="volume">
+            <span class="vol-icon"><Icon name={ui.musicMuted ? 'mute' : 'volume'} size={16} /></span>
+            <input
+              class="slider"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={musicVolumePct}
+              disabled={ui.musicMuted}
+              aria-label="Music volume"
+              aria-valuetext="{musicVolumePct} percent"
+              oninput={onMusicVolumeInput}
+            />
+            <span class="vol-value tnum">{musicVolumePct}%</span>
+          </div>
         </div>
       {/if}
     </section>
@@ -237,6 +290,16 @@
     color: var(--text-dim);
   }
 
+  .group-label {
+    margin: 18px 0 2px;
+    font: 700 9px var(--font-display);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-label);
+  }
+  .group-label:first-of-type {
+    margin-top: 4px;
+  }
   .field {
     display: flex;
     align-items: center;
@@ -245,6 +308,12 @@
     gap: 10px 18px;
     padding: 14px 0;
     border-top: 1px solid var(--border-subtle);
+  }
+  /* The field right after a group label drops its top divider — the label is
+     the separator there. */
+  .group-label + .field {
+    border-top: none;
+    padding-top: 6px;
   }
   .field.disabled {
     opacity: 0.5;

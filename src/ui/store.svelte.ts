@@ -152,6 +152,8 @@ export interface UIState {
   // audio settings (mirrors persisted settings.audio; bound by the settings modal)
   audioMuted: boolean;
   audioVolume: number; // 0..1
+  musicMuted: boolean;
+  musicVolume: number; // 0..1
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
 }
@@ -196,6 +198,8 @@ export const ui = $state<UIState>({
   settingsOpen: false,
   audioMuted: false,
   audioVolume: 1,
+  musicMuted: false,
+  musicVolume: 0.4,
   discovery: emptyDiscovery(),
 });
 
@@ -211,6 +215,8 @@ export interface UIActions {
   setSettingsOpen(open: boolean): void;
   setAudioMuted(muted: boolean): void;
   setAudioVolume(volume: number): void;
+  setMusicMuted(muted: boolean): void;
+  setMusicVolume(volume: number): void;
   testSound(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
@@ -227,6 +233,8 @@ export const actions: UIActions = {
   setSettingsOpen: () => {},
   setAudioMuted: () => {},
   setAudioVolume: () => {},
+  setMusicMuted: () => {},
+  setMusicVolume: () => {},
   testSound: () => {},
   selectInventoryItem: () => {},
   inventoryAction: () => {},

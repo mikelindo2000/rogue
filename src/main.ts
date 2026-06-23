@@ -8,6 +8,8 @@ import { KeyboardManager } from './keyboard';
 import { loadSaveGame, saveSaveGame } from './persistence/savegame';
 import { loadSettings, updateSettings } from './persistence/settings';
 import { createAudioService } from './audio/service';
+import { createMusicService } from './audio/music';
+import type { MusicContextId } from './audio/manifest';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first.
@@ -25,15 +27,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // first user gesture (autoplay policy), unlocked below.
   const settings = loadSettings();
   const audio = createAudioService(settings.audio);
+  // Background music has its own channel/volume/mute and is driven by coarse
+  // game-state context (below), not by SoundEvents.
+  const music = createMusicService({ muted: settings.audio.musicMuted, volume: settings.audio.musicVolume });
   ui.audioMuted = settings.audio.muted;
   ui.audioVolume = settings.audio.volume;
+  ui.musicMuted = settings.audio.musicMuted;
+  ui.musicVolume = settings.audio.musicVolume;
 
   const ui_ = new GameUI('gameCanvas');
   const engine = new GameEngine(ui_, audio);
 
-  const unlockAudio = () => audio.unlock();
+  // Both runtimes share one AudioContext; unlock them together on first gesture.
+  const unlockAudio = () => {
+    audio.unlock();
+    music.unlock();
+  };
   window.addEventListener('keydown', unlockAudio, { once: true });
   window.addEventListener('pointerdown', unlockAudio, { once: true });
+
+  // Map coarse game state to a music bed. Bosses win, then a cleared floor is a
+  // respite, then depth selects the explore theme; run end plays the game-over
+  // bed. setContext() ignores repeats and crossfades real changes.
+  const musicContextFor = (): MusicContextId | null => {
+    if (engine.gameOver || engine.gameWon) return 'gameover';
+    if (engine.monsters.some((m) => m.special === 'boss')) return 'boss';
+    if (engine.monsters.length === 0) return 'safe';
+    return engine.dungeonFloor <= 3 ? 'explore-shallow' : 'explore-deep';
+  };
+  const updateMusic = () => music.setContext(musicContextFor());
 
   // Autosave: trailing debounce around normal writes, plus an immediate flush
   // on tab close/hide. Wired before the initial load/restore so the fresh-run
@@ -56,7 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveTimer !== null) clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, 500);
   };
-  engine.onRunChanged = scheduleSave;
+  engine.onRunChanged = () => {
+    scheduleSave();
+    updateMusic();
+  };
 
   const save = loadSaveGame();
   if (!save || !engine.restore(save)) {
@@ -66,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
     flushSave();
   }
   engine.draw();
+  // Select the opening bed (plays once audio unlocks on first input).
+  updateMusic();
 
   window.addEventListener('beforeunload', flushSave);
   document.addEventListener('visibilitychange', () => {
@@ -103,12 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setAudioMuted = (muted) => {
     ui.audioMuted = muted;
     audio.setMuted(muted);
-    updateSettings({ audio: { muted, volume: ui.audioVolume } });
+    updateSettings({ audio: { muted } });
   };
   actions.setAudioVolume = (volume) => {
     ui.audioVolume = volume;
     audio.setVolume(volume);
-    updateSettings({ audio: { muted: ui.audioMuted, volume } });
+    updateSettings({ audio: { volume } });
+  };
+  actions.setMusicMuted = (muted) => {
+    ui.musicMuted = muted;
+    music.setMuted(muted);
+    updateSettings({ audio: { musicMuted: muted } });
+  };
+  actions.setMusicVolume = (volume) => {
+    ui.musicVolume = volume;
+    music.setVolume(volume);
+    updateSettings({ audio: { musicVolume: volume } });
   };
   actions.testSound = () => {
     audio.unlock();

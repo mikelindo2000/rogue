@@ -50,7 +50,7 @@ describe('settings store', () => {
     const value: Settings = {
       playerName: 'Grok',
       lastClass: 'Warrior',
-      audio: { muted: true, volume: 0.5 },
+      audio: { muted: true, volume: 0.5, musicMuted: true, musicVolume: 0.6 },
     };
     saveSettings(value, backend);
     expect(loadSettings(backend)).toEqual(value);
@@ -62,7 +62,7 @@ describe('settings store', () => {
     expect(loadSettings(backend)).toEqual({
       playerName: 'X',
       lastClass: 'Rogue',
-      audio: { muted: false, volume: 1 },
+      audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
     });
   });
 
@@ -72,36 +72,69 @@ describe('settings store', () => {
     expect(loadSettings(backend)).toEqual({
       playerName: 'The Wretch',
       lastClass: 'Rogue',
-      audio: { muted: true, volume: 1 },
+      audio: { muted: true, volume: 1, musicMuted: false, musicVolume: 0.4 },
+    });
+  });
+
+  it('fills new music audio fields against an older blob that predates them', () => {
+    const backend = new MemoryStorage();
+    seed(backend, { audio: { muted: true, volume: 0.5 } });
+    expect(loadSettings(backend).audio).toEqual({
+      muted: true,
+      volume: 0.5,
+      musicMuted: false,
+      musicVolume: 0.4,
     });
   });
 
   it('updateSettings preserves sibling fields when changing audio.volume', () => {
     const backend = new MemoryStorage();
     saveSettings(
-      { playerName: 'Mira', lastClass: 'Mage', audio: { muted: true, volume: 0.2 } },
+      {
+        playerName: 'Mira',
+        lastClass: 'Mage',
+        audio: { muted: true, volume: 0.2, musicMuted: false, musicVolume: 0.4 },
+      },
       backend,
     );
-    const next = updateSettings({ audio: { muted: true, volume: 0.8 } }, backend);
+    const next = updateSettings({ audio: { volume: 0.8 } }, backend);
     expect(next).toEqual({
       playerName: 'Mira',
       lastClass: 'Mage',
-      audio: { muted: true, volume: 0.8 },
+      audio: { muted: true, volume: 0.8, musicMuted: false, musicVolume: 0.4 },
     });
     expect(loadSettings(backend)).toEqual(next);
+  });
+
+  it('updateSettings can change only music fields and keep sfx audio intact', () => {
+    const backend = new MemoryStorage();
+    saveSettings(
+      {
+        playerName: 'Mira',
+        lastClass: 'Mage',
+        audio: { muted: false, volume: 0.9, musicMuted: false, musicVolume: 0.4 },
+      },
+      backend,
+    );
+    const next = updateSettings({ audio: { musicMuted: true } }, backend);
+    expect(next.audio).toEqual({ muted: false, volume: 0.9, musicMuted: true, musicVolume: 0.4 });
   });
 
   it('updateSettings changing playerName keeps audio intact', () => {
     const backend = new MemoryStorage();
     saveSettings(
-      { playerName: 'Mira', lastClass: 'Mage', audio: { muted: true, volume: 0.2 } },
+      {
+        playerName: 'Mira',
+        lastClass: 'Mage',
+        audio: { muted: true, volume: 0.2, musicMuted: true, musicVolume: 0.5 },
+      },
       backend,
     );
     const next = updateSettings({ playerName: 'Renamed' }, backend);
     expect(next).toEqual({
       playerName: 'Renamed',
       lastClass: 'Mage',
-      audio: { muted: true, volume: 0.2 },
+      audio: { muted: true, volume: 0.2, musicMuted: true, musicVolume: 0.5 },
     });
     expect(loadSettings(backend)).toEqual(next);
   });
@@ -112,7 +145,7 @@ describe('settings store', () => {
     expect(next).toEqual({
       playerName: 'First',
       lastClass: 'Rogue',
-      audio: { muted: false, volume: 1 },
+      audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
     });
   });
 });

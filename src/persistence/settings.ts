@@ -14,13 +14,19 @@ import { defineStore, resolveBackend } from './store';
 export interface Settings {
   playerName: string;
   lastClass: string;
-  audio: { muted: boolean; volume: number };
+  audio: {
+    muted: boolean;
+    volume: number;
+    /** Background music has its own mute/volume, independent of sound effects. */
+    musicMuted: boolean;
+    musicVolume: number;
+  };
 }
 
 export const SETTINGS_DEFAULTS: Settings = {
   playerName: 'The Wretch',
   lastClass: 'Rogue',
-  audio: { muted: false, volume: 1 },
+  audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
 };
 
 function store(backend?: Storage | null) {
@@ -51,7 +57,10 @@ export function saveSettings(value: Settings, backend?: Storage | null): void {
   store(backend).save(value);
 }
 
-export function updateSettings(patch: Partial<Settings>, backend?: Storage | null): Settings {
+/** A patch may set any top-level field and any subset of `audio.*`. */
+export type SettingsPatch = Partial<Omit<Settings, 'audio'>> & { audio?: Partial<Settings['audio']> };
+
+export function updateSettings(patch: SettingsPatch, backend?: Storage | null): Settings {
   const current = loadSettings(backend);
   const next: Settings = {
     ...current,

@@ -126,3 +126,17 @@ export function resolveCue(event: SoundEvent): SoundAsset | null {
   const id = resolveClipId(event);
   return id ? SOUND_ASSETS[id] ?? null : null;
 }
+
+// --- background music ---------------------------------------------------
+
+/** Coarse game-state contexts that select a music bed. */
+export type MusicContextId = 'explore-shallow' | 'explore-deep' | 'boss' | 'safe' | 'gameover';
+
+/** Looping ~3-minute beds, one per context. Files relative to AUDIO_BASE. */
+export const MUSIC_TRACKS: Record<MusicContextId, string> = {
+  'explore-shallow': 'music/explore-shallow-01.mp3',
+  'explore-deep': 'music/explore-deep-01.mp3',
+  boss: 'music/boss-01.mp3',
+  safe: 'music/safe-01.mp3',
+  gameover: 'music/gameover-01.mp3',
+};

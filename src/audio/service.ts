@@ -10,6 +10,7 @@
  */
 import type { SoundEvent, SoundSink } from './events';
 import { AUDIO_BASE, SOUND_ASSETS, resolveCue, type SoundAsset } from './manifest';
+import { ensureAudioContext } from './context';
 
 export interface AudioServiceConfig {
   muted: boolean;
@@ -18,14 +19,6 @@ export interface AudioServiceConfig {
 
 const GLOBAL_MAX_VOICES = 12;
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
-
-type AudioCtor = typeof AudioContext;
-
-function getAudioContextCtor(): AudioCtor | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as unknown as { AudioContext?: AudioCtor; webkitAudioContext?: AudioCtor };
-  return w.AudioContext ?? w.webkitAudioContext ?? null;
-}
 
 export class AudioService implements SoundSink {
   private ctx: AudioContext | null = null;
@@ -64,13 +57,13 @@ export class AudioService implements SoundSink {
       void this.ctx?.resume?.().catch(() => {});
       return;
     }
-    const Ctor = getAudioContextCtor();
-    if (!Ctor) {
+    const ctx = ensureAudioContext();
+    if (!ctx) {
       this.unlocked = true; // nothing to play, but don't keep retrying
       return;
     }
     try {
-      this.ctx = new Ctor();
+      this.ctx = ctx;
       this.master = this.ctx.createGain();
       this.master.gain.value = this.effectiveGain();
       this.master.connect(this.ctx.destination);
