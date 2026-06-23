@@ -279,6 +279,27 @@ describe('telegraphed attacks (engine resolution)', () => {
     expect(l.lines.some((s) => /You dodge/.test(s))).toBe(true);
     expect(m.ai?.pendingAttack).toBeUndefined();
   });
+
+  it('Wand of Cancellation suppresses the telegraph and drops a charged attack', () => {
+    // A cancelled kiter should not commit a new telegraph; it reverts to plain
+    // melee chasing (the default archetype).
+    const m = swooper();
+    m.canceledTurns = 5;
+    const l = log();
+    run(m, { x: 6, y: 6, hp: 100 }, 5, l);
+    expect(m.ai?.pendingAttack).toBeUndefined();
+    expect(m.canceledTurns).toBe(4); // ticked one cancelled turn
+    expect(l.lines.some((s) => /dives at you/.test(s))).toBe(false);
+
+    // An already-charged attack is dropped the moment cancellation lands.
+    const charged = swooper();
+    charged.canceledTurns = 3;
+    charged.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false, pendingAttack: { attackId: 'bolt', resolveTurn: 5, targetX: 6, targetY: 6 } };
+    const player = { x: 6, y: 6, hp: 100 };
+    run(charged, player, 5, log());
+    expect(charged.ai?.pendingAttack).toBeUndefined();
+    expect(player.hp).toBe(100); // the charged swoop never resolves
+  });
 });
 
 describe('on-hit abilities', () => {

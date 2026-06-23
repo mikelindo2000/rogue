@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   availableEquipCount,
+  gearHealthView,
+  gearStatWithCondition,
   gearStatText,
   hasStatUpgrade,
   primaryGearStat,
+  shortGearStatText,
 } from './equipmentStats';
 
 describe('equipment stat display helpers', () => {
@@ -11,6 +14,8 @@ describe('equipment stat display helpers', () => {
     expect(gearStatText({ name: 'Iron Dagger', dmg: 2 }, 'attack')).toBe('ATK +2');
     expect(gearStatText({ name: 'Cracked Shield', def: 2, maxDef: 4 }, 'defense')).toBe('DEF 2/4');
     expect(gearStatText({ name: 'Cloth Gloves', def: 1, maxDef: 1 }, 'defense')).toBe('DEF 1');
+    expect(shortGearStatText({ name: 'Cracked Shield', def: 2, maxDef: 4 }, 'defense')).toBe('DEF 2/4');
+    expect(gearStatWithCondition({ name: 'Cracked Shield', def: 1, maxDef: 4 }, 'defense')).toBe('DEF 1/4 · critical');
   });
 
   it('treats empty gear as zero stats', () => {
@@ -52,5 +57,21 @@ describe('equipment stat display helpers', () => {
         'attack'
       )
     ).toBe(false);
+  });
+
+  it('builds condition view data for defensive gear', () => {
+    expect(gearHealthView({ name: 'Buckler', def: 3, maxDef: 3 }, 'var(--rarity-common)')).toEqual({
+      label: '3/3',
+      ratio: 1,
+      tone: 'good',
+      color: 'var(--rarity-common)',
+    });
+    expect(gearHealthView({ name: 'Broken Buckler', def: 0, maxDef: 3 }, 'var(--rarity-common)')).toMatchObject({
+      label: '0/3',
+      ratio: 0,
+      tone: 'broken',
+      color: 'var(--text-faint)',
+    });
+    expect(gearHealthView({ name: 'Iron Dagger', dmg: 2 }, 'var(--rarity-common)')).toBeUndefined();
   });
 });

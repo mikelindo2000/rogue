@@ -3,7 +3,7 @@ import { getScaledMonsterAtk } from './config';
 import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
 import { decideMonsterAction, ensureRuntime } from './ai/brain';
-import { resolveBehavior } from './ai/archetypes';
+import { resolveBehavior, defaultBehavior } from './ai/archetypes';
 import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior, MonsterAIRuntime } from './ai/types';
 
 /** Visual hooks the AI fires for telegraphed attacks. Defaulted to no-ops so
@@ -45,7 +45,14 @@ export function processMonsterAI(
     }
 
     const rt = ensureRuntime(m);
-    const behavior = resolveBehavior(m);
+    // Wand of Cancellation: while active, the monster is stripped to plain melee
+    // (no telegraphed specials/abilities) and any charged attack is dropped.
+    const cancelled = (m.canceledTurns ?? 0) > 0;
+    if (cancelled) {
+      m.canceledTurns!--;
+      rt.pendingAttack = undefined;
+    }
+    const behavior = cancelled ? defaultBehavior() : resolveBehavior(m);
 
     // A committed telegraphed attack overrides everything: the monster either
     // resolves it (if due) or keeps charging. Either way it takes no other

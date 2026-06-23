@@ -13,6 +13,11 @@ describe('inventory stat helpers', () => {
       { label: 'Hands', value: 'Two-handed' },
       { label: 'Magic', value: 'Fire' },
     ]);
+    expect(gearTooltipStats({ name: 'Cracked Shield', def: 1, maxDef: 4 }, 'defense')).toEqual([
+      { label: 'Defense', value: '1/4', tone: 'better' },
+      { label: 'Durability', value: '1/4', tone: 'worse' },
+      { label: 'Condition', value: 'Critical', tone: undefined },
+    ]);
   });
 
   it('compares carried weapons against equipped main hand and legal off-hand', () => {

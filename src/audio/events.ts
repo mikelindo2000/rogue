@@ -7,6 +7,8 @@
  * design/implemented/sound_effect_asset_prompts.md for the asset catalogue.
  */
 
+import type { WandType } from '../types';
+
 export type SoundEvent =
   // combat
   | { type: 'combat.swing'; actor: 'player' | 'monster' }
@@ -31,8 +33,10 @@ export type SoundEvent =
   | { type: 'equipment.unequipArmor' }
   | { type: 'equipment.rejected' }
   // items
-  | { type: 'item.pickup'; kind: 'gold' | 'food' | 'potion' | 'scroll' | 'gear' }
+  | { type: 'item.pickup'; kind: 'gold' | 'food' | 'potion' | 'scroll' | 'gear' | 'wand' }
   | { type: 'item.consume'; kind: 'food' | 'potion' | 'scroll' }
+  // a wand is zapped; wandType lets the manifest resolve a per-effect cue.
+  | { type: 'item.zap'; wandType: WandType }
   // map / navigation
   | { type: 'map.stairs'; dir: 'up' | 'down' }
   | { type: 'map.secretReveal' };

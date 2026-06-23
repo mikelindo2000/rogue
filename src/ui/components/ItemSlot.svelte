@@ -17,6 +17,7 @@
     if (ref.kind === 'potion') return `potion-${ref.potionType}`;
     if (ref.kind === 'scroll') return `scroll-${ref.scrollType}`;
     if (ref.kind === 'weapon') return `weapon-${ref.index}`;
+    if (ref.kind === 'wand') return `wand-${ref.index}`;
     if (ref.kind === 'shield') return `shield-${ref.index}`;
     return `armor-${ref.slot}-${ref.index}`;
   }
@@ -55,9 +56,9 @@
   <div class="slot-wrap">
     <button
       class="slot filled"
-      aria-label={cell.statLabel ? `${cell.label}, ${cell.statLabel}` : cell.label}
+      aria-label={cell.statLabel ? `${cell.label}, ${cell.statLabel}${cell.health ? `, condition ${cell.health.tone}, ${cell.health.label}` : ''}` : cell.label}
       aria-describedby={showTooltip && tooltipId ? tooltipId : undefined}
-      style="--rarity:{cell.rarityColor}"
+      style="--rarity:{cell.health?.color ?? cell.rarityColor}"
       onclick={() => onSelect?.(cell)}
       onpointerenter={showDelayed}
       onpointerleave={hideTooltip}
@@ -65,9 +66,12 @@
       onblur={hideTooltip}
       onkeydown={onKeydown}
     >
-      <span class="icon" style="color:{cell.rarityColor}">
+      <span class="icon" class:broken={cell.health?.tone === 'broken'} style="color:{cell.health?.color ?? cell.rarityColor}">
         <Icon name={cell.icon} size={20} />
       </span>
+      {#if cell.health && cell.health.tone !== 'good'}
+        <span class="health tnum" class:bad={cell.health.tone === 'bad'} class:broken={cell.health.tone === 'broken'}>{cell.health.label}</span>
+      {/if}
       {#if cell.statLabel}
         <span class="stat tnum">{cell.statLabel}</span>
       {/if}
@@ -123,6 +127,36 @@
   }
   .icon {
     display: flex;
+  }
+  .icon.broken {
+    opacity: 0.7;
+    filter: saturate(0.55);
+  }
+  .health {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    max-width: calc(100% - 6px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 4px;
+    border-radius: var(--r-pill);
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border-chip));
+    background: var(--accent-surface);
+    color: var(--accent);
+    font: 750 8px var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
+  .health.bad {
+    border-color: color-mix(in srgb, var(--danger) 54%, var(--border-chip));
+    background: color-mix(in srgb, var(--danger) 12%, var(--surface-inset));
+    color: var(--danger);
+  }
+  .health.broken {
+    border-color: var(--border-chip);
+    background: var(--surface-inset);
+    color: var(--text-faint);
   }
   .stat {
     position: absolute;

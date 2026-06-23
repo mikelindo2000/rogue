@@ -15,6 +15,7 @@
     if (ref.kind === 'potion') return `potion:${ref.potionType}`;
     if (ref.kind === 'scroll') return `scroll:${ref.scrollType}`;
     if (ref.kind === 'weapon') return `weapon:${ref.index}`;
+    if (ref.kind === 'wand') return `wand:${ref.index}`;
     if (ref.kind === 'shield') return `shield:${ref.index}`;
     return `armor:${ref.slot}:${ref.index}`;
   }
@@ -158,9 +159,11 @@
             data-ref={refKey(cell.ref)}
             onclick={() => choose(cell)}
             aria-pressed={selected && refKey(selected.ref) === refKey(cell.ref)}
+            aria-label="{cell.label}{cell.statLabel ? `, ${cell.statLabel}` : ''}{cell.health ? `, condition ${cell.health.tone}, ${cell.health.label}` : ''}"
           >
-            <span class="tile" style:color={cell.rarityColor}>
+            <span class="tile" class:broken={cell.health?.tone === 'broken'} style:color={cell.health?.color ?? cell.rarityColor}>
               <Icon name={cell.icon} size={18} />
+              {#if cell.health && cell.health.tone !== 'good'}<span class="health-mini">{cell.health.label}</span>{/if}
               {#if cell.count}<span class="count">{cell.count}</span>{/if}
             </span>
             <span class="row-text">
@@ -176,8 +179,9 @@
       {#if selected}
         <section class="detail-pane" aria-label="Selected item" style={`--item-art: url("${selected.artUrl}")`}>
           <div class="hero">
-            <span class="hero-icon" style:color={selected.rarityColor}>
+            <span class="hero-icon" class:broken={selected.health?.tone === 'broken'} style:color={selected.health?.color ?? selected.rarityColor}>
               <Icon name={selected.icon} size={28} stroke={1.35} />
+              {#if selected.health && selected.health.tone !== 'good'}<span class="health-mini hero-health">{selected.health.label}</span>{/if}
               {#if selected.count}<span class="hero-count">{selected.count}</span>{/if}
             </span>
             <div class="hero-text">
@@ -281,6 +285,12 @@
     border-radius: var(--r-md);
   }
 
+  .tile.broken,
+  .hero-icon.broken {
+    opacity: 0.74;
+    filter: saturate(0.55);
+  }
+
   .row-text {
     min-width: 0;
     flex: 1;
@@ -322,6 +332,29 @@
     bottom: 3px;
     font: 700 9px var(--font-display);
     color: var(--text-label);
+  }
+
+  .health-mini {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    max-width: calc(100% - 4px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 4px;
+    border-radius: var(--r-pill);
+    border: 1px solid color-mix(in srgb, currentColor 42%, var(--border-chip));
+    background: var(--surface-inset);
+    color: currentColor;
+    font: 750 8px var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hero-health {
+    top: 5px;
+    right: 5px;
+    font-size: 9px;
   }
 
   .detail-pane {
@@ -486,6 +519,41 @@
       max-height: 36vh;
       border-right: none;
       border-bottom: 1px solid var(--border);
+    }
+  }
+
+  @media (max-width: 680px) {
+    .body {
+      width: 100%;
+      min-height: 0;
+    }
+
+    .list {
+      max-height: 34vh;
+      padding: 8px;
+    }
+
+    .detail-pane {
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .detail-pane::before {
+      background-size: min(70%, 260px) auto;
+      opacity: 0.54;
+    }
+
+    .hero-icon {
+      width: 48px;
+      height: 48px;
+    }
+
+    h3 {
+      font-size: 16px;
+    }
+
+    .action {
+      flex: 1 1 96px;
     }
   }
 </style>

@@ -1,4 +1,4 @@
-import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType, ScrollType } from './types';
+import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType, ScrollType, TrapEffects, TrapState } from './types';
 import { BALANCE, getScaledXpRequirements, getConfig } from './config';
 import { canEquip } from './player';
 import { TILE, STAIR_TILES, isCorner, isWalkable } from './tiles';
@@ -17,10 +17,12 @@ import {
   shortGearStatText,
   weaponTypeLabel,
 } from './ui/inventoryStats';
+import { gearHealthView } from './ui/equipmentStats';
 import { SLOT_ICON } from './ui/icons';
-import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl } from './ui/inventoryArt';
+import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl, wandArtUrl } from './ui/inventoryArt';
 import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
-import { potionVisual, scrollVisual } from './itemVisuals';
+import { wandDetail, wandLabel, wandTooltipStats } from './ui/wandView';
+import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import {
   drawAvatar,
@@ -106,6 +108,7 @@ interface Scene {
   player: Player;
   monsters: Monster[];
   items: Item[];
+  traps: TrapState[];
   tileSize: number;
   cols: number;
   rows: number;
@@ -168,6 +171,7 @@ export class GameUI {
     player: Player,
     monsters: Monster[],
     items: Item[],
+    traps: TrapState[],
     tileSize: number,
     cols: number,
     rows: number,
@@ -177,9 +181,13 @@ export class GameUI {
   ) {
     // Snapshot the board so the animation loop can repaint between turns
     // without the turn-based engine having to drive every frame.
-    this.scene = { map, explored, visible, player, monsters, items, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
+    this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
 
     // Overlay store state only needs refreshing on real turns, not per frame.
+    ui.playerX = player.x;
+    ui.playerY = player.y;
+    ui.mapCols = cols;
+    ui.mapRows = rows;
     this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
 
     this.trackMovement(monsters);
@@ -235,6 +243,17 @@ export class GameUI {
       this.ctx.globalAlpha = s.visible[i.y]?.[i.x] ? 1 : DIM_ALPHA;
       this.ctx.fillStyle = i.color;
       this.drawGlyph(i.symbol, i.x, i.y, s.tileSize, 0.66);
+    });
+    this.ctx.globalAlpha = 1;
+
+    // Draw revealed traps as overlays on their underlying floor. Hidden traps do
+    // not render at all, and spent traps stay dim so remembered hazards remain
+    // legible without looking active.
+    s.traps.forEach(trap => {
+      if (!trap.revealed || !s.explored[trap.y]?.[trap.x]) return;
+      const visible = s.visible[trap.y]?.[trap.x];
+      this.ctx.globalAlpha = visible ? (trap.armed ? 1 : 0.45) : DIM_ALPHA * (trap.armed ? 1 : 0.45);
+      this.drawTrap(trap, s.tileSize);
     });
     this.ctx.globalAlpha = 1;
 
@@ -559,6 +578,11 @@ export class GameUI {
     this.ensureLoop();
   }
 
+  /** Toggle the transient wand-aiming prompt overlay. */
+  public setAiming(aiming: { wandName: string } | null) {
+    ui.aiming = aiming;
+  }
+
   public fxDeath(x: number, y: number, glyph: string, color: string) {
     this.fx.push({ kind: 'death', start: this.nowMs(), life: FX_LIFE.death, x, y, glyph, color });
     this.ensureLoop();
@@ -678,6 +702,18 @@ export class GameUI {
     this.ctx.beginPath();
     this.ctx.arc(m.cx, m.cy, radius, 0, Math.PI * 2);
     this.ctx.fill();
+  }
+
+  private drawTrap(trap: TrapState, tileSize: number) {
+    const color: Record<TrapState['kind'], string> = {
+      bear: '#d98b42',
+      sleep_gas: '#9be27f',
+      dart: '#f0d35a',
+      teleport: '#72ddff',
+      trapdoor: '#d9d9d9',
+    };
+    this.ctx.fillStyle = color[trap.kind];
+    this.drawGlyph('^', trap.x, trap.y, tileSize, 0.66, { weight: trap.armed ? 800 : 600, embolden: trap.armed ? 0.04 : 0 });
   }
 
   private drawCorridor(map: string[][], m: TileMetrics, style: DungeonStyle) {
@@ -1052,7 +1088,8 @@ export class GameUI {
     dungeonFloor: number,
     statusEffects: StatusEffects,
     totalDef: number,
-    turn = 0
+    turn = 0,
+    trapEffects?: TrapEffects
   ) {
     ui.floor = dungeonFloor;
     ui.floorName = floorName(dungeonFloor);
@@ -1060,6 +1097,7 @@ export class GameUI {
     ui.def = totalDef;
     ui.turn = turn;
     ui.level = player.level;
+    ui.strengthDrain = trapEffects?.strengthDrained ?? 0;
 
     ui.hp = Math.max(0, player.hp);
     ui.maxHp = Math.round(
@@ -1162,6 +1200,24 @@ export class GameUI {
       });
     }
 
+    player.inventory.wands.forEach((wand, i) => {
+      const ref: InventoryRef = { kind: 'wand', index: i };
+      const visual = wandVisual(wand.wandType);
+      const cd = wand.cooldownRemaining ?? 0;
+      cells.push({
+        icon: visual.icon,
+        artUrl: wandArtUrl(wand),
+        rarityColor: rarityVar(wand.rarity),
+        // A cooldown badge reuses the count slot (shows the recharge timer).
+        count: cd > 0 ? cd : undefined,
+        label: wandLabel(wand),
+        detail: wandDetail(wand),
+        tooltipStats: wandTooltipStats(wand),
+        ref,
+        actions: this.inventoryActions(player, ref),
+      });
+    });
+
     player.inventory.weapons.forEach((w, i) => {
       if (i !== player.equipped.mainHand && player.equipped.offHand !== 'weapon:' + i) {
         const ref: InventoryRef = { kind: 'weapon', index: i };
@@ -1191,6 +1247,7 @@ export class GameUI {
             label: a.name,
             detail: `${titleCase(slot)} armor. ${a.def ?? 0}/${a.maxDef ?? a.def ?? 0} defense.`,
             statLabel: shortGearStatText(a, 'defense'),
+            health: gearHealthView(a, rarityVar(a.rarity)),
             tooltipStats: [
               { label: 'Slot', value: titleCase(slot) },
               ...gearTooltipStats(a, 'defense'),
@@ -1213,6 +1270,7 @@ export class GameUI {
           label: s.name,
           detail: `Off-hand shield. ${s.def ?? 0}/${s.maxDef ?? s.def ?? 0} defense.`,
           statLabel: shortGearStatText(s, 'defense'),
+          health: gearHealthView(s, rarityVar(s.rarity)),
           tooltipStats: [
             { label: 'Slot', value: 'Off-hand' },
             ...gearTooltipStats(s, 'defense'),
@@ -1236,6 +1294,16 @@ export class GameUI {
     }
     if (ref.kind === 'scroll') {
       return [{ action: 'use', label: 'Read' }];
+    }
+    if (ref.kind === 'wand') {
+      const wand = player.inventory.wands[ref.index];
+      const recharging = (wand?.cooldownRemaining ?? 0) > 0;
+      return [{
+        action: 'zap',
+        label: 'Zap',
+        disabled: recharging,
+        reason: recharging ? `Recharging (${wand?.cooldownRemaining})` : undefined,
+      }];
     }
 
     if (ref.kind === 'weapon') {

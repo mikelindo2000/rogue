@@ -63,6 +63,29 @@ export type PotionType = 'healing' | 'strength' | 'invisibility' | 'armor';
  *  `scroll` floor item, which still applies a random effect on pickup. */
 export type ScrollType = 'light';
 
+/** The zappable arcane line. Distinct from the melee WeaponType 'staff': wands
+ *  are carried (not equipped) and zapped in a direction. No charges — power is
+ *  gated by a per-item cooldown plus a small hunger cost. See
+ *  design/planning/wands_and_staves_plan.md. */
+export type WandType =
+  | 'striking'       // force bolt, scaled melee-style damage
+  | 'magic_missile'  // reliable low-variance damage, never misses
+  | 'lightning'      // beam: pierces, hits every monster in line
+  | 'fire'           // bolt: damage
+  | 'cold'           // bolt: damage + freeze (reuses frozenTurns)
+  | 'sleep'          // hold monster (frozenTurns, no damage)
+  | 'polymorph'      // reroll the struck monster into another species
+  | 'teleport_away'  // relocate the struck monster elsewhere on the floor
+  | 'cancellation'   // strip a monster's special behavior for N turns
+  | 'drain_life'     // damage the monster, heal the player (costs player HP)
+  | 'light'          // self-targeted: flood the current room
+  | 'invisibility'   // self-targeted: invisTurns on the player
+  | 'nothing';       // the classic dud — flavor only
+
+/** Display + tuning tier for a wand. A staff is "the larger sibling of a wand":
+ *  same code path, bigger numbers / shorter cooldown. Not a charge count. */
+export type WandTier = 'wand' | 'staff';
+
 export interface GearItem {
   name: string;
   rarity?: Rarity;
@@ -75,6 +98,27 @@ export interface GearItem {
   // Armor attributes
   def?: number;
   maxDef?: number;
+  health?: GearHealth;
+}
+
+export interface GearHealth {
+  current: number;
+  max: number;
+}
+
+/** A carried, zappable wand/staff. Persistent: no charges. `cooldownRemaining`
+ *  is per-item runtime state (a recharge timer), not a count of uses. */
+export interface WandItem {
+  name: string;            // "Wand of Cold", "Staff of Lightning"
+  wandType: WandType;
+  tier: WandTier;          // display tier + tuning band; not a charge count
+  rarity?: Rarity;         // mirrors GearItem
+  color?: string;          // glyph/art tint, mirrors GearItem
+  /** Turns remaining before this wand can be zapped again. 0/undefined = ready.
+   *  Runtime/persisted state, not a charge. */
+  cooldownRemaining?: number;
+  /** Set on pickup once identification ships; until then always true. */
+  identified?: boolean;
 }
 
 /** Gear that has been placed on the floor carries its spawn category. */
@@ -96,7 +140,8 @@ export type Item =
   | (ItemBase & { type: 'scroll'; data?: { scrollType: ScrollType } })
   | (ItemBase & { type: 'repair_scroll' })
   | (ItemBase & { type: 'potion'; data: { potionType: PotionType } })
-  | (ItemBase & { type: 'gear'; data: FloorGear });
+  | (ItemBase & { type: 'gear'; data: FloorGear })
+  | (ItemBase & { type: 'wand'; data: WandItem });
 
 export type ItemType = Item['type'];
 
@@ -124,6 +169,10 @@ export interface Monster {
   special?: 'hero' | 'boss';
   frozenTurns: number;
   swipeTurn?: boolean;
+  /** Turns remaining under a Wand of Cancellation: special archetype behavior
+   *  (telegraphed attacks, on-hit abilities, dodge) is suppressed while > 0.
+   *  Decremented in processMonsterAI. Optional — absent means not cancelled. */
+  canceledTurns?: number;
   /** Per-monster AI runtime (FSM state + cooldowns), attached lazily by the
    *  behavior interpreter. Typed as the structural shape to avoid a cycle with
    *  the ai/ module; see MonsterAIRuntime in src/ai/types.ts. */
@@ -148,11 +197,29 @@ export interface StatusEffects {
   armorTurns: number;
 }
 
+export type TrapKind = 'bear' | 'sleep_gas' | 'dart' | 'teleport' | 'trapdoor';
+
+export interface TrapState {
+  id: string;
+  kind: TrapKind;
+  x: number;
+  y: number;
+  revealed: boolean;
+  armed: boolean;
+}
+
+export interface TrapEffects {
+  bearTrapTurns: number;
+  sleepTurns: number;
+  strengthDrained: number;
+}
+
 export type Inventory = {
   food: number;
   weapons: GearItem[];
   potions: PotionType[];
   scrolls: ScrollType[];
+  wands: WandItem[];
 } & Record<GearSlot, GearItem[]>;
 
 /** Stable reference the UI can send back to engine inventory commands. */
@@ -161,10 +228,11 @@ export type InventoryRef =
   | { kind: 'potion'; potionType: PotionType }
   | { kind: 'scroll'; scrollType: ScrollType }
   | { kind: 'weapon'; index: number }
+  | { kind: 'wand'; index: number }
   | { kind: 'armor'; slot: ArmorSlot; index: number }
   | { kind: 'shield'; index: number };
 
-export type InventoryAction = 'equip' | 'equipOffHand' | 'use';
+export type InventoryAction = 'equip' | 'equipOffHand' | 'use' | 'zap';
 
 export type EquipTarget =
   | { slot: 'mainHand'; index: number }

@@ -3,6 +3,7 @@ import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
 import { generateLevel, darkRoomChance } from './map';
 import { makeRng } from './rng';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
+import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
 
 // Engine dimensions (see Engine.COLS / Engine.ROWS in src/engine.ts).
 const COLS = 46;
@@ -343,6 +344,73 @@ describe('generateLevel', () => {
         }
       }
     }
+  });
+
+  it('places no traps on floors 1-3 or 20', () => {
+    for (const floor of [1, 2, 3, 20]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        expect(gen(floor, seed).traps, `floor ${floor} seed ${seed}`).toHaveLength(0);
+      }
+    }
+  });
+
+  it('keeps trap hazard cost within the floor budget', () => {
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const traps = gen(floor, seed).traps;
+        const cost = traps.reduce((sum, trap) => sum + trapCost(trap.kind), 0);
+        expect(cost, `floor ${floor} seed ${seed}`).toBeLessThanOrEqual(trapBudgetForFloor(floor));
+      }
+    }
+  });
+
+  it('places traps only on safe optional room floor tiles', () => {
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const lvl = gen(floor, seed);
+        const rooms = parseRooms(lvl.map);
+        const roomFor = (x: number, y: number) => rooms.find(room => x >= room.l && x <= room.r && y >= room.t && y <= room.b);
+        const startRoom = roomFor(lvl.playerX, lvl.playerY);
+        const stairRooms = rooms.filter(room => {
+          for (let y = room.t + 1; y < room.b; y++) {
+            for (let x = room.l + 1; x < room.r; x++) {
+              if (STAIR_TILES.has(lvl.map[y][x])) return true;
+            }
+          }
+          return false;
+        });
+        const specialRooms = rooms.filter(room => lvl.monsters.some(mon =>
+          mon.special && mon.x >= room.l && mon.x <= room.r && mon.y >= room.t && mon.y <= room.b
+        ));
+
+        for (const trap of lvl.traps) {
+          expect(lvl.map[trap.y][trap.x], `floor ${floor} seed ${seed} trap ${trap.id}`).toBe(TILE.FLOOR);
+          expect(lvl.dark[trap.y][trap.x], `floor ${floor} seed ${seed} trap ${trap.id} in dark room`).toBe(false);
+          expect(lvl.items.some(it => it.x === trap.x && it.y === trap.y)).toBe(false);
+          expect(lvl.monsters.some(mon => mon.x === trap.x && mon.y === trap.y)).toBe(false);
+          expect(startRoom && trap.x >= startRoom.l && trap.x <= startRoom.r && trap.y >= startRoom.t && trap.y <= startRoom.b).toBe(false);
+          expect(stairRooms.some(room => trap.x >= room.l && trap.x <= room.r && trap.y >= room.t && trap.y <= room.b)).toBe(false);
+          expect(specialRooms.some(room => trap.x >= room.l && trap.x <= room.r && trap.y >= room.t && trap.y <= room.b)).toBe(false);
+          const passageTiles = new Set<string>([TILE.DOOR, TILE.CORRIDOR]);
+          for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+            expect(passageTiles.has(lvl.map[trap.y + dy]?.[trap.x + dx])).toBe(false);
+          }
+          expect(lvl.traps.filter(other => Math.max(Math.abs(other.x - trap.x), Math.abs(other.y - trap.y)) <= 1)).toHaveLength(1);
+        }
+      }
+    }
+  });
+
+  it('does not place trapdoors on floors 18-20', () => {
+    for (const floor of [18, 19, 20]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        expect(gen(floor, seed).traps.some(trap => trap.kind === 'trapdoor')).toBe(false);
+      }
+    }
+  });
+
+  it('keeps first trap floor to bear traps only', () => {
+    expect(allowedTrapKindsForFloor(4)).toEqual(['bear']);
   });
 });
 

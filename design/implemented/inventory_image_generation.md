@@ -95,3 +95,25 @@ glow.
 | Arcane Staff | wooden staff tipped with a violet arcane crystal |
 | Scroll of Light | aged rolled parchment scroll tied with cord, a glowing golden sun rune blazing on its face radiating warm light (accent warm gold; seed 8500) |
 | Wand of Light | slender polished wooden wand tipped with a radiant glowing crystal orb casting warm light (accent pale gold; seed 8501) |
+
+## Wand / Staff line
+
+Generated at **8 steps** (not the 2-step baseline) for sharper, richer art — see
+`scripts/gen-wand-art.sh`, which is idempotent (same seed → same image). Seeds
+continue from Wand of Light (8501). Wand of Striking (8502) was generated during
+validation; the rest by the script.
+
+| Item | Subject | Seed |
+| --- | --- | --- |
+| Wand of Striking | slender dark hardwood wand with a blunt iron-banded tip crackling with raw kinetic force (accent steel gray) | 8502 |
+| Wand of Magic Missile | polished silver wand tipped with a faceted glowing arcane dart of pure focused energy (accent arcane blue) | 8503 |
+| Wand of Cold | pale frost-rimed wand tipped with a jagged blue ice crystal trailing cold mist (accent icy blue) | 8504 |
+| Wand of Fire | charred blackwood wand tipped with a burning ember crystal wreathed in small flames (accent molten orange) | 8505 |
+| Staff of Lightning | tall iron-shod wizard staff crowned with a forked crystal arcing with white-blue lightning (accent electric blue) | 8506 |
+| Wand of Sleep | smooth lavender wand tipped with a softly pulsing dream-purple orb releasing drowsy mist (accent dusky violet) | 8507 |
+| Wand of Polymorph | twisted iridescent wand tipped with a shifting opal that swirls with mutating color (accent iridescent green and purple) | 8508 |
+| Wand of Teleportation | sleek dark wand tipped with a swirling violet portal gem bending space around it (accent deep violet) | 8509 |
+| Wand of Cancellation | matte gray null-metal wand tipped with a dull leaden orb that seems to drink the surrounding light (accent muted gray) | 8510 |
+| Staff of Drain Life | gnarled bone-white wizard staff crowned with a pulsing crimson heart-crystal siphoning thin red wisps (accent blood crimson) | 8511 |
+| Wand of Invisibility | translucent glass wand tipped with a shimmering near-invisible crystal that bends light around it (accent silver-blue shimmer) | 8512 |
+| Wand of Nothing | plain unremarkable gray wooden wand with a dull rounded tip, utterly mundane and powerless (accent dull gray) | 8513 |

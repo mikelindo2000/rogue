@@ -39,9 +39,14 @@
       onclick={toggle}
       aria-haspopup="menu"
       aria-expanded={open}
-      aria-label="{slot.label}: {slot.empty ? (slot.emptyLabel ?? 'Empty') : slot.itemName}; {slot.statLabel}; {slot.availableLabel}"
+      aria-label="{slot.label}: {slot.empty ? (slot.emptyLabel ?? 'Empty') : slot.itemName}; {slot.statLabel}{slot.health ? `; condition ${slot.health.tone}, ${slot.health.label}` : ''}; {slot.availableLabel}"
     >
-      <span class="tile" class:filled={!slot.empty} style:color={slot.empty ? 'var(--text-faintest)' : slot.rarityColor}>
+      <span
+        class="tile"
+        class:filled={!slot.empty}
+        class:broken={slot.health?.tone === 'broken'}
+        style:color={slot.empty ? 'var(--text-faintest)' : (slot.health?.color ?? slot.rarityColor)}
+      >
         <Icon name={slot.icon} size={18} />
       </span>
       <span class="text">
@@ -56,6 +61,11 @@
         </span>
       </span>
       <span class="right">
+        {#if slot.health && slot.health.tone !== 'good'}
+          <span class="health tnum" class:bad={slot.health.tone === 'bad'} class:broken={slot.health.tone === 'broken'} title="Condition {slot.health.label}">
+            {slot.health.label}
+          </span>
+        {/if}
         {#if slot.availableCount > 0}
           <span
             class="available tnum"
@@ -109,6 +119,10 @@
     background: var(--surface-inset-2);
     border: 1px solid var(--border-slot);
   }
+  .tile.broken {
+    opacity: 0.72;
+    filter: saturate(0.55);
+  }
   .text {
     flex: 1;
     min-width: 0;
@@ -148,12 +162,36 @@
   }
   .right {
     flex: none;
-    width: 44px;
+    width: 62px;
     min-height: 20px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 5px;
+  }
+  .health {
+    min-width: 26px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    border-radius: var(--r-pill);
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border-chip));
+    background: var(--accent-surface);
+    color: var(--accent);
+    font: 750 9px var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
+  .health.bad {
+    border-color: color-mix(in srgb, var(--danger) 54%, var(--border-chip));
+    background: color-mix(in srgb, var(--danger) 12%, var(--surface-inset));
+    color: var(--danger);
+  }
+  .health.broken {
+    border-color: var(--border-chip);
+    background: var(--surface-inset);
+    color: var(--text-faint);
   }
   .available {
     min-width: 18px;

@@ -36,6 +36,7 @@ const player = (): Player => ({
     weapons: [{ name: 'Iron Dagger', dmg: 2, rarity: 'common' }],
     potions: ['healing', 'armor'],
     scrolls: ['light'],
+    wands: [],
     shield: [{ name: 'None', def: 0 }],
     helm: [{ name: 'None', def: 0 }],
     chest: [{ name: 'Rags', def: 1 }],

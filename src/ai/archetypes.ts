@@ -238,6 +238,22 @@ export function archetypeOf(template: { id?: string; name: string }): ArchetypeI
   return MONSTER_ARCHETYPE[monsterId(template)] ?? 'default';
 }
 
+let defaultResolved: MonsterBehavior | undefined;
+
+/** The plain melee `default` behavior — what a cancelled monster falls back to:
+ *  no telegraphed specials, on-hit abilities, or dodge, just chase-and-hit. */
+export function defaultBehavior(): MonsterBehavior {
+  if (!defaultResolved) defaultResolved = { id: 'default', ...ARCHETYPES['default'] };
+  return defaultResolved;
+}
+
+/** Behavior accounting for a live Wand of Cancellation effect: while
+ *  `canceledTurns > 0` the monster is reduced to the `default` archetype. */
+export function effectiveBehavior(m: { id?: string; name: string; canceledTurns?: number }): MonsterBehavior {
+  if ((m.canceledTurns ?? 0) > 0) return defaultBehavior();
+  return resolveBehavior(m);
+}
+
 /**
  * Reduce a behavior to the combat "shape" the balance harness consumes: the
  * primary attack's damage multiplier and its effective swings-per-turn after

@@ -179,6 +179,7 @@ describe('savegame floorStates survival', () => {
     expect(lFs.dark).toEqual(fs.dark);
     expect(lFs.monsters).toEqual(fs.monsters);
     expect(lFs.items).toEqual(fs.items);
+    expect(lFs.traps).toEqual(fs.traps ?? []);
   });
 });
 
@@ -303,6 +304,78 @@ describe('savegame validation', () => {
     expect(validateSaveGame(snap)).not.toBeNull();
   });
 
+  it('accepts a save with no trap fields and backfills safe defaults', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.traps;
+    delete snap.trapEffects;
+
+    const parsed = validateSaveGame(snap);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.traps).toEqual([]);
+    expect(parsed?.trapEffects).toEqual({ bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 });
+  });
+
+  it('normalizes legacy damaged gear during validation', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.player.inventory.chest[1] = { name: 'Old Chainmail', def: 2, maxDef: 5, rarity: 'common' };
+
+    const parsed = validateSaveGame(snap);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.player.inventory.chest[1]).toMatchObject({
+      def: 2,
+      maxDef: 5,
+      health: { current: 2, max: 5 },
+    });
+  });
+
+  it('rejects malformed defensive gear buckets without throwing', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.player.inventory.shield;
+
+    expect(() => validateSaveGame(snap)).not.toThrow();
+    expect(validateSaveGame(snap)).toBeNull();
+
+    const snap2 = engine.snapshot() as any;
+    snap2.player.inventory.chest = {};
+    expect(() => validateSaveGame(snap2)).not.toThrow();
+    expect(validateSaveGame(snap2)).toBeNull();
+  });
+
+  it('rejects malformed trap entries and trap effects', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.traps = [{ x: 1, y: 1, kind: 'bear' }];
+    expect(validateSaveGame(snap)).toBeNull();
+
+    const snap2 = engine.snapshot() as any;
+    snap2.trapEffects = { bearTrapTurns: 1, sleepTurns: 'bad', strengthDrained: 0 };
+    expect(validateSaveGame(snap2)).toBeNull();
+
+    const snap3 = engine.snapshot() as any;
+    snap3.traps = [{ id: 't1', x: 1, y: 1, kind: 'fake', revealed: false, armed: true }];
+    expect(validateSaveGame(snap3)).toBeNull();
+
+    const snap4 = engine.snapshot() as any;
+    snap4.floorStates.push([2, {
+      map: snap4.map,
+      explored: snap4.explored,
+      dark: snap4.dark,
+      monsters: [],
+      items: [],
+      traps: [{ id: 'bad-cache', x: 1, y: 1, kind: 'fake', revealed: false, armed: true }],
+    }]);
+    expect(validateSaveGame(snap4)).toBeNull();
+  });
+
   it('rejects a typed scroll item with an unknown scrollType', () => {
     const engine = newEngine();
     engine.initGame(SEED);
@@ -317,6 +390,63 @@ describe('savegame validation', () => {
     const snap = engine.snapshot() as any;
     snap.items = [{ x: 1, y: 1, type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'light' } }];
     expect(validateSaveGame(snap)).not.toBeNull();
+  });
+
+  it('migrates a V2 save (no wands) by backfilling an empty wands bucket', () => {
+    const mem = new MemoryStorage();
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.player.inventory.wands; // a save written before wands existed
+    mem.setItem(KEY, JSON.stringify({ v: 2, data: snap }));
+
+    const loaded = loadSaveGame(mem);
+    expect(loaded).not.toBeNull();
+    expect(loaded?.player.inventory.wands).toEqual([]);
+  });
+
+  it('round-trips a carried wand including its cooldown timer', () => {
+    const mem = new MemoryStorage();
+    const engine = newEngine();
+    engine.initGame(SEED);
+    engine.player.inventory.wands = [
+      { name: 'Wand of Cold', wandType: 'cold', tier: 'wand', rarity: 'uncommon', cooldownRemaining: 2, identified: true },
+    ];
+    const snap = engine.snapshot();
+    saveSaveGame(snap, mem);
+    const loaded = loadSaveGame(mem);
+    expect(loaded?.player.inventory.wands).toEqual(snap.player.inventory.wands);
+  });
+
+  it('backfills wand runtime state (clamps negative cooldown, defaults identified)', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.player.inventory.wands = [{ name: 'Wand of Fire', wandType: 'fire', tier: 'wand', cooldownRemaining: -5 }];
+    const parsed = validateSaveGame(snap);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.player.inventory.wands[0].cooldownRemaining).toBe(0);
+    expect(parsed?.player.inventory.wands[0].identified).toBe(true);
+  });
+
+  it('rejects an inventory wand with an unknown wandType', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.player.inventory.wands = [{ name: 'Bogus', wandType: 'bogus', tier: 'wand' }];
+    expect(validateSaveGame(snap)).toBeNull();
+  });
+
+  it('rejects a floor wand item with an unknown wandType, accepts a known one', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const bad = engine.snapshot() as any;
+    bad.items = [{ x: 1, y: 1, type: 'wand', symbol: '/', color: '#fff', data: { wandType: 'bogus' } }];
+    expect(validateSaveGame(bad)).toBeNull();
+
+    const good = engine.snapshot() as any;
+    good.items = [{ x: 1, y: 1, type: 'wand', symbol: '/', color: '#fff', data: { name: 'Wand of Fire', wandType: 'fire', tier: 'wand' } }];
+    expect(validateSaveGame(good)).not.toBeNull();
   });
 
   it('validateSaveGame rejects non-objects and accepts a valid snapshot', () => {

@@ -6,7 +6,9 @@
   <div class="avatar" aria-hidden="true">{ui.glyph}</div>
   <div class="text">
     <div class="name">{ui.charName}</div>
-    <div class="sub">Level {ui.level} · {ui.charClass}</div>
+    <div class="sub">
+      Level {ui.level} · {ui.charClass}{ui.strengthDrain > 0 ? ` · -${ui.strengthDrain} STR` : ''}
+    </div>
   </div>
 </div>
 

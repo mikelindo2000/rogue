@@ -1,6 +1,7 @@
 import { GEAR_POOL, RARITY_CONFIG, BALANCE, getConfig } from './config';
 import { FloorGear, Rarity } from './types';
 import { RNG } from './rng';
+import { normalizeGearHealth } from './gearHealth';
 
 export function rollLootRarity(floor: number, rng: RNG): Rarity {
   const tunables = getConfig();
@@ -40,6 +41,7 @@ export function generateGearItem(floor: number, rarity: Rarity, rng: RNG): Floor
     const baseBonus = Math.floor(floor * BALANCE.loot.gearDefFloorScale);
     template.def = Math.round((template.def + baseBonus) * mult);
     template.maxDef = template.def;
+    normalizeGearHealth(template);
     template.name += ` +${baseBonus}`;
   }
 

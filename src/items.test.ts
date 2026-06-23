@@ -54,6 +54,7 @@ describe('generateGearItem', () => {
       } else {
         expect(typeof gear!.def).toBe('number');
         expect(gear!.maxDef).toBe(gear!.def);
+        expect(gear!.health).toEqual({ current: gear!.def, max: gear!.def });
         expect(gear!.dmg).toBeUndefined();
       }
 

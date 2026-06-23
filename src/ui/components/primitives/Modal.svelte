@@ -189,6 +189,30 @@
     min-height: 0;
     overflow: auto;
   }
+
+  @media (max-width: 680px) {
+    .backdrop {
+      align-items: stretch;
+      padding: 10px;
+      padding-top: calc(10px + env(safe-area-inset-top));
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+
+    .window {
+      width: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: var(--r-xl);
+    }
+
+    .head {
+      padding: 12px 14px;
+    }
+
+    .content {
+      flex: 1;
+    }
+  }
   @keyframes fade {
     from {
       opacity: 0;

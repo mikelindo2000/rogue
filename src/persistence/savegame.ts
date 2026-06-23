@@ -6,13 +6,33 @@
  * lives here because TypeScript types do not protect parsed JSON.
  */
 
-import type { Player, Monster, Item, StatusEffects } from '../types';
+import { ARMOR_SLOTS, type Player, type Monster, type Item, type StatusEffects, type TrapEffects, type TrapState } from '../types';
 import type { FloorState } from '../engine';
-import { SCROLL_TYPES } from '../itemVisuals';
+import { SCROLL_TYPES, WAND_TYPES } from '../itemVisuals';
+import { TRAP_KINDS } from '../traps';
+import { normalizeAllGearHealth } from '../gearHealth';
 import { normalizeRunStats, type RunStatsV1 } from '../runStats';
 import { defineStore, resolveBackend, type Store } from './store';
 
 const KNOWN_SCROLL_TYPES = new Set<string>(SCROLL_TYPES);
+const KNOWN_TRAP_KINDS = new Set<string>(TRAP_KINDS);
+const KNOWN_WAND_TYPES = new Set<string>(WAND_TYPES);
+
+/** Backfill the wand inventory for saves written before wands existed, and
+ *  sanitize per-wand runtime state. Parallel to normalizeAllGearHealth. */
+function normalizeWands(player: Player): void {
+  const inv = player.inventory;
+  if (!Array.isArray(inv.wands)) {
+    inv.wands = [];
+    return;
+  }
+  for (const w of inv.wands) {
+    if (typeof w.cooldownRemaining !== 'number' || !(w.cooldownRemaining >= 0)) {
+      w.cooldownRemaining = 0;
+    }
+    if (w.identified === undefined) w.identified = true;
+  }
+}
 
 export interface SaveGameV2 {
   seed: number;
@@ -31,6 +51,8 @@ export interface SaveGameV2 {
   dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
+  traps?: TrapState[];
+  trapEffects?: TrapEffects;
   floorStates: [number, FloorState][];
   searchHintShown: boolean;
   secretsFoundThisRun: number;
@@ -38,7 +60,7 @@ export interface SaveGameV2 {
 }
 
 const STORAGE_KEY = 'rogue_savegame';
-const VERSION = 2;
+const VERSION = 3;
 
 function store(backend?: Storage | null): Store<SaveGameV2 | null> {
   return defineStore<SaveGameV2 | null>({
@@ -46,6 +68,13 @@ function store(backend?: Storage | null): Store<SaveGameV2 | null> {
     version: VERSION,
     defaults: null,
     fallback: () => null,
+    // V2 -> V3 added inventory.wands (+ per-wand cooldown). The on-disk shape is
+    // otherwise compatible, so a V2 blob is handed straight to validateSaveGame,
+    // which backfills the missing wand field via normalizeWands. Older versions
+    // are discarded. Coordinate further bumps with the rings / potion-dipping
+    // plans (see design/planning/wands_and_staves_plan.md §persistence).
+    migrate: (data, storedVersion) =>
+      storedVersion === 2 && data ? (data as SaveGameV2) : null,
     backend: backend !== undefined ? backend : resolveBackend(),
   });
 }
@@ -69,6 +98,23 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function isGridOfArrays(v: unknown): boolean {
   return Array.isArray(v) && v.every(row => Array.isArray(row));
+}
+
+function validateTrapArray(traps: unknown, map: unknown): traps is TrapState[] {
+  if (!Array.isArray(traps) || !Array.isArray(map)) return false;
+  for (const trap of traps) {
+    if (!isObject(trap)) return false;
+    if (typeof trap.id !== 'string' || !KNOWN_TRAP_KINDS.has(trap.kind as string)) return false;
+    if (!Number.isFinite(trap.x) || !Number.isFinite(trap.y)) return false;
+    if (!Number.isInteger(trap.x) || !Number.isInteger(trap.y)) return false;
+    const x = trap.x as number;
+    const y = trap.y as number;
+    if (y < 0 || y >= map.length) return false;
+    const row = map[y];
+    if (!Array.isArray(row) || x < 0 || x >= row.length) return false;
+    if (typeof trap.revealed !== 'boolean' || typeof trap.armed !== 'boolean') return false;
+  }
+  return true;
 }
 
 /**
@@ -137,6 +183,22 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     if (it.type === 'scroll' && it.data !== undefined) {
       if (!isObject(it.data) || !KNOWN_SCROLL_TYPES.has(it.data.scrollType as string)) return null;
     }
+    // A wand floor item must carry a known wandType — guard against a corrupt or
+    // future-version blob splicing an unknown wand into the world.
+    if (it.type === 'wand') {
+      if (!isObject(it.data) || !KNOWN_WAND_TYPES.has(it.data.wandType as string)) return null;
+    }
+  }
+
+  if (raw.traps !== undefined) {
+    if (!validateTrapArray(raw.traps, raw.map)) return null;
+  }
+
+  if (raw.trapEffects !== undefined) {
+    if (!isObject(raw.trapEffects)) return null;
+    for (const k of ['bearTrapTurns', 'sleepTurns', 'strengthDrained']) {
+      if (typeof raw.trapEffects[k] !== 'number') return null;
+    }
   }
 
   if (!Array.isArray(raw.floorStates)) return null;
@@ -157,6 +219,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
       }
     }
     if (!Array.isArray(fs.monsters) || !Array.isArray(fs.items)) return null;
+    if (fs.traps !== undefined && !validateTrapArray(fs.traps, fs.map)) return null;
   }
 
   // Basic player structure — restore() and the HUD dereference these directly.
@@ -166,9 +229,31 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     return null;
   }
   if (!isObject(p.inventory) || !isObject(p.equipped)) return null;
+  if (!Array.isArray(p.inventory.shield)) return null;
+  for (const slot of ARMOR_SLOTS) {
+    if (!Array.isArray(p.inventory[slot])) return null;
+  }
+  // `wands` is optional for backward compat (V2 saves lack it — backfilled
+  // below). When present it must be an array of well-typed wands; a malformed
+  // entry rejects the whole blob rather than silently dropping items.
+  if (p.inventory.wands !== undefined) {
+    if (!Array.isArray(p.inventory.wands)) return null;
+    for (const w of p.inventory.wands) {
+      if (!isObject(w) || !KNOWN_WAND_TYPES.has(w.wandType as string)) return null;
+    }
+  }
 
   const stats = normalizeRunStats(raw.stats, raw.seed as number);
   if (!stats) return null;
+  const player = structuredClone(raw.player) as Player;
+  normalizeAllGearHealth(player);
+  normalizeWands(player);
 
-  return { ...(raw as unknown as Omit<SaveGameV2, 'stats'>), stats };
+  return {
+    ...(raw as unknown as Omit<SaveGameV2, 'stats'>),
+    player,
+    traps: (raw.traps as TrapState[] | undefined) ?? [],
+    trapEffects: (raw.trapEffects as TrapEffects | undefined) ?? { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 },
+    stats,
+  };
 }

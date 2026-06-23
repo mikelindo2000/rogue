@@ -1,5 +1,5 @@
 import { slugify } from '../discovery';
-import type { GearItem, PotionType, ScrollType } from '../types';
+import type { GearItem, PotionType, ScrollType, WandItem } from '../types';
 
 export function inventoryArtUrl(name: string): string {
   return `/inventory/${slugify(name)}.png`;
@@ -23,4 +23,8 @@ export function scrollArtUrl(type: ScrollType): string {
 
 export function gearArtUrl(item: GearItem): string {
   return inventoryArtUrl(inventoryArtName(item.name));
+}
+
+export function wandArtUrl(wand: WandItem): string {
+  return inventoryArtUrl(wand.name);
 }

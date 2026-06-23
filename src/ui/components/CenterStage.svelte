@@ -32,7 +32,10 @@
   });
 </script>
 
-<div class="stage" style="background-color: {floorBg};">
+<div
+  class="stage"
+  style="background-color: {floorBg}; --player-x: {ui.playerX + 0.5}; --player-y: {ui.playerY + 0.5}; --map-cols: {ui.mapCols}; --map-rows: {ui.mapRows};"
+>
   <div class="bg-image-container" aria-hidden="true">
     {#if previousBg}
       <img src={backgroundUrl(previousBg)} class="bg-image fade-out" alt="" />
@@ -53,6 +56,13 @@
 
   {#if ui.nearbyMonster}
     <MonsterTooltip />
+  {/if}
+
+  {#if ui.aiming}
+    <div class="aim-prompt" role="status" aria-live="polite">
+      <span class="aim-title">Zap {ui.aiming.wandName}</span>
+      <span class="aim-hint">Choose a direction — WASD / Arrows · Esc to cancel</span>
+    </div>
   {/if}
 
   <EndRunScreen />
@@ -104,6 +114,10 @@
     display: block;
     position: relative;
     z-index: 1;
+    width: min(920px, calc(100% - 32px));
+    height: auto;
+    max-height: calc(100% - 32px);
+    touch-action: none;
   }
   .vignette {
     position: absolute;
@@ -134,5 +148,66 @@
   .stairs-pill .text {
     font: 500 var(--fs-sm) var(--font-ui);
     color: var(--text-muted);
+  }
+  .aim-prompt {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 16px;
+    background: var(--surface-overlay);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-md);
+    text-align: center;
+    pointer-events: none;
+    animation: aimPulse 1.4s ease-in-out infinite;
+  }
+  .aim-prompt .aim-title {
+    font: 700 var(--fs-sm) var(--font-display);
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .aim-prompt .aim-hint {
+    font: 500 var(--fs-xs, 11px) var(--font-ui);
+    color: var(--text-muted);
+  }
+  @keyframes aimPulse {
+    0%, 100% { border-color: var(--accent); }
+    50% { border-color: var(--border-chip); }
+  }
+
+  @media (max-width: 860px) {
+    .stairs-pill {
+      top: 10px;
+      left: 10px;
+    }
+
+    .aim-prompt {
+      width: min(92vw, 360px);
+      bottom: 10px;
+      padding: 8px 10px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    canvas {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      max-height: none;
+      transform-origin: 0 0;
+      transform:
+        scale(1.46)
+        translate(
+          calc(-1 * (var(--player-x) / var(--map-cols)) * 100%),
+          calc(-1 * (var(--player-y) / var(--map-rows)) * 100%)
+        );
+    }
   }
 </style>

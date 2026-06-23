@@ -450,4 +450,35 @@
     border-color: var(--border-slot);
     background: var(--surface-inset);
   }
+
+  @media (max-width: 680px) {
+    .settings {
+      grid-template-columns: 1fr;
+      width: 100%;
+      min-height: 0;
+      max-height: none;
+    }
+
+    .nav {
+      flex-direction: row;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-item {
+      min-width: 128px;
+    }
+
+    .panel {
+      padding: 16px;
+    }
+
+    .field {
+      align-items: stretch;
+    }
+
+    .volume {
+      max-width: none;
+    }
+  }
 </style>

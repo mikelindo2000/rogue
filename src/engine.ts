@@ -1,17 +1,26 @@
-import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, ARMOR_SLOTS, InventoryAction, InventoryRef } from './types';
+import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, TrapEffects, TrapKind, TrapState, WandItem } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
-import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
+import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
+import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
-import { resolveBehavior, archetypeOf } from './ai/archetypes';
+import { archetypeOf, effectiveBehavior } from './ai/archetypes';
 import { computeStrike } from './combat';
 import { type SoundSink, noopSink } from './audio/events';
 import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equipment';
 import { VitalsSoundTracker } from './audio/vitals';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
+import { damageEquippedGear, normalizeAllGearHealth, repairAllDefensiveGear } from './gearHealth';
+import {
+  bearTrapTurns,
+  maxDartDrainStacks,
+  trapDirectDamage,
+  TRAP_REVEAL_MESSAGES,
+  TRAP_TRIGGER_MESSAGES,
+} from './traps';
 import type { SaveGameV2 } from './persistence/savegame';
 import {
   buildRunSummary,
@@ -58,6 +67,7 @@ export interface FloorState {
   dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
+  traps?: TrapState[];
 }
 
 export class GameEngine {
@@ -75,6 +85,7 @@ export class GameEngine {
   public player: Player;
   public monsters: Monster[] = [];
   public items: Item[] = [];
+  public traps: TrapState[] = [];
   public dungeonFloor: number = 1;
   public gameOver: boolean = false;
   public gameWon: boolean = false;
@@ -84,12 +95,23 @@ export class GameEngine {
   public stats: RunStatsV1 = createRunStats();
   public finalRunSummary: RunSummaryV1 | null = null;
 
+  /** Transient wand-aiming state. Non-null while the player has "drawn" a wand
+   *  and the UI is routing direction keys to zapInDirection. No turn passes
+   *  while aiming. Never persisted. */
+  public aiming: { ref: InventoryRef & { kind: 'wand' } } | null = null;
+
   public statusEffects: StatusEffects = {
     vigorTurns: 0,
     midasTurns: 0,
     strengthTurns: 0,
     invisTurns: 0,
     armorTurns: 0
+  };
+
+  public trapEffects: TrapEffects = {
+    bearTrapTurns: 0,
+    sleepTurns: 0,
+    strengthDrained: 0,
   };
 
   public readonly COLS = 46;
@@ -102,6 +124,7 @@ export class GameEngine {
   private floorStates: Map<number, FloorState> = new Map();
   private searchHintShown = false;
   private secretsFoundThisRun = 0;
+  private trapdoorGeneratedThisRun = false;
 
   private ui: GameUI;
 
@@ -151,9 +174,15 @@ export class GameEngine {
       invisTurns: 0,
       armorTurns: 0
     };
+    this.trapEffects = {
+      bearTrapTurns: 0,
+      sleepTurns: 0,
+      strengthDrained: 0,
+    };
     this.floorStates.clear();
     this.searchHintShown = false;
     this.secretsFoundThisRun = 0;
+    this.trapdoorGeneratedThisRun = false;
     this.vitals.reset();
     this.logs = ["Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors."];
 
@@ -174,7 +203,9 @@ export class GameEngine {
   }
 
   public generateFloor() {
-    const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng);
+    const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng, {
+      trapdoorAllowed: !this.trapdoorGeneratedThisRun,
+    });
     this.map = levelData.map;
     this.dark = levelData.dark;
     this.rooms = levelData.rooms;
@@ -182,6 +213,8 @@ export class GameEngine {
     this.player.y = levelData.playerY;
     this.monsters = levelData.monsters;
     this.items = levelData.items;
+    this.traps = levelData.traps;
+    if (this.traps.some(trap => trap.kind === 'trapdoor')) this.trapdoorGeneratedThisRun = true;
 
     // Apply HP scaling to freshly spawned monsters
     this.monsters.forEach(m => {
@@ -357,6 +390,7 @@ export class GameEngine {
 
   public handlePlayerMove(dx: number, dy: number) {
     if (this.gameOver || this.gameWon) return;
+    if (this.takeSleepTurn()) return;
 
     const tx = this.player.x + dx;
     const ty = this.player.y + dy;
@@ -376,6 +410,13 @@ export class GameEngine {
       return;
     }
 
+    if (this.trapEffects.bearTrapTurns > 0) {
+      this.addLog("The bear trap holds you fast.");
+      this.trapEffects.bearTrapTurns--;
+      this.processTurn();
+      return;
+    }
+
     // Normal move
     if (
       tx >= 0 &&
@@ -388,9 +429,11 @@ export class GameEngine {
       this.player.y = ty;
       recordStep(this.stats);
 
-      this.checkItems();
+      const trapResult = this.triggerTrapAtPlayer();
+      if (trapResult.travelled) return;
+      if (!trapResult.teleported) this.checkItems();
 
-      const currentTile = this.map[ty][tx];
+      const currentTile = this.map[this.player.y][this.player.x];
       if (currentTile === TILE.STAIRS_DOWN) {
         this.travelStairs(1);
         return;
@@ -410,10 +453,13 @@ export class GameEngine {
 
   public search(): boolean {
     if (this.gameOver || this.gameWon) return false;
+    if (this.takeSleepTurn()) return false;
 
     recordSearch(this.stats);
-    const found = this.tryRevealNearbySecret(0.25);
-    this.addLog(found ? "You found a hidden door." : "You search carefully.");
+    const trapSearch = this.tryRevealNearbyTrap(BALANCE.map.traps.revealChance);
+    const trap = trapSearch.trap;
+    const found = trap !== null || (!trapSearch.attempted && this.tryRevealNearbySecret(0.25));
+    this.addLog(trap ? TRAP_REVEAL_MESSAGES[trap.kind] : found ? "You found a hidden door." : "You search carefully.");
     this.processTurn();
     return found;
   }
@@ -450,6 +496,21 @@ export class GameEngine {
     return false;
   }
 
+  private tryRevealNearbyTrap(chance: number): { attempted: boolean; trap: TrapState | null } {
+    for (const [dx, dy] of [
+      [0, -1], [1, -1], [1, 0], [1, 1],
+      [0, 1], [-1, 1], [-1, 0], [-1, -1],
+    ]) {
+      const trap = this.trapAt(this.player.x + dx, this.player.y + dy);
+      if (!trap || trap.revealed) continue;
+      if (!this.rng.chance(chance)) return { attempted: true, trap: null };
+      trap.revealed = true;
+      this.updateFOV();
+      return { attempted: true, trap };
+    }
+    return { attempted: false, trap: null };
+  }
+
   private revealSecretDoor(x: number, y: number) {
     this.map[y][x] = TILE.DOOR;
     this.secretsFoundThisRun++;
@@ -460,6 +521,122 @@ export class GameEngine {
 
   private hasSecretDoors(): boolean {
     return this.map.some(row => row.some(tile => isSecretDoor(tile)));
+  }
+
+  private trapAt(x: number, y: number): TrapState | undefined {
+    return this.traps.find(trap => trap.x === x && trap.y === y);
+  }
+
+  private armedTrapAt(x: number, y: number): TrapState | undefined {
+    return this.traps.find(trap => trap.x === x && trap.y === y && trap.armed);
+  }
+
+  private capNonlethalDamage(amount: number): number {
+    return Math.max(0, Math.min(amount, this.player.hp - 1));
+  }
+
+  private applyTrapDamage(kind: TrapKind): number {
+    const damage = this.capNonlethalDamage(trapDirectDamage(kind, this.rng));
+    if (damage > 0) {
+      this.player.hp -= damage;
+      recordDamageTaken(this.stats, damage);
+      this.ui.fxPlayerHit();
+    }
+    return damage;
+  }
+
+  private triggerTrapAtPlayer(): { travelled: boolean; teleported: boolean } {
+    const trap = this.armedTrapAt(this.player.x, this.player.y);
+    if (!trap) return { travelled: false, teleported: false };
+
+    trap.revealed = true;
+    trap.armed = false;
+    recordScrollTriggered(this.stats, `trap:${trap.kind}`);
+    this.addLog(TRAP_TRIGGER_MESSAGES[trap.kind]);
+
+    if (trap.kind === 'bear') {
+      const damage = this.applyTrapDamage(trap.kind);
+      this.trapEffects.bearTrapTurns = Math.max(this.trapEffects.bearTrapTurns, bearTrapTurns(this.dungeonFloor));
+      if (damage > 0) this.addLog(`The jaws bite for ${damage} damage.`);
+      return { travelled: false, teleported: false };
+    }
+
+    if (trap.kind === 'sleep_gas') {
+      const adjacentMonster = this.monsters.some(mon =>
+        this.visible[mon.y]?.[mon.x] &&
+        Math.max(Math.abs(mon.x - this.player.x), Math.abs(mon.y - this.player.y)) <= 1
+      );
+      this.trapEffects.sleepTurns = adjacentMonster
+        ? BALANCE.map.traps.adjacentMonsterSleepTurns
+        : BALANCE.map.traps.sleepTurns;
+      return { travelled: false, teleported: false };
+    }
+
+    if (trap.kind === 'dart') {
+      const damage = this.applyTrapDamage(trap.kind);
+      const before = this.trapEffects.strengthDrained;
+      this.trapEffects.strengthDrained = Math.min(maxDartDrainStacks(this.dungeonFloor), before + 1);
+      const drained = this.trapEffects.strengthDrained > before;
+      this.addLog(drained ? "Your strength ebbs." : "You resist further weakness.");
+      if (damage > 0) this.addLog(`The dart hits for ${damage} damage.`);
+      return { travelled: false, teleported: false };
+    }
+
+    if (trap.kind === 'teleport') {
+      this.teleportPlayerSafely();
+      return { travelled: false, teleported: true };
+    }
+
+    this.applyTrapDamage(trap.kind);
+    this.travelTrapdoor();
+    return { travelled: true, teleported: false };
+  }
+
+  private teleportPlayerSafely() {
+    const candidates: Array<{ x: number; y: number; dark: boolean }> = [];
+    for (let y = 0; y < this.ROWS; y++) {
+      for (let x = 0; x < this.COLS; x++) {
+        if (this.map[y]?.[x] !== TILE.FLOOR) continue;
+        if (this.armedTrapAt(x, y)) continue;
+        if (this.monsters.some(mon => Math.max(Math.abs(mon.x - x), Math.abs(mon.y - y)) <= 1)) continue;
+        candidates.push({ x, y, dark: this.dark[y]?.[x] === true });
+      }
+    }
+    const pool = candidates.filter(c => !c.dark);
+    const options = pool.length > 0 ? pool : candidates;
+    if (options.length === 0) return;
+    const destination = this.rng.pick(options);
+    this.player.x = destination.x;
+    this.player.y = destination.y;
+    this.updateFOV();
+  }
+
+  private travelTrapdoor() {
+    if (this.dungeonFloor >= 20) return;
+    this.saveCurrentFloor();
+    this.dungeonFloor++;
+    recordStairs(this.stats, this.dungeonFloor, 1);
+    this.addLog(`Dropped to Floor ${this.dungeonFloor}!`);
+    this.loadFloorForTravel(1);
+    this.ui.updateDropdowns(this.player);
+    this.updateUI();
+    this.autosave();
+  }
+
+  private takeSleepTurn(): boolean {
+    if (this.trapEffects.sleepTurns <= 0) return false;
+    this.addLog("You are asleep.");
+    this.trapEffects.sleepTurns--;
+    this.processTurn();
+    return true;
+  }
+
+  private hasAnyTrapdoorInRun(): boolean {
+    if (this.traps.some(trap => trap.kind === 'trapdoor')) return true;
+    for (const state of this.floorStates.values()) {
+      if ((state.traps ?? []).some(trap => trap.kind === 'trapdoor')) return true;
+    }
+    return false;
   }
 
   private maybeShowDeadEndSearchHint(tx: number, ty: number) {
@@ -485,6 +662,13 @@ export class GameEngine {
    */
   public handlePlayerRun(dx: number, dy: number) {
     if (this.gameOver || this.gameWon || (dx === 0 && dy === 0)) return;
+    if (this.takeSleepTurn()) return;
+    if (this.trapEffects.bearTrapTurns > 0) {
+      this.addLog("The bear trap holds you fast.");
+      this.trapEffects.bearTrapTurns--;
+      this.processTurn();
+      return;
+    }
 
     let previousTile = this.map[this.player.y]?.[this.player.x];
     const maxSteps = this.COLS + this.ROWS;
@@ -510,9 +694,11 @@ export class GameEngine {
       this.player.y = ty;
       recordStep(this.stats, true);
 
-      this.checkItems();
+      const trapResult = this.triggerTrapAtPlayer();
+      if (trapResult.travelled) return;
+      if (!trapResult.teleported) this.checkItems();
 
-      const currentTile = this.map[ty][tx];
+      const currentTile = this.map[this.player.y][this.player.x];
       if (currentTile === TILE.STAIRS_DOWN) {
         this.travelStairs(1);
         return;
@@ -525,6 +711,7 @@ export class GameEngine {
       this.processTurn();
 
       if (this.gameOver || this.gameWon) return;
+      if (trapResult.teleported || this.trapEffects.bearTrapTurns > 0 || this.trapEffects.sleepTurns > 0) return;
       if (wasInCorridor && currentTile === TILE.DOOR) return;
       if (this.hasAdjacentMonster()) return;
 
@@ -557,6 +744,7 @@ export class GameEngine {
       dark: this.dark.map(row => [...row]),
       monsters: structuredClone(this.monsters),
       items: structuredClone(this.items),
+      traps: structuredClone(this.traps),
     });
   }
 
@@ -571,6 +759,7 @@ export class GameEngine {
       this.visible = this.blankBoolGrid();
       this.monsters = structuredClone(saved.monsters);
       this.items = structuredClone(saved.items);
+      this.traps = structuredClone(saved.traps ?? []);
     } else {
       this.generateFloor();
     }
@@ -604,7 +793,7 @@ export class GameEngine {
     // Evasive monsters (e.g. the bat) may flit aside. Only rolls when the
     // monster actually has a dodge chance, so non-evasive monsters draw no extra
     // RNG and their seeded combat is unchanged.
-    const evade = resolveBehavior(monster).defense.dodgeChance ?? 0;
+    const evade = effectiveBehavior(monster).defense.dodgeChance ?? 0;
     if (evade > 0 && this.rng.chance(evade)) {
       this.addLog(`${monster.name} flits aside!`);
       this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
@@ -615,7 +804,7 @@ export class GameEngine {
     }
 
     const outcome = computeStrike({
-      baseAtk: this.player.baseAtk,
+      baseAtk: Math.max(1, this.player.baseAtk - this.trapEffects.strengthDrained),
       weapon,
       strengthActive: this.statusEffects.strengthTurns > 0,
       disarmed: this.player.disarmedHits > 0,
@@ -668,64 +857,75 @@ export class GameEngine {
     }
 
     if (monster.hp <= 0) {
-      this.addLog(`The ${monster.name} dies!`);
-      this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
-      this.sound.emit({
-        type: 'combat.death',
-        monsterId: monsterId(monster),
-        archetype: archetypeOf(monster),
-        special: monster.special,
+      this.handleMonsterDeath(monster);
+    }
+  }
+
+  /**
+   * Resolve a monster's death: FX, discovery, XP/level-up, boss/win check, and
+   * removal from the floor. Shared by melee (`executeStrike`) and ranged wand
+   * kills (`applyWandEffect`) so both award XP and trigger the win condition the
+   * same way. Caller is responsible for spending the turn (processTurn) — except
+   * the win path, which spends it here (matching the legacy melee behavior).
+   */
+  private handleMonsterDeath(monster: Monster) {
+    this.addLog(`The ${monster.name} dies!`);
+    this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
+    this.sound.emit({
+      type: 'combat.death',
+      monsterId: monsterId(monster),
+      archetype: archetypeOf(monster),
+      special: monster.special,
+    });
+
+    markDefeated(this.discovery, monsterId(monster), this.dungeonFloor);
+    saveDiscovery(this.discovery);
+    this.ui.syncDiscovery(this.discovery);
+
+    let xpGained = 0;
+    const floorTable = MONSTER_XP_TABLE[this.player.level];
+    if (floorTable && floorTable[monster.name] !== undefined) {
+      xpGained = floorTable[monster.name] as number;
+    }
+
+    if (xpGained > 0) {
+      this.addLog(`Gained ${xpGained} Experience.`);
+      const levelBefore = this.player.level;
+      const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
+      if (leveled) {
+        recordLevelGain(this.stats, this.player.level - levelBefore);
+        this.ui.updateDropdowns(this.player);
+        this.sound.emit({ type: 'player.levelUp' });
+      }
+    } else {
+      this.addLog(`No experience gained (Level delta too high).`);
+    }
+
+    if (monster.special === 'hero') {
+      this.addLog(`${monster.name} is defeated!`);
+    }
+    if (monster.special === 'boss') {
+      this.addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
+      const requiredBosses = requiredBossNamesForFloor(this.dungeonFloor);
+      const anyRequiredBossesLeft = this.monsters.some(m => m !== monster && requiredBosses.has(m.name));
+      if (requiredBosses.has(monster.name) && !anyRequiredBossesLeft) {
+        this.gameWon = true;
+        this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
+      }
+    }
+    recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
+    this.monsters = this.monsters.filter(m => m !== monster);
+    if (this.gameWon) {
+      this.turn++;
+      recordVitals(this.stats, this.player.hp, this.player.hunger);
+      recordStatusTurn(this.stats, {
+        vigor: this.statusEffects.vigorTurns > 0,
+        midas: this.statusEffects.midasTurns > 0,
+        strength: this.statusEffects.strengthTurns > 0,
+        invisible: this.statusEffects.invisTurns > 0,
+        armored: this.statusEffects.armorTurns > 0,
       });
-
-      markDefeated(this.discovery, monsterId(monster), this.dungeonFloor);
-      saveDiscovery(this.discovery);
-      this.ui.syncDiscovery(this.discovery);
-
-      let xpGained = 0;
-      const floorTable = MONSTER_XP_TABLE[this.player.level];
-      if (floorTable && floorTable[monster.name] !== undefined) {
-        xpGained = floorTable[monster.name] as number;
-      }
-
-      if (xpGained > 0) {
-        this.addLog(`Gained ${xpGained} Experience.`);
-        const levelBefore = this.player.level;
-        const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
-        if (leveled) {
-          recordLevelGain(this.stats, this.player.level - levelBefore);
-          this.ui.updateDropdowns(this.player);
-          this.sound.emit({ type: 'player.levelUp' });
-        }
-      } else {
-        this.addLog(`No experience gained (Level delta too high).`);
-      }
-
-      if (monster.special === 'hero') {
-        this.addLog(`${monster.name} is defeated!`);
-      }
-      if (monster.special === 'boss') {
-        this.addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
-        const requiredBosses = requiredBossNamesForFloor(this.dungeonFloor);
-        const anyRequiredBossesLeft = this.monsters.some(m => m !== monster && requiredBosses.has(m.name));
-        if (requiredBosses.has(monster.name) && !anyRequiredBossesLeft) {
-          this.gameWon = true;
-          this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
-        }
-      }
-      recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
-      this.monsters = this.monsters.filter(m => m !== monster);
-      if (this.gameWon) {
-        this.turn++;
-        recordVitals(this.stats, this.player.hp, this.player.hunger);
-        recordStatusTurn(this.stats, {
-          vigor: this.statusEffects.vigorTurns > 0,
-          midas: this.statusEffects.midasTurns > 0,
-          strength: this.statusEffects.strengthTurns > 0,
-          invisible: this.statusEffects.invisTurns > 0,
-          armored: this.statusEffects.armorTurns > 0,
-        });
-        this.finalizeRun('won');
-      }
+      this.finalizeRun('won');
     }
   }
 
@@ -806,13 +1006,8 @@ export class GameEngine {
           this.addLog(`Trap scroll triggered! -${scroll.trapDamage} HP.`);
         }
       } else if (item.type === 'repair_scroll') {
-        const repairSlots: GearSlot[] = [...ARMOR_SLOTS, 'shield'];
-        repairSlots.forEach(slot => {
-          this.player.inventory[slot].forEach(gear => {
-            if (gear.maxDef !== undefined) gear.def = gear.maxDef;
-          });
-        });
-        this.addLog("All equipped armor repaired.");
+        const repaired = repairAllDefensiveGear(this.player);
+        this.addLog(repaired > 0 ? "All armor and shields repaired." : "Your armor and shields are already sound.");
       } else if (item.type === 'gear') {
         const c = item.data.category;
         const styledName = this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common');
@@ -827,6 +1022,10 @@ export class GameEngine {
           recordGearPickedUp(this.stats, item.data);
           this.addLog(`Looted: ${styledName} (${item.data.def} DEF).`);
         }
+      } else if (item.type === 'wand') {
+        // Carried (not equipped) — pushed into its own bucket, zapped on demand.
+        this.player.inventory.wands.push(item.data);
+        this.addLog(`Looted: ${this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common')}.`);
       }
 
       if (pickedUp) {
@@ -836,13 +1035,15 @@ export class GameEngine {
           item.type === 'gold' ? 'gold' :
           item.type === 'food' ? 'food' :
           item.type === 'potion' ? 'potion' :
-          item.type === 'gear' ? 'gear' : 'scroll'; // scroll / repair_scroll
+          item.type === 'gear' ? 'gear' :
+          item.type === 'wand' ? 'wand' : 'scroll'; // scroll / repair_scroll
         this.sound.emit({ type: 'item.pickup', kind });
       }
     }
   }
 
   public usePotion(index: number) {
+    if (this.takeSleepTurn()) return;
     if (index < 0 || index >= this.player.inventory.potions.length) return;
     const pType = this.player.inventory.potions[index];
 
@@ -850,6 +1051,10 @@ export class GameEngine {
       this.player.hp = Math.min(this.player.hp + BALANCE.potions.healAmount, this.vigorMaxHp());
       this.addLog("Drank Potion of Healing. Recouped some health.");
     } else if (pType === 'strength') {
+      if (this.trapEffects.strengthDrained > 0) {
+        this.trapEffects.strengthDrained = 0;
+        this.addLog("Strength drain cleared.");
+      }
       this.statusEffects.strengthTurns = BALANCE.status.strengthTurns;
       this.addLog(`Drank Potion of Strength! Attack power boosted by +${BALANCE.combat.strengthBonus}.`);
     } else if (pType === 'invisibility') {
@@ -885,6 +1090,7 @@ export class GameEngine {
    * misclick never silently burns a monster move.
    */
   public useScroll(index: number) {
+    if (this.takeSleepTurn()) return;
     const scrolls = this.player.inventory.scrolls;
     if (index < 0 || index >= scrolls.length) return;
     const type = scrolls[index];
@@ -918,11 +1124,314 @@ export class GameEngine {
 
   /** Keyboard entry point ('r' during play): read the first carried scroll. */
   public readScroll(): boolean {
+    if (this.takeSleepTurn()) return false;
     if (this.player.inventory.scrolls.length === 0) {
       this.addLog("You have no scrolls to read.");
       return false;
     }
     this.useScroll(0);
+    return true;
+  }
+
+  // ----- Wands: aiming + zapping ---------------------------------------------
+
+  /** Keyboard entry ('z'): draw the first carried wand for aiming. Prefers a
+   *  ready (off-cooldown) wand so the common case "z + direction" just works. */
+  public drawFirstWand(): boolean {
+    if (this.gameOver || this.gameWon) return false;
+    const wands = this.player.inventory.wands;
+    if (wands.length === 0) {
+      this.addLog("You have no wands to zap.");
+      return false;
+    }
+    let index = wands.findIndex(w => (w.cooldownRemaining ?? 0) === 0);
+    if (index === -1) index = 0;
+    return this.beginZap({ kind: 'wand', index });
+  }
+
+  /** Begin aiming the referenced wand. Self-targeted wands resolve immediately
+   *  (no direction needed). Returns false and spends no turn if the wand is gone
+   *  or still recharging. */
+  public beginZap(ref: InventoryRef & { kind: 'wand' }): boolean {
+    if (this.gameOver || this.gameWon) return false;
+    const wand = this.player.inventory.wands[ref.index];
+    if (!wand) {
+      this.addLog("You no longer have that wand.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+    if ((wand.cooldownRemaining ?? 0) > 0) {
+      this.addLog(`The ${wand.name} is still recharging. (${wand.cooldownRemaining})`);
+      return false;
+    }
+    if (isSelfTargetWand(wand.wandType)) {
+      return this.zapWand(ref.index, 0, 0);
+    }
+    this.aiming = { ref };
+    this.ui.setAiming({ wandName: wand.name });
+    return true;
+  }
+
+  /** Resolve the drawn wand in a unit direction. No-op if not currently aiming. */
+  public zapInDirection(dx: number, dy: number): boolean {
+    if (!this.aiming) return false;
+    const index = this.aiming.ref.index;
+    this.aiming = null;
+    this.ui.setAiming(null);
+    return this.zapWand(index, dx, dy);
+  }
+
+  /** Abort aiming. No turn passes. */
+  public cancelZap(): void {
+    if (!this.aiming) return;
+    this.aiming = null;
+    this.ui.setAiming(null);
+  }
+
+  /**
+   * Zap the wand at `index` in unit direction (dx,dy). Mirrors the potion/scroll
+   * spine: sleep guard, validate, apply effect, then spend a turn. A wand on
+   * cooldown is a no-op that keeps the turn (the no-op rule used by Scroll of
+   * Light). Self-targeted wands accept (0,0).
+   */
+  public zapWand(index: number, dx: number, dy: number): boolean {
+    if (this.gameOver || this.gameWon) return false;
+    if (this.takeSleepTurn()) return false;
+    const wand = this.player.inventory.wands[index];
+    if (!wand) return false;
+    if ((wand.cooldownRemaining ?? 0) > 0) {
+      this.addLog(`The ${wand.name} is still recharging. (${wand.cooldownRemaining})`);
+      return false;
+    }
+
+    const selfTarget = isSelfTargetWand(wand.wandType);
+    // Clamp to a unit step so a stray pointer delta can't reach across the map.
+    const ux = Math.sign(dx);
+    const uy = Math.sign(dy);
+    if (!selfTarget && ux === 0 && uy === 0) return false; // need a direction
+
+    const path = selfTarget ? [] : this.traceBolt(ux, uy, BALANCE.wands.maxRange);
+    this.applyWandEffect(wand, path);
+
+    wand.cooldownRemaining = wandCooldown(wand);
+    this.player.hunger = Math.max(0, this.player.hunger - wandHungerCost(wand));
+    this.sound.emit({ type: 'item.zap', wandType: wand.wandType });
+    this.ui.updateDropdowns(this.player);
+    this.processTurn();
+    return true;
+  }
+
+  /** Tiles a bolt crosses from the player in a unit direction, stopping before a
+   *  wall and at maxRange. Excludes the player's own tile. */
+  private traceBolt(dx: number, dy: number, maxRange: number): Array<{ x: number; y: number }> {
+    const path: Array<{ x: number; y: number }> = [];
+    let x = this.player.x;
+    let y = this.player.y;
+    for (let i = 0; i < maxRange; i++) {
+      x += dx;
+      y += dy;
+      if (x < 0 || x >= this.COLS || y < 0 || y >= this.ROWS) break;
+      if (!isWalkable(this.map[y]?.[x])) break;
+      path.push({ x, y });
+    }
+    return path;
+  }
+
+  /** First monster along an ordered path, if any. */
+  private firstMonsterAlong(path: Array<{ x: number; y: number }>): Monster | undefined {
+    for (const tile of path) {
+      const m = this.monsters.find(mon => mon.x === tile.x && mon.y === tile.y);
+      if (m) return m;
+    }
+    return undefined;
+  }
+
+  /** Every monster standing on an ordered path, nearest first (beam targets). */
+  private monstersAlong(path: Array<{ x: number; y: number }>): Monster[] {
+    const hits: Monster[] = [];
+    for (const tile of path) {
+      const m = this.monsters.find(mon => mon.x === tile.x && mon.y === tile.y);
+      if (m) hits.push(m);
+    }
+    return hits;
+  }
+
+  /** Resolve a wand's effect given its traced path. Self-targeted wands ignore
+   *  the path. Reuses existing effect code (freeze, light, invisibility, …). */
+  private applyWandEffect(wand: WandItem, path: Array<{ x: number; y: number }>): void {
+    const w = wand.wandType;
+
+    // --- Self-targeted ---
+    if (w === 'light') {
+      const lit = this.lightCurrentRoom();
+      this.addLog(lit
+        ? `You zap the ${wand.name}. The room floods with light!`
+        : `You zap the ${wand.name}, but the light reveals nothing new.`);
+      return;
+    }
+    if (w === 'invisibility') {
+      this.statusEffects.invisTurns = BALANCE.status.invisTurns;
+      this.addLog(`You zap the ${wand.name}. You fade from sight.`);
+      return;
+    }
+    if (w === 'nothing') {
+      this.addLog(`You zap the ${wand.name}. Nothing happens.`);
+      return;
+    }
+
+    // --- Beam (Lightning): hit every monster in line ---
+    if (isBeamWand(w)) {
+      const targets = this.monstersAlong(path);
+      if (targets.length === 0) {
+        this.addLog(`You zap the ${wand.name}. The bolt crackles harmlessly into the dark.`);
+        return;
+      }
+      for (const m of targets) {
+        // Each beam tile holds a distinct, live monster and none kills another,
+        // so this guard is defensive: never re-damage one already removed on death.
+        if (this.monsters.includes(m)) this.damageMonsterWithWand(m, this.wandDamage(wand), wand);
+      }
+      return;
+    }
+
+    // --- Single-target bolts: the first monster on the path ---
+    const target = this.firstMonsterAlong(path);
+    if (!target) {
+      this.addLog(`You zap the ${wand.name}, but it strikes nothing.`);
+      return;
+    }
+
+    switch (w) {
+      case 'striking':
+      case 'magic_missile':
+      case 'fire':
+        this.damageMonsterWithWand(target, this.wandDamage(wand), wand);
+        return;
+      case 'cold': {
+        target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.coldFreezeTurns);
+        this.ui.fxFreeze(target.x, target.y);
+        this.addLog(`${target.name} is frozen!`);
+        this.damageMonsterWithWand(target, this.wandDamage(wand), wand);
+        return;
+      }
+      case 'sleep':
+        target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.sleepFreezeTurns);
+        this.ui.fxFreeze(target.x, target.y);
+        this.addLog(`You zap the ${wand.name}. ${target.name} falls into a deep sleep.`);
+        return;
+      case 'drain_life': {
+        const dmg = this.wandDamage(wand);
+        // Rogue-authentic risk: the player pays HP up front, capped so a zap can
+        // never be self-lethal. Heal is bounded by the monster's current HP.
+        const selfCost = Math.max(1, Math.round(dmg * BALANCE.wands.drainLifeSelfCostRatio));
+        this.player.hp = Math.max(1, this.player.hp - selfCost);
+        const heal = Math.min(dmg, Math.max(0, target.hp));
+        this.player.hp = Math.min(this.vigorMaxHp(), this.player.hp + heal);
+        this.addLog(`You drain ${target.name}'s life. (-${selfCost} HP, +${heal} HP)`);
+        this.damageMonsterWithWand(target, dmg, wand);
+        return;
+      }
+      case 'teleport_away': {
+        const moved = this.teleportMonsterSafely(target);
+        this.addLog(moved
+          ? `You zap the ${wand.name}. ${target.name} vanishes!`
+          : `You zap the ${wand.name}, but ${target.name} stays put.`);
+        return;
+      }
+      case 'cancellation':
+        target.canceledTurns = Math.max(target.canceledTurns ?? 0, BALANCE.wands.cancellationTurns);
+        this.addLog(`You zap the ${wand.name}. ${target.name}'s powers are nullified.`);
+        return;
+      case 'polymorph': {
+        const oldName = target.name;
+        const newName = this.respawnMonster(target);
+        this.addLog(newName
+          ? `You zap the ${wand.name}. The ${oldName} becomes a ${newName}!`
+          : `You zap the ${wand.name}, but nothing changes.`);
+        return;
+      }
+    }
+  }
+
+  /** Apply wand damage to a monster: log, FX, record, and resolve death (XP/win)
+   *  via the shared handler used by melee kills. */
+  private damageMonsterWithWand(monster: Monster, damage: number, wand: WandItem): void {
+    monster.hp -= damage;
+    recordDamageDealt(this.stats, damage);
+    this.addLog(`Your ${wand.name} hits ${monster.name} for ${damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+    this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage });
+    this.ui.fxHit(monster.x, monster.y, damage, monster.hp <= 0);
+    if (monster.hp <= 0) this.handleMonsterDeath(monster);
+  }
+
+  /** Damage for a damage-dealing wand on the current floor. Magic Missile is
+   *  flat (never misses, no variance); the others get a +/- spread. Staves add
+   *  a flat bonus. */
+  private wandDamage(wand: WandItem): number {
+    const w = BALANCE.wands;
+    const floor = this.dungeonFloor;
+    let base: number;
+    switch (wand.wandType) {
+      case 'striking':      base = w.strikingBase + floor * w.strikingFloorScale; break;
+      case 'magic_missile': base = w.magicMissileBase + floor * w.damageFloorScale; break;
+      case 'cold':          base = w.coldBase + floor * w.damageFloorScale; break;
+      case 'fire':          base = w.fireBase + floor * w.damageFloorScale; break;
+      case 'lightning':     base = w.lightningBase + floor * w.damageFloorScale; break;
+      case 'drain_life':    base = w.drainLifeBase + floor * w.damageFloorScale; break;
+      default:              base = 0; break;
+    }
+    if (wand.tier === 'staff') base += w.staffDamageBonus;
+    if (wand.wandType !== 'magic_missile') {
+      base *= 1 + (this.rng.next() * 2 - 1) * w.damageVariance;
+    }
+    return Math.max(1, Math.round(base));
+  }
+
+  /** Polymorph: turn a monster into a different floor-valid species in place
+   *  (keeps its tile). Returns the new species name, or undefined if no
+   *  candidate exists. Excludes bosses/heroes so it can't conjure a finale. */
+  private respawnMonster(monster: Monster): string | undefined {
+    const candidates = MONSTER_DATABASE.filter(
+      t => t.minFloor <= this.dungeonFloor && !t.special && t.name !== monster.name
+    );
+    if (candidates.length === 0) return undefined;
+    const tmpl = this.rng.pick(candidates);
+    monster.id = tmpl.id;
+    monster.name = tmpl.name;
+    monster.symbol = tmpl.symbol;
+    monster.color = tmpl.color;
+    monster.atk = tmpl.atk;
+    monster.minFloor = tmpl.minFloor;
+    monster.special = tmpl.special;
+    monster.hp = getScaledMonsterHP(tmpl.hp, tmpl.name);
+    monster.maxHp = monster.hp;
+    monster.frozenTurns = 0;
+    monster.canceledTurns = 0;
+    monster.swipeTurn = false;
+    monster.ai = undefined;
+    return tmpl.name;
+  }
+
+  /** Relocate a monster to a safe floor tile: not adjacent to the player, not on
+   *  an armed trap, not on another monster. Prefers lit tiles. Returns false if
+   *  none available. Mirrors teleportPlayerSafely's invariants. */
+  private teleportMonsterSafely(monster: Monster): boolean {
+    const candidates: Array<{ x: number; y: number; dark: boolean }> = [];
+    for (let y = 0; y < this.ROWS; y++) {
+      for (let x = 0; x < this.COLS; x++) {
+        if (this.map[y]?.[x] !== TILE.FLOOR) continue;
+        if (this.armedTrapAt(x, y)) continue;
+        if (Math.max(Math.abs(this.player.x - x), Math.abs(this.player.y - y)) <= 1) continue;
+        if (this.monsters.some(mon => mon !== monster && mon.x === x && mon.y === y)) continue;
+        candidates.push({ x, y, dark: this.dark[y]?.[x] === true });
+      }
+    }
+    const pool = candidates.filter(c => !c.dark);
+    const options = pool.length > 0 ? pool : candidates;
+    if (options.length === 0) return false;
+    const dest = this.rng.pick(options);
+    monster.x = dest.x;
+    monster.y = dest.y;
     return true;
   }
 
@@ -964,6 +1473,7 @@ export class GameEngine {
   }
 
   public consumeFood(): boolean {
+    if (this.takeSleepTurn()) return false;
     if (this.player.inventory.food > 0) {
       this.player.inventory.food--;
       if (this.player.undeadFoods > 0) {
@@ -986,6 +1496,7 @@ export class GameEngine {
   }
 
   public equipGear(slot: EquipSlot, value: string) {
+    if (this.takeSleepTurn()) return;
     const before = snapshotEquipped(this.player);
     const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, ok);
@@ -1006,6 +1517,7 @@ export class GameEngine {
   }
 
   public equipInventoryItem(ref: InventoryRef): boolean {
+    if (this.takeSleepTurn()) return false;
     if (ref.kind === 'food' || ref.kind === 'potion' || ref.kind === 'scroll') {
       this.addLog("That item cannot be equipped.");
       this.ui.updateDropdowns(this.player);
@@ -1032,6 +1544,7 @@ export class GameEngine {
   }
 
   public useInventoryItem(ref: InventoryRef): boolean {
+    if (this.takeSleepTurn()) return false;
     if (ref.kind === 'food') {
       return this.consumeFood();
     }
@@ -1047,6 +1560,7 @@ export class GameEngine {
   }
 
   public performInventoryAction(ref: InventoryRef, action: InventoryAction): boolean {
+    if (this.takeSleepTurn()) return false;
     if (action === 'equip') return this.equipInventoryItem(ref);
     if (action === 'equipOffHand' && ref.kind === 'weapon') {
       const before = snapshotEquipped(this.player);
@@ -1059,6 +1573,7 @@ export class GameEngine {
       return equipped;
     }
     if (action === 'use') return this.useInventoryItem(ref);
+    if (action === 'zap' && ref.kind === 'wand') return this.beginZap(ref);
     return false;
   }
 
@@ -1089,6 +1604,13 @@ export class GameEngine {
     if (this.statusEffects.armorTurns > 0) {
       this.statusEffects.armorTurns--;
       if (this.statusEffects.armorTurns === 0) this.addLog("Armor status expired.");
+    }
+
+    // Tick down wand recharge timers (cooldowns, not charges). Set to K on zap
+    // and ticked here in that same turn (like every status timer), so the next
+    // zap lands exactly K turns later — cooldown 3 ⇒ zap on turn N, next on N+3.
+    for (const wand of this.player.inventory.wands) {
+      if ((wand.cooldownRemaining ?? 0) > 0) wand.cooldownRemaining = wand.cooldownRemaining! - 1;
     }
 
     // Hunger checks
@@ -1144,7 +1666,17 @@ export class GameEngine {
       this.dark
     );
     if (this.player.hp < hpBeforeMonsters) {
-      recordDamageTaken(this.stats, hpBeforeMonsters - this.player.hp);
+      this.trapEffects.sleepTurns = 0;
+      const damageTaken = hpBeforeMonsters - this.player.hp;
+      recordDamageTaken(this.stats, damageTaken);
+      const gearDamage = damageEquippedGear(this.player, this.rng, damageTaken);
+      if (gearDamage) {
+        this.addLog(
+          gearDamage.broken
+            ? `Your ${gearDamage.item.name} breaks!`
+            : `Your ${gearDamage.item.name} is worn. (${gearDamage.after}/${gearDamage.max})`
+        );
+      }
       this.ui.fxPlayerHit();
       this.sound.emit({ type: 'combat.hit', actor: 'monster', target: 'player' });
     }
@@ -1185,7 +1717,7 @@ export class GameEngine {
 
   public updateUI() {
     const totalDef = getTotalDef(this.player, this.statusEffects);
-    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn);
+    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects);
   }
 
   public draw() {
@@ -1196,6 +1728,7 @@ export class GameEngine {
       this.player,
       this.monsters,
       this.items,
+      this.traps,
       this.TILE_SIZE,
       this.COLS,
       this.ROWS,
@@ -1250,10 +1783,13 @@ export class GameEngine {
         dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
+        traps: structuredClone(s.traps ?? []),
       }]),
       searchHintShown: this.searchHintShown,
       secretsFoundThisRun: this.secretsFoundThisRun,
       stats: structuredClone(this.stats),
+      traps: structuredClone(this.traps),
+      trapEffects: { ...this.trapEffects },
     };
   }
 
@@ -1266,8 +1802,11 @@ export class GameEngine {
       this.seed = save.seed;
       this.rng = makeRng(save.seed, save.rngState);
       this.player = structuredClone(save.player);
+      normalizeAllGearHealth(this.player);
       // Backfill the scrolls bucket for saves written before scrolls existed.
       if (!Array.isArray(this.player.inventory.scrolls)) this.player.inventory.scrolls = [];
+      // Backfill the wands bucket for saves written before wands existed.
+      if (!Array.isArray(this.player.inventory.wands)) this.player.inventory.wands = [];
       this.statusEffects = { ...save.statusEffects };
       this.dungeonFloor = save.dungeonFloor;
       this.turn = save.turn;
@@ -1280,16 +1819,20 @@ export class GameEngine {
       this.rooms = [];
       this.monsters = structuredClone(save.monsters);
       this.items = structuredClone(save.items);
+      this.traps = structuredClone(save.traps ?? []);
       this.floorStates = new Map(save.floorStates.map(([f, s]) => [f, {
         map: s.map.map(r => [...r]),
         explored: s.explored.map(r => [...r]),
         dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
+        traps: structuredClone(s.traps ?? []),
       }]));
       this.searchHintShown = save.searchHintShown;
       this.secretsFoundThisRun = save.secretsFoundThisRun;
       this.stats = structuredClone(save.stats);
+      this.trapEffects = save.trapEffects ? { ...save.trapEffects } : { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
+      this.trapdoorGeneratedThisRun = this.hasAnyTrapdoorInRun();
       this.finalRunSummary = null;
 
       this.updateFOV();

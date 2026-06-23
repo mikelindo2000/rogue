@@ -1,9 +1,10 @@
 import { Player, StatusEffects, ARMOR_SLOTS, EquipSlot, EquipTarget, InventoryRef } from './types';
 import { getConfig, getScaledXpRequirements, BALANCE } from './config';
+import { effectiveDefense, normalizeAllGearHealth } from './gearHealth';
 
 export function createPlayer(): Player {
   const tunables = getConfig();
-  return {
+  return normalizeAllGearHealth({
     x: 0,
     y: 0,
     hp: tunables.playerStartingHp,
@@ -26,7 +27,8 @@ export function createPlayer(): Player {
       gauntlets: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
       boots: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
       potions: [],
-      scrolls: []
+      scrolls: [],
+      wands: []
     },
     equipped: {
       mainHand: 0,
@@ -37,7 +39,7 @@ export function createPlayer(): Player {
       gauntlets: 0,
       boots: 0
     }
-  };
+  });
 }
 
 export function getTotalDef(player: Player, statusEffects: StatusEffects): number {
@@ -45,17 +47,13 @@ export function getTotalDef(player: Player, statusEffects: StatusEffects): numbe
 
   ARMOR_SLOTS.forEach(slot => {
     const gear = player.inventory[slot][player.equipped[slot]];
-    if (gear && gear.def !== undefined) {
-      def += gear.def;
-    }
+    def += effectiveDefense(gear);
   });
 
   if (player.equipped.offHand.startsWith('shield:')) {
     const shieldIdx = parseInt(player.equipped.offHand.split(':')[1]);
     const shield = player.inventory.shield[shieldIdx];
-    if (shield && shield.def !== undefined) {
-      def += shield.def;
-    }
+    def += effectiveDefense(shield);
   }
 
   if (statusEffects.armorTurns > 0) {

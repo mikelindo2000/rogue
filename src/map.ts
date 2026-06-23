@@ -1,11 +1,13 @@
-import { Item, ItemSpawn, Monster, MonsterTemplate } from './types';
+import { Item, ItemSpawn, Monster, MonsterTemplate, TrapState } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
-import { POTION_TYPES, potionVisual, scrollVisual } from './itemVisuals';
+import { pickWandForFloor } from './wands';
+import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
 import { assert, devAssert } from './assert';
+import { placeTraps } from './traps';
 
 /** Flood fill over walkable tiles: is (tx,ty) reachable from (sx,sy)? */
 function isReachable(
@@ -349,7 +351,8 @@ export function generateLevel(
   _playerLevel: number,
   cols: number,
   rows: number,
-  rng: RNG
+  rng: RNG,
+  opts: { trapdoorAllowed?: boolean } = {}
 ): {
   map: string[][];
   dark: boolean[][];
@@ -358,6 +361,7 @@ export function generateLevel(
   playerY: number;
   monsters: Monster[];
   items: Item[];
+  traps: TrapState[];
   stairsUpX: number;
   stairsUpY: number;
   stairsDownX: number;
@@ -593,6 +597,17 @@ export function generateLevel(
           } else {
             spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
           }
+        } else if (dungeonFloor >= BALANCE.wands.spawnMinFloor && rand < spawn.wandCut) {
+          // A small slice of the consumable roll, gated to deeper floors, is a
+          // zappable wand/staff. Rarer wands are gated further by floor inside
+          // pickWandForFloor (it rolls the gear rarity curve).
+          const wand = pickWandForFloor(dungeonFloor, rng);
+          spawnAt(room, {
+            type: 'wand',
+            symbol: '/',
+            color: wandVisual(wand.wandType).mapColor,
+            data: wand,
+          });
         } else {
           spawnAt(room, { type: 'repair_scroll', symbol: '?', color: '#ff00ff' });
         }
@@ -627,6 +642,18 @@ export function generateLevel(
     }
   }
 
+  const traps = placeTraps({
+    map,
+    dark,
+    rooms: realRooms,
+    startRoom,
+    dungeonFloor,
+    monsters,
+    items,
+    rng,
+    trapdoorAllowed: opts.trapdoorAllowed,
+  });
+
   return {
     map,
     dark,
@@ -635,6 +662,7 @@ export function generateLevel(
     playerY,
     monsters,
     items,
+    traps,
     stairsUpX,
     stairsUpY,
     stairsDownX,

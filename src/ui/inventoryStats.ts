@@ -4,11 +4,13 @@ import { titleCase } from './format';
 import { SLOT_ICON } from './icons';
 import type { InventoryComparisonView, InventoryTooltipStat } from './store.svelte';
 import {
+  gearConditionText,
   gearStatText,
   primaryGearStat,
   shortGearStatText,
   type EquipmentStatKind,
 } from './equipmentStats';
+import { effectiveDefense, gearHealthTone } from '../gearHealth';
 
 export function weaponTypeLabel(type?: string): string {
   if (!type) return 'Unknown';
@@ -26,10 +28,16 @@ export function gearTooltipStats(item: GearItem, kind: EquipmentStatKind): Inven
     return rows;
   }
 
-  const def = item.def ?? 0;
-  const max = item.maxDef ?? def;
+  const def = effectiveDefense(item);
+  const max = item.health?.max ?? item.maxDef ?? def;
+  const condition = gearConditionText(item);
   rows.push({ label: 'Defense', value: max > def ? `${def}/${max}` : String(def), tone: 'better' });
-  rows.push({ label: 'Durability', value: `${def}/${max}` });
+  rows.push({
+    label: 'Durability',
+    value: `${def}/${max}`,
+    tone: gearHealthTone(item) === 'bad' || gearHealthTone(item) === 'broken' ? 'worse' : undefined,
+  });
+  if (condition) rows.push({ label: 'Condition', value: titleCase(condition), tone: condition === 'broken' ? 'worse' : undefined });
   return rows;
 }
 

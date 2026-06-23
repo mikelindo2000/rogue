@@ -159,4 +159,26 @@
     font: 500 var(--fs-body) var(--font-ui);
     color: var(--text-dim);
   }
+
+  @media (max-width: 680px) {
+    .body {
+      width: 100%;
+      padding: 12px;
+    }
+
+    .search {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .count {
+      white-space: normal;
+      letter-spacing: 0.08em;
+    }
+
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

@@ -24,6 +24,13 @@ export interface EquipOption {
   reason?: string;
 }
 
+export interface GearHealthView {
+  label: string;
+  ratio: number;
+  tone: 'good' | 'worn' | 'bad' | 'broken';
+  color: string;
+}
+
 /** A single equipment slot row in the left rail. */
 export interface EquipSlotView {
   slot: EquipSlot;
@@ -38,6 +45,7 @@ export interface EquipSlotView {
   availableLabel: string;
   hasUpgrade: boolean;
   options: EquipOption[];
+  health?: GearHealthView;
 }
 
 /** One cell in the right-rail inventory grid. */
@@ -54,6 +62,7 @@ export interface InventoryCell {
   ref: InventoryRef;
   equipped?: boolean;
   actions: InventoryActionView[];
+  health?: GearHealthView;
 }
 
 export interface InventoryTooltipStat {
@@ -120,6 +129,7 @@ export interface UIState {
   /** Current player avatar — drives the bestiary cinematic's hero. */
   playerSprite: PlayerSprite;
   level: number;
+  strengthDrain: number;
   // vitals
   hp: number;
   maxHp: number;
@@ -143,6 +153,13 @@ export interface UIState {
   // center-stage overlays
   stairsNearby: boolean;
   nearbyMonster: NearbyMonster | null;
+  /** Non-null while a wand is drawn and awaiting an aim direction. Drives the
+   *  transient aiming prompt overlay. */
+  aiming: { wandName: string } | null;
+  playerX: number;
+  playerY: number;
+  mapCols: number;
+  mapRows: number;
   // run state
   gameOver: boolean;
   gameWon: boolean;
@@ -180,6 +197,7 @@ export const ui = $state<UIState>({
   glyph: '@',
   playerSprite: DEFAULT_PLAYER_SPRITE,
   level: 1,
+  strengthDrain: 0,
   hp: 0,
   maxHp: 0,
   xp: 0,
@@ -199,6 +217,11 @@ export const ui = $state<UIState>({
   logs: [],
   stairsNearby: false,
   nearbyMonster: null,
+  aiming: null,
+  playerX: 0,
+  playerY: 0,
+  mapCols: 46,
+  mapRows: 29,
   gameOver: false,
   gameWon: false,
   compendiumOpen: false,
@@ -220,6 +243,11 @@ export const ui = $state<UIState>({
 
 /** Action hooks the chrome calls; main.ts points these at the live engine. */
 export interface UIActions {
+  moveOrAim(dx: number, dy: number): void;
+  run(dx: number, dy: number): void;
+  search(): void;
+  readScroll(): void;
+  drawFirstWand(): void;
   equip(slot: EquipSlot, value: string): void;
   usePotion(idx: number): void;
   eat(): void;
@@ -237,9 +265,20 @@ export interface UIActions {
   clearRunHistory(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
+  /** Draw a wand for aiming (or fire it immediately if self-targeted). */
+  beginZap(ref: InventoryRef & { kind: 'wand' }): void;
+  /** Fire the drawn wand in a unit direction. */
+  zapInDirection(dx: number, dy: number): void;
+  /** Abort aiming without spending a turn. */
+  cancelZap(): void;
 }
 
 export const actions: UIActions = {
+  moveOrAim: () => {},
+  run: () => {},
+  search: () => {},
+  readScroll: () => {},
+  drawFirstWand: () => {},
   equip: () => {},
   usePotion: () => {},
   eat: () => {},
@@ -257,4 +296,7 @@ export const actions: UIActions = {
   clearRunHistory: () => {},
   selectInventoryItem: () => {},
   inventoryAction: () => {},
+  beginZap: () => {},
+  zapInDirection: () => {},
+  cancelZap: () => {},
 };

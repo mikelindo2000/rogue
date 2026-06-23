@@ -32,6 +32,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     height: var(--bar-h);
     padding: 0 20px;
     background: var(--surface-bar);
@@ -58,6 +59,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
   }
   .floor-meta {
     font: 600 9.5px var(--font-display);
@@ -69,11 +71,15 @@
     font: 600 14px var(--font-display);
     letter-spacing: var(--tracking-tight);
     color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .right {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: none;
   }
   .settings-btn {
     display: inline-flex;
@@ -96,5 +102,52 @@
     color: var(--accent);
     border-color: var(--border-strong);
     background: var(--surface-card);
+  }
+
+  @media (max-width: 680px) {
+    .bar {
+      height: auto;
+      min-height: var(--bar-h);
+      padding: 8px 10px;
+      align-items: flex-start;
+    }
+
+    .left {
+      min-width: 0;
+      gap: 9px;
+    }
+
+    .logo {
+      width: 28px;
+      height: 28px;
+    }
+
+    .floor-meta {
+      font-size: 8.5px;
+    }
+
+    .floor-name {
+      max-width: 126px;
+      font-size: 13px;
+      line-height: 1.1;
+    }
+
+    .right {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+      max-width: 220px;
+    }
+
+    .right :global(.chip) {
+      height: 28px;
+      padding-inline: 8px;
+      gap: 5px;
+    }
+
+    .right :global(.chip .unit),
+    .right :global(.chip .lead) {
+      display: none;
+    }
   }
 </style>

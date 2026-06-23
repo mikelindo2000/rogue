@@ -1,4 +1,4 @@
-import { RarityConfig, MonsterTemplate, GearItem } from './types';
+import { RarityConfig, MonsterTemplate, GearItem, WandItem } from './types';
 
 export interface TunableConfig {
   playerStartingHp: number;
@@ -61,6 +61,10 @@ export const BALANCE = {
       goldCut: 0.25, // cumulative thresholds within the consumable roll
       potionCut: 0.65,
       scrollCut: 0.85,
+      // From BALANCE.wands.spawnMinFloor, the slice scrollCut..wandCut becomes a
+      // wand; the rest (wandCut..1) stays a repair scroll. On shallow floors the
+      // whole scrollCut..1 slice is a repair scroll (wands gated out).
+      wandCut: 0.90,
       gearChance: 0.45,
       monsterChance: 0.82,
       // Of the generic scrolls that spawn on floor 3+, this fraction become a
@@ -78,6 +82,23 @@ export const BALANCE = {
     // can sit in darkness (found by walking in), which adds tension without ever
     // blocking reachability (darkness never changes walkability).
     darkStairRooms: true,
+    traps: {
+      floor4Chance: 0.5,
+      midEarlyChance: 0.65,
+      extraBudgetChance: 0.4,
+      lateExtraBudgetChance: 0.5,
+      revealChance: 0.35,
+      sleepTurns: 2,
+      adjacentMonsterSleepTurns: 1,
+      trapdoorLastFloor: 18,
+      cost: {
+        bear: 1,
+        sleep_gas: 1,
+        teleport: 1,
+        dart: 2,
+        trapdoor: 2,
+      },
+    },
   },
   fov: {
     rays: 72,
@@ -105,6 +126,14 @@ export const BALANCE = {
     staffArcaneHeal: 2,
     frostFreezeChance: 0.25,
     frostFreezeTurns: 1,
+  },
+  gearHealth: {
+    baseWearChance: 0.15,
+    damageWearScale: 0.08,
+    minWearChance: 0.15,
+    maxWearChance: 0.65,
+    wornRatio: 0.66,
+    badRatio: 0.33,
   },
   monster: {
     wanderSkipChance: 0.4,
@@ -155,6 +184,45 @@ export const BALANCE = {
     uncommonFloorScale: 0.01,
     gearDmgFloorScale: 1.5,
     gearDefFloorScale: 1.0,
+  },
+  // Wands/staves: zapped at range, never consume charges. Power is gated by a
+  // per-item cooldown (caps burst) plus a flat hunger cost per zap (caps
+  // sustain). See design/planning/wands_and_staves_plan.md.
+  wands: {
+    defaultCooldown: 4,        // turns; overridable per type below
+    defaultHungerCost: 8,      // hunger units per zap (per-turn drain is 1)
+    maxRange: 8,               // bolt/beam travels up to this many tiles
+    // Staff tier = "the larger sibling": shorter cooldown, bigger damage.
+    staffCooldownReduction: 1, // turns shaved off a staff's cooldown (min 1)
+    staffDamageBonus: 2,       // flat damage added for staff-tier damage wands
+    // Damage bolts scale with floor like gear does.
+    damageFloorScale: 0.75,    // per-floor bonus for non-striking damage wands
+    damageVariance: 0.25,      // +/- spread on bolt damage (magic missile excluded)
+    strikingBase: 4,
+    strikingFloorScale: 1.0,
+    magicMissileBase: 3,       // low variance, never misses
+    coldBase: 3,
+    coldFreezeTurns: 2,        // reuses monster.frozenTurns
+    fireBase: 5,
+    lightningBase: 6,          // beam: hits each monster in line
+    drainLifeBase: 6,
+    drainLifeSelfCostRatio: 0.5,   // player pays this fraction of damage as HP
+    sleepFreezeTurns: 3,
+    cancellationTurns: 12,
+    // Spawning: wands enter the consumable roll from this floor, as a small
+    // slice carved out below the scroll cut. See BALANCE.map.spawn.wandCut.
+    spawnMinFloor: 4,
+    // Per-type overrides (turns / hunger). Control effects cost more.
+    cooldown: {
+      striking: 3, magic_missile: 3, cold: 4, fire: 4, lightning: 5,
+      sleep: 6, polymorph: 10, teleport_away: 6, cancellation: 8,
+      drain_life: 6, light: 2, invisibility: 12, nothing: 1,
+    } as Record<string, number>,
+    hungerCost: {
+      striking: 6, magic_missile: 6, cold: 8, fire: 8, lightning: 10,
+      sleep: 10, polymorph: 18, teleport_away: 12, cancellation: 14,
+      drain_life: 12, light: 4, invisibility: 20, nothing: 2,
+    } as Record<string, number>,
   },
 } as const;
 
@@ -257,6 +325,24 @@ export const GEAR_POOL: Record<string, GearItem[]> = {
   '2h_mace': [ {name:"Warhammer", dmg:12}, {name:"Earth Breaker", dmg:18}, {name:"Titan Maul", dmg:25} ],
   staff: [ {name:"Fire Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', rarity:'common'} ]
 };
+
+/** The zappable wand/staff catalog, parallel to GEAR_POOL. Persistent items —
+ *  no charges. `cooldownRemaining`/`identified` are added at spawn/pickup. */
+export const WAND_POOL: WandItem[] = [
+  { name: 'Wand of Striking',      wandType: 'striking',      tier: 'wand',  rarity: 'common' },
+  { name: 'Wand of Magic Missile', wandType: 'magic_missile', tier: 'wand',  rarity: 'common' },
+  { name: 'Wand of Cold',          wandType: 'cold',          tier: 'wand',  rarity: 'uncommon' },
+  { name: 'Wand of Fire',          wandType: 'fire',          tier: 'wand',  rarity: 'uncommon' },
+  { name: 'Staff of Lightning',    wandType: 'lightning',     tier: 'staff', rarity: 'rare' },
+  { name: 'Wand of Sleep',         wandType: 'sleep',         tier: 'wand',  rarity: 'uncommon' },
+  { name: 'Wand of Polymorph',     wandType: 'polymorph',     tier: 'wand',  rarity: 'rare' },
+  { name: 'Wand of Teleportation', wandType: 'teleport_away', tier: 'wand',  rarity: 'uncommon' },
+  { name: 'Wand of Cancellation',  wandType: 'cancellation',  tier: 'wand',  rarity: 'rare' },
+  { name: 'Staff of Drain Life',   wandType: 'drain_life',    tier: 'staff', rarity: 'rare' },
+  { name: 'Wand of Light',         wandType: 'light',         tier: 'wand',  rarity: 'common' },
+  { name: 'Wand of Invisibility',  wandType: 'invisibility',  tier: 'wand',  rarity: 'rare' },
+  { name: 'Wand of Nothing',       wandType: 'nothing',       tier: 'wand',  rarity: 'common' },
+];
 
 let currentTunables: TunableConfig = { ...DEFAULT_TUNABLES };
 

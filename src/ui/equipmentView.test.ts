@@ -40,6 +40,38 @@ describe('equipment view assembly', () => {
     });
   });
 
+  it('adds health view data and condition metadata for damaged defensive gear', () => {
+    const player = createPlayer();
+    player.inventory.chest[1] = {
+      name: 'Tattered Rags',
+      def: 0,
+      maxDef: 1,
+      health: { current: 0, max: 1 },
+      rarity: 'common',
+    };
+    player.inventory.chest.push({
+      name: 'Cracked Chainmail',
+      def: 2,
+      maxDef: 5,
+      health: { current: 2, max: 5 },
+      rarity: 'rare',
+    });
+
+    const chest = slotView(buildEquipmentView(player), 'chest');
+
+    expect(chest.statLabel).toBe('DEF 0/1');
+    expect(chest.health).toMatchObject({
+      label: '0/1',
+      ratio: 0,
+      tone: 'broken',
+      color: 'var(--text-faint)',
+    });
+    expect(chest.options[2]).toMatchObject({
+      label: 'Cracked Chainmail',
+      meta: 'DEF 2/5 · worn',
+    });
+  });
+
   it('counts legal off-hand alternatives and clears availability when two-handed gear locks the slot', () => {
     const player = createPlayer();
     player.inventory.shield.push({ name: 'Buckler', def: 2, maxDef: 2, rarity: 'common' });

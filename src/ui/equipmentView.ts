@@ -4,7 +4,9 @@ import { titleCase, rarityVar } from './format';
 import { SLOT_ICON } from './icons';
 import {
   availableEquipCount,
+  gearHealthView,
   gearStatText,
+  gearStatWithCondition,
   hasStatUpgrade,
   type EquipmentStatKind,
 } from './equipmentStats';
@@ -99,7 +101,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
         offOptions.push({
           value: val,
           label: sh.name,
-          meta: gearStatText(sh, 'defense'),
+          meta: gearStatWithCondition(sh, 'defense'),
           rarityColor: rarityVar(sh.rarity),
           selected: off === val,
         });
@@ -135,6 +137,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     availableLabel: availableLabel(offAvailable),
     hasUpgrade: offCandidates.some(({ item, kind }) => primaryUpgrade(offGear, offKind, item, kind)),
     options: offOptions,
+    health: offKind === 'defense' ? gearHealthView(offGear, rarityVar(offRarity)) : undefined,
   });
 
   for (const slot of ARMOR_SLOTS) {
@@ -144,7 +147,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     const options = list.map((a, i) => ({
       value: String(i),
       label: a.name,
-      meta: a.name === 'None' ? undefined : gearStatText(a, 'defense'),
+      meta: a.name === 'None' ? undefined : gearStatWithCondition(a, 'defense'),
       rarityColor: rarityVar(a.rarity),
       selected: idx === i,
     }));
@@ -162,6 +165,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
       availableLabel: availableLabel(available),
       hasUpgrade: hasStatUpgrade(cur, candidates, 'defense'),
       options,
+      health: gearHealthView(cur, rarityVar(cur?.rarity)),
     });
   }
 

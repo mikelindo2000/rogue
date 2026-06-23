@@ -7,7 +7,7 @@
    than appended into one long object. When adding a potion, update
    src/itemVisuals.ts first, then add the paired bottle + cue icon here. */
 
-import type { PotionIconName, ScrollIconName } from '../itemVisuals';
+import type { PotionIconName, ScrollIconName, WandIconName } from '../itemVisuals';
 
 export type CoreIconName =
   | 'coin'
@@ -66,12 +66,47 @@ const SCROLL_ICONS: Record<ScrollIconName, string> = {
   'scroll-light': `${scroll}<circle cx="13" cy="12" r="2"/><path d="M13 7.5v1.5M13 15v1.5M8.8 12h1.4M16 12h1.4M10.2 9.2l1 1M14.8 13.8l1 1M15.8 9.2l-1 1M10.2 14.8l1-1"/>`,
 };
 
-export type IconName = CoreIconName | PotionIconName | ScrollIconName;
+// Wands share a diagonal rod (handle at lower-left, tip at upper-right); each
+// type carries a distinct emblem at the tip, drawn around (16.5, 7.5). Add a new
+// wand here when you add a WandType + its WAND_VISUALS entry.
+const wandRod = '<path d="M4 20l9.5-9.5"/><path d="M3 19l2 2"/>';
+
+const WAND_ICONS: Record<WandIconName, string> = {
+  // force impact — short rays bursting from the tip
+  'wand-striking': `${wandRod}<path d="M16.5 7.5l2.4-2.4M16.5 7.5l2.9.5M16.5 7.5l-.5 2.9M16.5 7.5l2.4 2.4"/>`,
+  // a sharp arcane dart leaving the tip
+  'wand-magic_missile': `${wandRod}<path d="M13.6 10.4l5.8-5.8"/><path d="M16.6 4.6h2.8v2.8"/>`,
+  // forked lightning bolt
+  'wand-lightning': `${wandRod}<path d="M17.5 4l-2.6 3.6h2.8l-2.6 3.6"/>`,
+  // teardrop flame
+  'wand-fire': `${wandRod}<path d="M16.5 4.4c2.4 2 2.4 4.2 0 5.6-2.4-1.4-2.4-3.6 0-5.6z"/>`,
+  // six-point frost star
+  'wand-cold': `${wandRod}<path d="M16.5 4.2v6.6M13.6 5.9l5.8 3.2M19.4 5.9l-5.8 3.2"/>`,
+  // a sleepy crescent moon
+  'wand-sleep': `${wandRod}<path d="M19 4.6a3.4 3.4 0 100 5.8 4.2 4.2 0 010-5.8z"/>`,
+  // mutating spiral
+  'wand-polymorph': `${wandRod}<path d="M16.5 10.4a2.9 2.9 0 10-2.9-2.9 1.8 1.8 0 103.6 0"/>`,
+  // concentric portal rings
+  'wand-teleport_away': `${wandRod}<circle cx="16.5" cy="7.5" r="3"/><circle cx="16.5" cy="7.5" r="1"/>`,
+  // null sign — circle struck through
+  'wand-cancellation': `${wandRod}<circle cx="16.5" cy="7.5" r="3"/><path d="M14.4 9.6l4.2-4.2"/>`,
+  // a draining heart
+  'wand-drain_life': `${wandRod}<path d="M16.5 10.6c-2.4-1.7-3.4-3.2-2-4.5.9-.8 1.8-.1 2 .6.2-.7 1.1-1.4 2-.6 1.4 1.3.4 2.8-2 4.5z"/>`,
+  // radiant sun
+  'wand-light': `${wandRod}<circle cx="16.5" cy="7.5" r="1.8"/><path d="M16.5 3.7v1.4M16.5 9.9v1.4M12.7 7.5h1.4M18.9 7.5h1.4M13.8 4.8l1 1M18.2 9.2l1 1M19.2 4.8l-1 1M13.8 10.2l1-1"/>`,
+  // a watching eye (here, then gone)
+  'wand-invisibility': `${wandRod}<path d="M13.4 7.5s1.4-2.1 3.1-2.1 3.1 2.1 3.1 2.1-1.4 2.1-3.1 2.1-3.1-2.1-3.1-2.1z"/><circle cx="16.5" cy="7.5" r=".85"/>`,
+  // a hollow nub — the dud
+  'wand-nothing': `${wandRod}<circle cx="16.5" cy="7.5" r="1.9"/>`,
+};
+
+export type IconName = CoreIconName | PotionIconName | ScrollIconName | WandIconName;
 
 export const ICONS: Record<IconName, string> = {
   ...CORE_ICONS,
   ...POTION_ICONS,
   ...SCROLL_ICONS,
+  ...WAND_ICONS,
 };
 
 /** Icon used for each equipment slot when filled or empty. */

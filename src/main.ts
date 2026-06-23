@@ -147,6 +147,30 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.equip = (slot, value) => engine.equipGear(slot, value);
   actions.usePotion = (idx) => engine.usePotion(idx);
   actions.eat = () => engine.consumeFood();
+  actions.moveOrAim = (dx, dy) => {
+    if (overlayOpen()) return;
+    if (engine.aiming) {
+      engine.zapInDirection(dx, dy);
+      syncAimingContext();
+    } else {
+      engine.handlePlayerMove(dx, dy);
+    }
+  };
+  actions.run = (dx, dy) => {
+    if (overlayOpen() || engine.aiming) return;
+    engine.handlePlayerRun(dx, dy);
+  };
+  actions.search = () => {
+    if (!overlayOpen()) engine.search();
+  };
+  actions.readScroll = () => {
+    if (!overlayOpen()) engine.readScroll();
+  };
+  actions.drawFirstWand = () => {
+    if (overlayOpen()) return;
+    engine.drawFirstWand();
+    syncAimingContext();
+  };
   actions.restart = () => {
     if (engine.gameOver || engine.gameWon) {
       suppressedEndedRunId = null;
@@ -224,13 +248,42 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.selectInventoryItem = (ref) => {
     ui.selectedInventoryRef = ref;
   };
-  actions.inventoryAction = (ref, action) => {
-    engine.performInventoryAction(ref, action);
-  };
 
   // Keyboard: all game shortcuts route through the centralized manager.
   const keyboard = new KeyboardManager();
   keyboard.setContextActive('game', true);
+
+  // While a wand is drawn, direction keys must aim (not move), so 'game' and
+  // 'aiming' are mutually exclusive. Re-sync after any action that may toggle
+  // aiming, whether triggered by keyboard or pointer.
+  const syncAimingContext = () => {
+    const on = !!engine.aiming;
+    keyboard.setContextActive('aiming', on);
+    keyboard.setContextActive('game', !on);
+  };
+
+  actions.inventoryAction = (ref, action) => {
+    if (action === 'zap' && ref.kind === 'wand') {
+      // Close the inventory so the player can see the board to aim, then draw.
+      ui.inventoryOpen = false;
+      engine.beginZap(ref);
+      syncAimingContext();
+      return;
+    }
+    engine.performInventoryAction(ref, action);
+  };
+  actions.beginZap = (ref) => {
+    engine.beginZap(ref);
+    syncAimingContext();
+  };
+  actions.zapInDirection = (dx, dy) => {
+    engine.zapInDirection(dx, dy);
+    syncAimingContext();
+  };
+  actions.cancelZap = () => {
+    engine.cancelZap();
+    syncAimingContext();
+  };
 
   const move = (dx: number, dy: number) => (e: KeyboardEvent) => {
     if (overlayOpen()) return;
@@ -276,6 +329,37 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (!overlayOpen()) {
         engine.readScroll();
       }
+    },
+  });
+
+  keyboard.register({
+    keys: ['z'],
+    description: 'Zap a wand',
+    context: 'game',
+    callback: () => {
+      if (overlayOpen()) return;
+      engine.drawFirstWand();
+      syncAimingContext();
+    },
+  });
+
+  // Aiming context: while a wand is drawn, the movement keys become aim keys and
+  // Escape cancels. 'game' is suspended (see syncAimingContext), so these win.
+  const aim = (dx: number, dy: number) => () => {
+    engine.zapInDirection(dx, dy);
+    syncAimingContext();
+  };
+  keyboard.register({ keys: ['w', 'ArrowUp'], description: 'Zap up', context: 'aiming', callback: aim(0, -1) });
+  keyboard.register({ keys: ['s', 'ArrowDown'], description: 'Zap down', context: 'aiming', callback: aim(0, 1) });
+  keyboard.register({ keys: ['a', 'ArrowLeft'], description: 'Zap left', context: 'aiming', callback: aim(-1, 0) });
+  keyboard.register({ keys: ['d', 'ArrowRight'], description: 'Zap right', context: 'aiming', callback: aim(1, 0) });
+  keyboard.register({
+    keys: ['Escape'],
+    description: 'Cancel aiming',
+    context: 'aiming',
+    callback: () => {
+      engine.cancelZap();
+      syncAimingContext();
     },
   });
 

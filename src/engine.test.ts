@@ -16,6 +16,9 @@ const makeUi = () => ({
   fxFreeze: () => {},
   fxDeath: () => {},
   fxPlayerHit: () => {},
+  fxDive: () => {},
+  fxWhiff: () => {},
+  fxMonsterDodge: () => {},
 });
 
 const makeBoss = (name = 'Marcus the Brave'): Monster => ({
@@ -49,8 +52,11 @@ const makeRunner = () => {
   engine.map = makeEmptyMap(engine);
   engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+  engine.dark = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.items = [];
   engine.monsters = [];
+  engine.traps = [];
+  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
   engine.player.hunger = 100;
   engine.player.x = 2;
   engine.player.y = 2;
@@ -293,6 +299,191 @@ describe('GameEngine secret-door search', () => {
     expect(found).toBe(false);
     expect(engine.turn).toBe(0);
     expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
+  });
+});
+
+describe('GameEngine hidden traps', () => {
+  it('reveals a nearby trap before a nearby secret door', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    engine.traps = [{ id: 't1', kind: 'bear', x: 2, y: 1, revealed: false, armed: true }];
+    setChanceRoll(engine, 0);
+
+    const found = engine.search();
+
+    expect(found).toBe(true);
+    expect(engine.traps[0].revealed).toBe(true);
+    expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('You notice a bear trap.');
+  });
+
+  it('does not reveal a nearby secret door when a nearby trap search fails', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.SECRET_DOOR;
+    engine.traps = [{ id: 't1', kind: 'bear', x: 2, y: 1, revealed: false, armed: true }];
+    setChanceRoll(engine, 0.99);
+
+    const found = engine.search();
+
+    expect(found).toBe(false);
+    expect(engine.traps[0].revealed).toBe(false);
+    expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('You search carefully.');
+  });
+
+  it('triggers a hidden bear trap when stepped on and leaves it spent', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+    engine.traps = [{ id: 't1', kind: 'bear', x: 3, y: 2, revealed: false, armed: true }];
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.player.x).toBe(3);
+    expect(engine.traps[0].revealed).toBe(true);
+    expect(engine.traps[0].armed).toBe(false);
+    expect(engine.trapEffects.bearTrapTurns).toBe(2);
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('A bear trap snaps shut!');
+  });
+
+  it('repair scroll restores carried armor and shields through the pickup path', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 3);
+    engine.player.inventory.chest[1] = { name: 'Chainmail', def: 1, maxDef: 4, health: { current: 1, max: 4 }, rarity: 'common' };
+    engine.player.inventory.shield.push({ name: 'Buckler', def: 0, maxDef: 3, health: { current: 0, max: 3 }, rarity: 'common' });
+    engine.items = [{ x: 3, y: 2, type: 'repair_scroll', symbol: '?', color: '#fff' }];
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.player.inventory.chest[1].health).toEqual({ current: 4, max: 4 });
+    expect(engine.player.inventory.chest[1].def).toBe(4);
+    expect(engine.player.inventory.shield[1].health).toEqual({ current: 3, max: 3 });
+    expect(engine.player.inventory.shield[1].def).toBe(3);
+    expect(engine.logs).toContain('All armor and shields repaired.');
+  });
+
+  it('revealed armed traps still trigger, but spent traps do not', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+    engine.traps = [{ id: 't1', kind: 'sleep_gas', x: 3, y: 2, revealed: true, armed: true }];
+
+    engine.handlePlayerMove(1, 0);
+    expect(engine.trapEffects.sleepTurns).toBe(2);
+    expect(engine.traps[0].armed).toBe(false);
+
+    engine.trapEffects.sleepTurns = 0;
+    engine.handlePlayerMove(-1, 0);
+    engine.handlePlayerMove(1, 0);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+  });
+
+  it('sleep gas ignores consumable and inventory commands while spending sleep turns', () => {
+    const engine = makeRunner();
+    engine.player.inventory.potions = ['healing'];
+    engine.player.inventory.food = 1;
+    engine.player.inventory.scrolls = ['light'];
+    engine.player.hp = 10;
+    engine.player.hunger = 10;
+
+    engine.trapEffects.sleepTurns = 1;
+    engine.usePotion(0);
+    expect(engine.player.inventory.potions).toEqual(['healing']);
+    expect(engine.player.hp).toBe(10);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+    expect(engine.turn).toBe(1);
+
+    engine.trapEffects.sleepTurns = 1;
+    engine.player.hunger = 10;
+    engine.consumeFood();
+    expect(engine.player.inventory.food).toBe(1);
+    expect(engine.player.hunger).toBe(9);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+    expect(engine.turn).toBe(2);
+
+    engine.trapEffects.sleepTurns = 1;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toEqual(['light']);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+    expect(engine.turn).toBe(3);
+
+    engine.trapEffects.sleepTurns = 1;
+    const acted = engine.performInventoryAction({ kind: 'potion', potionType: 'healing' }, 'use');
+    expect(acted).toBe(false);
+    expect(engine.player.inventory.potions).toEqual(['healing']);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+    expect(engine.turn).toBe(4);
+  });
+
+  it('bear trap hold blocks later movement and spends a turn', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 5);
+    engine.trapEffects.bearTrapTurns = 2;
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.player.x).toBe(2);
+    expect(engine.turn).toBe(1);
+    expect(engine.trapEffects.bearTrapTurns).toBe(1);
+    expect(engine.logs).toContain('The bear trap holds you fast.');
+  });
+
+  it('dart trap drains strength and Potion of Strength clears the drain', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+    engine.traps = [{ id: 't1', kind: 'dart', x: 3, y: 2, revealed: false, armed: true }];
+    engine.player.inventory.potions = ['strength'];
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+    expect(engine.trapEffects.strengthDrained).toBe(1);
+
+    engine.usePotion(0);
+    expect(engine.trapEffects.strengthDrained).toBe(0);
+    expect(engine.statusEffects.strengthTurns).toBeGreaterThan(0);
+  });
+
+  it('teleport trap moves the player away from monsters and armed traps', () => {
+    const engine = makeRunner();
+    engine.map = makeEmptyMap(engine);
+    for (let y = 1; y <= 6; y++) {
+      for (let x = 1; x <= 8; x++) engine.map[y][x] = TILE.FLOOR;
+    }
+    engine.player.x = 2;
+    engine.player.y = 2;
+    const monster = makeBoss('Hall Guard');
+    monster.x = 8;
+    monster.y = 6;
+    engine.monsters = [monster];
+    engine.traps = [
+      { id: 'tele', kind: 'teleport', x: 3, y: 2, revealed: false, armed: true },
+      { id: 'bear', kind: 'bear', x: 4, y: 2, revealed: true, armed: true },
+    ];
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(`${engine.player.x},${engine.player.y}`).not.toBe('3,2');
+    expect(engine.traps.some(t => t.armed && t.x === engine.player.x && t.y === engine.player.y)).toBe(false);
+    expect(engine.monsters.some(m => Math.max(Math.abs(m.x - engine.player.x), Math.abs(m.y - engine.player.y)) <= 1)).toBe(false);
+  });
+
+  it('trapdoor drops the player to the next floor without an extra old-floor monster turn', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 8;
+    carveRow(engine, 2, 2, 4);
+    engine.traps = [{ id: 'drop', kind: 'trapdoor', x: 3, y: 2, revealed: false, armed: true }];
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.dungeonFloor).toBe(9);
+    expect(engine.map[engine.player.y][engine.player.x]).toBe(TILE.STAIRS_UP);
+    expect(engine.turn).toBe(0);
   });
 });
 
