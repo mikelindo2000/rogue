@@ -656,10 +656,35 @@ export class GameEngine {
   }
 
   /**
-   * Run in a straight line, classic Rogue-style. Each traversed tile still
-   * costs a normal turn, but the command repeats movement until something
-   * demands attention: a wall, a monster in the next tile, death/victory, a
-   * portal, or the doorway at the end of a corridor.
+   * The walkable onward directions from (x,y), excluding the tile we just came
+   * from (back). "Walkable" follows isWalkable, so a corridor bending into a
+   * room floor, a door, or stairs counts as one onward option (the run then
+   * steps onto it and the room-entry / threshold checks decide whether to stop).
+   * Cardinal only — movement and running are 4-directional.
+   */
+  private corridorOnwardDirs(
+    x: number,
+    y: number,
+    backDx: number,
+    backDy: number
+  ): Array<{ dx: number; dy: number }> {
+    const out: Array<{ dx: number; dy: number }> = [];
+    for (const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      if (ddx === backDx && ddy === backDy) continue;
+      if (isWalkable(this.map[y + ddy]?.[x + ddx])) out.push({ dx: ddx, dy: ddy });
+    }
+    return out;
+  }
+
+  /**
+   * Run, classic Rogue-style. Each traversed tile still costs a normal turn, but
+   * the command repeats movement until something demands attention. In a room
+   * the run holds the pressed direction; in a corridor it FOLLOWS the passage —
+   * turning at a single bend and stopping at a junction (so the player picks the
+   * branch). It also stops at: a wall, a monster ahead or adjacent, death/
+   * victory, a portal, a doorway reached from a corridor, and stepping out of a
+   * corridor into a room. The first step always honours the pressed direction so
+   * starting a run from a junction still moves the way you asked.
    */
   public handlePlayerRun(dx: number, dy: number) {
     if (this.gameOver || this.gameWon || (dx === 0 && dy === 0)) return;
@@ -671,12 +696,35 @@ export class GameEngine {
       return;
     }
 
-    let previousTile = this.map[this.player.y]?.[this.player.x];
+    let curDx = dx;
+    let curDy = dy;
+    // The tile we'd step back onto; never auto-follow a corridor backwards.
+    let backDx = -dx;
+    let backDy = -dy;
     const maxSteps = this.COLS + this.ROWS;
+    // Tiles already visited this run. Loop corridors (the generator adds loop
+    // edges deliberately) otherwise circle forever — each tile looks like a
+    // single-onward bend — until maxSteps is exhausted, burning turns and
+    // dumping the player somewhere surprising. Re-entering a tile ends the run.
+    const visited = new Set<number>([this.player.y * this.COLS + this.player.x]);
 
     for (let step = 0; step < maxSteps; step++) {
-      const tx = this.player.x + dx;
-      const ty = this.player.y + dy;
+      const here = this.map[this.player.y]?.[this.player.x];
+
+      // Corridor-following only kicks in AFTER the first committed step, so the
+      // pressed direction is always honoured first. In a corridor: one onward
+      // option means follow it (turn at a bend); two or more means a junction —
+      // stop and let the player choose; zero means a dead end.
+      if (step > 0 && here === TILE.CORRIDOR) {
+        const onward = this.corridorOnwardDirs(this.player.x, this.player.y, backDx, backDy);
+        if (onward.length === 0) break;
+        if (onward.length > 1) break;
+        curDx = onward[0].dx;
+        curDy = onward[0].dy;
+      }
+
+      const tx = this.player.x + curDx;
+      const ty = this.player.y + curDy;
 
       if (
         tx < 0 ||
@@ -689,10 +737,13 @@ export class GameEngine {
       }
 
       if (this.monsters.some(mon => mon.x === tx && mon.y === ty)) break;
+      if (visited.has(ty * this.COLS + tx)) break; // closed loop — stop, don't circle
 
-      const wasInCorridor = previousTile === TILE.CORRIDOR;
       this.player.x = tx;
       this.player.y = ty;
+      visited.add(ty * this.COLS + tx);
+      backDx = -curDx;
+      backDy = -curDy;
       recordStep(this.stats, true);
 
       const trapResult = this.triggerTrapAtPlayer();
@@ -713,10 +764,10 @@ export class GameEngine {
 
       if (this.gameOver || this.gameWon) return;
       if (trapResult.teleported || this.trapEffects.bearTrapTurns > 0 || this.trapEffects.sleepTurns > 0) return;
-      if (wasInCorridor && currentTile === TILE.DOOR) return;
+      // Pause on entering a room from a corridor — at its doorway or its floor —
+      // so the player can survey before pressing on.
+      if (here === TILE.CORRIDOR && (currentTile === TILE.DOOR || currentTile === TILE.FLOOR)) return;
       if (this.hasAdjacentMonster()) return;
-
-      previousTile = currentTile;
     }
   }
 
@@ -915,6 +966,7 @@ export class GameEngine {
       }
     }
     recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
+    this.dropMonsterGold(monster);
     this.monsters = this.monsters.filter(m => m !== monster);
     if (this.gameWon) {
       this.turn++;
@@ -937,7 +989,15 @@ export class GameEngine {
       if (!item) return;
       let pickedUp = true;
 
-      if (item.type === 'gold') {
+      if (item.type === 'gold' && item.amount !== undefined) {
+        // A dropped pile with an explicit amount (a slain leprechaun's gold).
+        // Paid out exactly — no chest re-roll, no bonus XP, no Midas multiplier —
+        // so it reads as "you recovered your gold," not as found treasure.
+        const g = item.amount;
+        this.player.gold += g;
+        recordChest(this.stats, g);
+        this.addLog(`Recovered ${g} gold.`);
+      } else if (item.type === 'gold') {
         const baseGold = CHEST_GOLD_TABLE[this.player.level] || 15;
         const minGold = Math.round(baseGold * (1 - BALANCE.gold.variance));
         const maxGold = Math.round(baseGold * (1 + BALANCE.gold.variance));
@@ -1652,6 +1712,21 @@ export class GameEngine {
     return tmpl.name;
   }
 
+  /** Spill a slain monster's gold onto its tile as a recoverable pile. Gold-
+   *  carriers (the leprechaun/trickster) always drop at least a depth-scaled base
+   *  hoard — GOLDCALC = rnd(50 + 10·depth) + 2, canonical Rogue — on top of any
+   *  gold they stole and stashed in their purse. So killing a leprechaun refunds
+   *  what it took plus its own hoard; a thief that escaped with your gold keeps it
+   *  until you hunt it down. The pile carries an explicit `amount`, so pickup pays
+   *  out exactly this (no chest re-roll, no bonus XP — see checkItems). */
+  private dropMonsterGold(monster: Monster) {
+    const base = archetypeOf(monster) === 'trickster' ? 2 + this.rng.int(50 + 10 * this.dungeonFloor) : 0;
+    const total = (monster.gold ?? 0) + base;
+    if (total <= 0) return;
+    this.items.push({ type: 'gold', amount: total, symbol: '$', color: '#ffff55', x: monster.x, y: monster.y });
+    this.addLog(`The ${monster.name} drops ${total} gold!`);
+  }
+
   /** Relocate a monster to a safe floor tile: not adjacent to the player, not on
    *  an armed trap, not on another monster. Prefers lit tiles. Returns false if
    *  none available. Mirrors teleportPlayerSafely's invariants. */
@@ -1903,7 +1978,18 @@ export class GameEngine {
         dive: (fx, fy, tx, ty, color) => this.ui.fxDive(fx, fy, tx, ty, color),
         whiff: (x, y) => this.ui.fxWhiff(x, y),
       },
-      this.dark
+      this.dark,
+      this.dungeonFloor,
+      (m) => {
+        // Leprechaun vanish: it just stole gold, now it blinks to a far floor
+        // tile (staying on the level so you can still hunt it for your gold).
+        const ox = m.x;
+        const oy = m.y;
+        if (this.teleportMonsterSafely(m)) {
+          this.ui.fxDeath(ox, oy, m.symbol, m.color);
+          this.addLog(`The ${m.name} blinks away!`);
+        }
+      }
     );
     if (this.player.hp < hpBeforeMonsters) {
       this.trapEffects.sleepTurns = 0;

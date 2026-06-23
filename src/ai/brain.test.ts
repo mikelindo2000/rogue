@@ -311,20 +311,25 @@ describe('on-hit abilities', () => {
     abilities: [{ id: 'stealGold', chance: 1, magnitude: 50, cooldown: 0, trigger: 'onHit', thenFlee: true }],
   };
 
-  it('steals gold and flips the thief into a fleeing state', () => {
+  it('steals a depth-scaled pile, stashes it, and flips the thief into a fleeing state', () => {
     const m = mob();
-    const player = { gold: 120 } as Player;
-    const logs = applyOnHitAbilities(trickster, m, player, makeRng(1));
-    expect(player.gold).toBe(70);
-    expect(logs[0]).toMatch(/steals 50 gold/);
+    const player = { gold: 1000, level: 1 } as Player;
+    const logs = applyOnHitAbilities(trickster, m, player, makeRng(1), 5);
+    const stolen = 1000 - player.gold;
+    // GOLDCALC at floor 5 is rnd(100)+2, taken at 1× (save) or 5× (no save).
+    expect(stolen).toBeGreaterThan(0);
+    expect(stolen).toBeLessThanOrEqual(5 * (2 + 50 + 10 * 5));
+    expect(m.gold).toBe(stolen); // carried in the purse, not destroyed
+    expect(logs[0]).toMatch(/steals \d+ gold/);
     expect(m.ai?.state).toBe('fleeing');
   });
 
   it('never steals more gold than the player has', () => {
     const m = mob();
-    const player = { gold: 30 } as Player;
-    applyOnHitAbilities(trickster, m, player, makeRng(1));
+    const player = { gold: 30, level: 1 } as Player;
+    applyOnHitAbilities(trickster, m, player, makeRng(1), 5);
     expect(player.gold).toBe(0);
+    expect(m.gold).toBe(30); // it pockets exactly what it took
   });
 
   it('does nothing when the chance roll fails (chance 0)', () => {

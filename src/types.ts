@@ -153,7 +153,10 @@ interface ItemBase {
 
 /** Items on the floor — a discriminated union keyed on `type`. */
 export type Item =
-  | (ItemBase & { type: 'gold' })
+  // `amount`, when present, is the exact gold in this pile (e.g. recovered from a
+  // slain leprechaun). Absent ⇒ a chest, whose gold is rolled from CHEST_GOLD_TABLE
+  // at pickup. See the gold branch of `checkItems`.
+  | (ItemBase & { type: 'gold'; amount?: number })
   | (ItemBase & { type: 'food' })
   // Every scroll is a named, carryable scroll (picked up into inventory, read on
   // demand). The legacy opaque random-effect scroll and separate repair_scroll
@@ -189,6 +192,10 @@ export interface Monster {
   special?: 'hero' | 'boss';
   frozenTurns: number;
   swipeTurn?: boolean;
+  /** Gold this monster is carrying. Leprechauns accumulate the gold they steal
+   *  here; on death it spills onto the floor as a recoverable pile (plus a base
+   *  hoard for gold-carriers). Absent/0 ⇒ drops nothing. */
+  gold?: number;
   /** Turns remaining under a Wand of Cancellation: special archetype behavior
    *  (telegraphed attacks, on-hit abilities, dodge) is suppressed while > 0.
    *  Decremented in processMonsterAI. Optional — absent means not cancelled. */
@@ -206,6 +213,9 @@ export interface Monster {
       targetX: number;
       targetY: number;
     };
+    /** Set when an on-hit ability (leprechaun's steal) wants the monster to blink
+     *  away this turn. The engine consumes it after the attack resolves. */
+    pendingBlink?: boolean;
   };
 }
 

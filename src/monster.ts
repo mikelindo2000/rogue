@@ -36,7 +36,9 @@ export function processMonsterAI(
   rng: RNG,
   turn = 0,
   fx: AIFx = NO_FX,
-  dark?: boolean[][]
+  dark?: boolean[][],
+  floor = 1,
+  onBlink?: (m: Monster) => void
 ) {
   for (const m of monsters) {
     if (m.frozenTurns > 0) {
@@ -59,7 +61,11 @@ export function processMonsterAI(
     // action this turn.
     if (rt.pendingAttack) {
       if (turn >= rt.pendingAttack.resolveTurn) {
-        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx);
+        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx, floor);
+        if (rt.pendingBlink) {
+          rt.pendingBlink = false;
+          onBlink?.(m);
+        }
       }
       continue;
     }
@@ -78,7 +84,13 @@ export function processMonsterAI(
       dark,
     });
 
-    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn);
+    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor);
+    // An on-hit ability (leprechaun steal) may have requested a blink-away: the
+    // monster hits, then vanishes to a random floor tile this same turn.
+    if (rt.pendingBlink) {
+      rt.pendingBlink = false;
+      onBlink?.(m);
+    }
   }
 }
 
@@ -94,7 +106,8 @@ function resolvePendingAttack(
   addLog: (msg: string) => void,
   rng: RNG,
   turn: number,
-  fx: AIFx
+  fx: AIFx,
+  floor: number
 ) {
   const pend = rt.pendingAttack!;
   rt.pendingAttack = undefined;
@@ -109,7 +122,7 @@ function resolvePendingAttack(
     const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: false, rng });
     player.hp -= dmg;
     addLog(`${m.name}'s swoop hits for ${dmg}!`);
-    applyOnHitAbilities(behavior, m, player, rng).forEach(addLog);
+    applyOnHitAbilities(behavior, m, player, rng, floor).forEach(addLog);
   } else {
     fx.whiff(pend.targetX, pend.targetY);
     addLog(`You dodge ${m.name}'s swoop!`);
@@ -126,7 +139,8 @@ function applyAction(
   totalDef: number,
   addLog: (msg: string) => void,
   rng: RNG,
-  turn: number
+  turn: number,
+  floor: number
 ) {
   switch (action.type) {
     case 'wait':
@@ -136,7 +150,7 @@ function applyAction(
       m.y += action.dy;
       return;
     case 'attack':
-      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn);
+      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor);
       return;
     case 'windup': {
       // Commit to a telegraphed strike: record the target tile + resolve turn.
@@ -163,7 +177,8 @@ function applyAttack(
   totalDef: number,
   addLog: (msg: string) => void,
   rng: RNG,
-  turn: number
+  turn: number,
+  floor: number
 ) {
   const rt = ensureRuntime(m);
   const attack: AttackSpec = behavior.attacks.find((a) => a.id === attackId) ?? behavior.attacks[0];
@@ -183,7 +198,7 @@ function applyAttack(
   if (attack.cooldown > 0) rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;
 
   // On-hit abilities (steal, leech, …) fire as side effects of landing a blow.
-  applyOnHitAbilities(behavior, m, player, rng).forEach(addLog);
+  applyOnHitAbilities(behavior, m, player, rng, floor).forEach(addLog);
 }
 
 /**
@@ -195,27 +210,48 @@ export function applyOnHitAbilities(
   behavior: MonsterBehavior,
   m: Monster,
   player: Player,
-  rng: RNG
+  rng: RNG,
+  floor = 1
 ): string[] {
   const rt = ensureRuntime(m);
   const logs: string[] = [];
   for (const ab of behavior.abilities) {
     if (ab.trigger !== 'onHit' || !rng.chance(ab.chance)) continue;
-    fireAbility(ab, m, player, logs);
+    const applied = fireAbility(ab, m, player, logs, rng, floor);
     if (ab.thenFlee) rt.state = 'fleeing';
+    // Blink only when the ability actually did something — a leprechaun that hit
+    // a broke player has nothing to vanish with, so it stays and keeps swinging.
+    if (ab.thenBlink && applied) rt.pendingBlink = true;
   }
   return logs;
 }
 
-function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]) {
+/**
+ * Apply one ability's effect. Returns whether it did something meaningful (used
+ * to gate `thenBlink`). `rng`/`floor` let depth-scaled effects (the leprechaun's
+ * GOLDCALC steal) draw randomness — only the stealGold path consumes them, so
+ * other abilities keep their existing RNG footprint and seeded parity.
+ */
+function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[], rng: RNG, floor: number): boolean {
   switch (ab.id) {
     case 'stealGold': {
-      const amount = Math.min(player.gold, ab.magnitude ?? 0);
+      // Canonical Rogue GOLDCALC = rnd(50 + 10·depth) + 2. A failed save vs. magic
+      // lets the leprechaun grab the big 5× purse; a save limits it to 1×. Save
+      // odds rise with player level: (4 + level/2) × 5%.
+      const saveChance = Math.min(0.99, 0.05 * (4 + Math.floor(player.level / 2)));
+      const saved = rng.chance(saveChance);
+      const goldcalc = 2 + rng.int(50 + 10 * floor);
+      const want = saved ? goldcalc : goldcalc * 5;
+      const amount = Math.min(player.gold, want);
       if (amount > 0) {
         player.gold -= amount;
+        // The gold isn't destroyed — it rides in the thief's purse and drops on
+        // death, so a slain leprechaun refunds what it took (see handleMonsterDeath).
+        m.gold = (m.gold ?? 0) + amount;
         logs.push(`${m.name} steals ${amount} gold!`);
+        return true;
       }
-      break;
+      return false;
     }
     case 'leechHeal': {
       const maxHp = m.maxHp ?? m.hp;
@@ -223,8 +259,9 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       if (heal > 0) {
         m.hp += heal;
         logs.push(`${m.name} drains your vitality!`);
+        return true;
       }
-      break;
+      return false;
     }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
@@ -236,23 +273,24 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       // always does something thematic (and the steal magnitude reads as gold).
       const potions = player.inventory?.potions;
       if (potions && potions.length > 0) {
-        // Take the first potion. Deterministic (no extra rng draw — `fireAbility`
-        // isn't passed the seeded rng, and adding a per-hit random draw to this
-        // shared path would desync seeded runs; see the RNG-parity gotcha).
+        // Take the first potion. Deterministic on purpose: although `rng` is now in
+        // scope, the nymph path draws nothing from it — adding a per-hit random draw
+        // to this shared path would desync seeded runs (see the RNG-parity gotcha).
         const stolen = potions.shift()!;
         logs.push(`${m.name} snatches your ${stolen} potion and vanishes!`);
-      } else {
-        const amount = Math.min(player.gold, ab.magnitude ?? 0);
-        if (amount > 0) {
-          player.gold -= amount;
-          logs.push(`${m.name} snatches ${amount} gold and vanishes!`);
-        }
+        return true;
       }
-      break;
+      const amount = Math.min(player.gold, ab.magnitude ?? 0);
+      if (amount > 0) {
+        player.gold -= amount;
+        logs.push(`${m.name} snatches ${amount} gold and vanishes!`);
+        return true;
+      }
+      return false;
     }
     // freeze / drainStrength / summon are schema-only for now — safely ignored
     // until the engine grows hooks for them.
     default:
-      break;
+      return false;
   }
 }

@@ -90,12 +90,18 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: {},
     abilities: [],
   },
-  // Steals gold on a hit, then bolts — the Rogue leprechaun/nymph.
+  // The Leprechaun: hunts you, and on a hit steals a depth-scaled pile of gold
+  // (GOLDCALC, see fireAbility) then VANISHES — blinks to a random floor tile,
+  // the canonical Rogue behavior. The stolen gold isn't destroyed: it rides in
+  // the leprechaun's purse (`m.gold`) and spills back onto the floor when you
+  // kill it, so hunting one down to reclaim your gold is the whole game. It also
+  // walk-flees once wounded below half HP. (`magnitude` is unused for the steal
+  // amount now — GOLDCALC scales by floor — but kept as a harmless floor.)
   trickster: {
     movement: { style: 'hunt', aggroRange: AGGRO },
     attacks: [melee()],
     defense: { fleeBelowHpPct: 0.5 },
-    abilities: [{ id: 'stealGold', chance: 0.7, magnitude: 50, cooldown: 0, trigger: 'onHit', thenFlee: true }],
+    abilities: [{ id: 'stealGold', chance: 0.7, magnitude: 50, cooldown: 0, trigger: 'onHit', thenBlink: true }],
   },
   // The modern Brown Bat: erratic flier that telegraphs a heavy dive you can
   // step out of, and flits aside from your own blows. Its danger is the swoop
@@ -208,7 +214,7 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   // archetype comment.
   'zombie': 'leech',
   'zachary-the-zombie': 'leech',
-  'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
+  'leprechaun': 'trickster', // steals depth-scaled gold then blinks away; drops its purse on death (canonical Rogue)
   // Nymph: steals an ITEM (a potion, or gold if you carry none) on a hit, then
   // vanishes (stealItem on-hit + thenFlee). DIRECT melee mirrors the trickster
   // (plain melee, multiplier 1, no windup), so the steal doesn't move the HP-damage

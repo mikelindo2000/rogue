@@ -80,6 +80,10 @@ export interface AbilitySpec {
   trigger: 'onHit' | 'onEngage';
   /** Whether firing the ability makes the monster flee afterward (nymph). */
   thenFlee?: boolean;
+  /** Whether a successful firing makes the monster blink to a random floor tile
+   *  afterward — the canonical Rogue leprechaun vanish. Gated on the ability
+   *  actually doing something (e.g. it stole gold), unlike `thenFlee`. */
+  thenBlink?: boolean;
 }
 
 export interface DefenseSpec {
@@ -111,6 +115,9 @@ export interface MonsterAIRuntime {
    *  damage only if the player is still on (targetX,targetY) — else it whiffs
    *  (positional dodge). */
   pendingAttack?: PendingAttack;
+  /** Set by an on-hit ability (leprechaun steal) to request a blink-away this
+   *  turn. processMonsterAI consumes it after the attack and calls `onBlink`. */
+  pendingBlink?: boolean;
 }
 
 export interface PendingAttack {
