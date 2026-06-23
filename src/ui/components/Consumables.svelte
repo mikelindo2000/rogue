@@ -14,14 +14,19 @@
   );
   const noPotions = $derived(ui.potions.length === 0);
   const firstPotion = $derived(ui.potions[0]);
+  let eatButton = $state<HTMLButtonElement | null>(null);
 
   function onSelect(value: string) {
     actions.usePotion(Number(value));
   }
+
+  function restoreAfterPotionMenu() {
+    return eatButton && !eatButton.disabled ? eatButton : null;
+  }
 </script>
 
 <div class="consumables">
-  <Popover {items} {onSelect} align="stretch" label="Potions">
+  <Popover {items} {onSelect} restoreFallback={restoreAfterPotionMenu} align="stretch" label="Potions">
     {#snippet trigger({ toggle, open })}
       <button
         class="btn potion"
@@ -41,7 +46,7 @@
     {/snippet}
   </Popover>
 
-  <button class="btn eat" onclick={() => actions.eat()} disabled={ui.food === 0} aria-label="Eat">
+  <button bind:this={eatButton} class="btn eat" onclick={() => actions.eat()} disabled={ui.food === 0} aria-label="Eat">
     <span class="icon"><Icon name="leaf" size={16} /></span>
     <span class="text">Eat</span>
     <span class="count tnum">{ui.food}/{ui.foodMax}</span>

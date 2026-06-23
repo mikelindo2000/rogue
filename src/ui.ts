@@ -19,6 +19,7 @@ import {
 } from './ui/inventoryStats';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
+import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
 import { potionVisual } from './itemVisuals';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import {
@@ -1134,8 +1135,9 @@ export class GameUI {
         artUrl: potionArtUrl(type),
         rarityColor: visual.uiColor,
         count: n > 1 ? n : undefined,
-        label: `Potion of ${titleCase(type)}${n > 1 ? ` ×${n}` : ''}`,
-        detail: this.potionDetail(type),
+        label: potionLabel(type, n),
+        detail: potionDetail(type),
+        tooltipStats: potionTooltipStats(type),
         ref,
         actions: this.inventoryActions(player, ref),
       });
@@ -1251,14 +1253,6 @@ export class GameUI {
       disabled: !result.ok,
       reason: result.ok ? undefined : result.reason,
     }];
-  }
-
-  private potionDetail(type: string): string {
-    if (type === 'healing') return `Restores up to ${BALANCE.potions.healAmount} health.`;
-    if (type === 'strength') return `Adds ${BALANCE.combat.strengthBonus} attack for ${BALANCE.status.strengthTurns} turns.`;
-    if (type === 'invisibility') return `Makes monsters lose track of you for ${BALANCE.status.invisTurns} turns.`;
-    if (type === 'armor') return `Adds ${BALANCE.status.armorDefBonus} defense for ${BALANCE.status.armorTurns} turns.`;
-    return 'A mysterious potion.';
   }
 
   /** Clear the accumulated UI log history and gutter numbering. Called by the

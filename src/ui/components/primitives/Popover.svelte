@@ -23,6 +23,7 @@
     trigger,
     open = $bindable(false),
     onOpenChange,
+    restoreFallback,
     align = 'start',
     label = 'Menu',
   }: {
@@ -31,6 +32,7 @@
     trigger: Snippet<[{ toggle: () => void; open: boolean }]>;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    restoreFallback?: () => HTMLElement | null;
     align?: 'start' | 'end' | 'stretch';
     label?: string;
   } = $props();
@@ -45,6 +47,8 @@
   const PANEL_GAP = 6;
   const PANEL_MIN_WIDTH = 220;
   const PANEL_MAX_HEIGHT = 280;
+  const FOCUSABLE =
+    'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
   function clamp(value: number, min: number, max: number) {
     if (max < min) return min;
@@ -53,6 +57,23 @@
 
   function triggerElement() {
     return root?.querySelector<HTMLElement>('[aria-haspopup="menu"]') ?? root;
+  }
+
+  function canFocus(el: HTMLElement | null | undefined): el is HTMLElement {
+    if (!el || !document.contains(el)) return false;
+    if (el.getAttribute('aria-disabled') === 'true') return false;
+    if ('disabled' in el && (el as HTMLButtonElement).disabled) return false;
+    return true;
+  }
+
+  function restoreFocus() {
+    const fallback = restoreFallback?.();
+    const target = canFocus(restoreTarget)
+      ? restoreTarget
+      : canFocus(fallback)
+        ? fallback
+        : document.querySelector<HTMLElement>(FOCUSABLE);
+    target?.focus();
   }
 
   function setOpen(v: boolean, opts: { restoreFocus?: boolean } = {}) {
@@ -64,7 +85,7 @@
     open = v;
     onOpenChange?.(v);
     if (!v && opts.restoreFocus) {
-      queueMicrotask(() => restoreTarget?.focus());
+      queueMicrotask(restoreFocus);
     }
   }
 
