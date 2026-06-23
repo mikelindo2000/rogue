@@ -194,25 +194,32 @@ in-progress save should not count.
 
 A score makes the screen scan quickly, but it should not become the only truth.
 
-Recommended first formula:
+Implemented first-pass tuned formula:
 
 ```ts
 score =
-  floorReached * 1000 +
-  playerLevel * 500 +
-  goldCollected +
-  monstersKilled * 75 +
-  bossesDefeated * 1000 +
-  secretsFound * 250 +
-  (gameWon ? 10000 : 0) -
-  Math.floor(turns / 5);
+  deepestFloor * 1200 +
+  playerLevel * 650 +
+  Math.round(goldCollected * 0.75) +
+  monstersKilled * 90 +
+  bossesDefeated * 1600 +
+  secretsFound * 350 +
+  (gameWon ? 16000 : 0) +
+  (gameWon ? Math.max(0, 8000 - turns * 3) : 0) -
+  Math.floor(turns / 6) -
+  Math.floor(damageTaken / 12);
 ```
 
 Clamp at `0`. Store the formula version on the run summary:
 
 ```ts
-scoreVersion: 1
+scoreVersion: 2
 ```
+
+This was tuned against sample early-death, mid-depth death, deep-death, slow-win,
+and fast-win runs. The chosen shape keeps deep progress valuable, makes victory
+clearly beat a comparable deep death, and gives fast victories enough bonus to
+compete with slower loot-heavy wins.
 
 If the formula changes later, old summaries remain comparable within their
 version and can be displayed with the stored numeric score.
@@ -605,4 +612,3 @@ UI/manual tests:
    it after seeing real run distributions.
 5. Death attribution: first pass can record broad causes; exact monster names may
    need a small AI event change.
-

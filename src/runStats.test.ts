@@ -105,5 +105,43 @@ describe('run stats', () => {
     expect(chooseRunTitle({ outcome: 'died', turns: 500, hp: 0, floorReached: 2, secretsFound: 0, monstersKilled: 1, goldCollected: 0, deathCause: 'starvation' })).toBe('The pantry was the real boss');
     expect(chooseRunTitle({ outcome: 'won', turns: 900, hp: 10, floorReached: 20, secretsFound: 0, monstersKilled: 1, goldCollected: 0 })).toBe('Fastest blade in the dungeon');
   });
-});
 
+  it('keeps victory above a similar deep death and gives fast wins a scoring lane', () => {
+    const deepDeath = calculateScore({
+      outcome: 'died',
+      turns: 1800,
+      deepestFloor: 19,
+      playerLevel: 14,
+      goldCollected: 1800,
+      monstersKilled: 75,
+      bossesDefeated: 2,
+      secretsFound: 4,
+      damageTaken: 360,
+    });
+    const slowWin = calculateScore({
+      outcome: 'won',
+      turns: 2600,
+      deepestFloor: 20,
+      playerLevel: 17,
+      goldCollected: 2100,
+      monstersKilled: 90,
+      bossesDefeated: 4,
+      secretsFound: 3,
+      damageTaken: 420,
+    });
+    const fastWin = calculateScore({
+      outcome: 'won',
+      turns: 1200,
+      deepestFloor: 20,
+      playerLevel: 15,
+      goldCollected: 1400,
+      monstersKilled: 65,
+      bossesDefeated: 4,
+      secretsFound: 2,
+      damageTaken: 220,
+    });
+
+    expect(slowWin).toBeGreaterThan(deepDeath);
+    expect(fastWin).toBeGreaterThanOrEqual(slowWin);
+  });
+});

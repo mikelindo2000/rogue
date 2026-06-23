@@ -4,7 +4,7 @@ import { monsterId } from './discovery';
 export type RunOutcome = 'won' | 'died';
 export type DeathCause = 'starvation' | 'monster' | 'trap_scroll' | 'unknown';
 
-export const SCORE_VERSION = 1;
+export const SCORE_VERSION = 2;
 
 export interface RunStatsV1 {
   version: 1;
@@ -369,16 +369,19 @@ export function finalizeRunStats(
 export function calculateScore(summary: Pick<RunSummaryV1,
   'outcome' | 'turns' | 'deepestFloor' | 'playerLevel' | 'goldCollected' | 'monstersKilled' | 'bossesDefeated' | 'secretsFound' | 'damageTaken'
 >): number {
+  const victoryBonus = summary.outcome === 'won' ? 16_000 : 0;
+  const victorySpeedBonus = summary.outcome === 'won' ? Math.max(0, 8_000 - summary.turns * 3) : 0;
   const raw =
-    summary.deepestFloor * 1000 +
-    summary.playerLevel * 500 +
-    summary.goldCollected +
-    summary.monstersKilled * 75 +
-    summary.bossesDefeated * 1000 +
-    summary.secretsFound * 250 +
-    (summary.outcome === 'won' ? 10_000 : 0) -
-    Math.floor(summary.turns / 5) -
-    Math.floor(summary.damageTaken / 10);
+    summary.deepestFloor * 1200 +
+    summary.playerLevel * 650 +
+    Math.round(summary.goldCollected * 0.75) +
+    summary.monstersKilled * 90 +
+    summary.bossesDefeated * 1600 +
+    summary.secretsFound * 350 +
+    victoryBonus +
+    victorySpeedBonus -
+    Math.floor(summary.turns / 6) -
+    Math.floor(summary.damageTaken / 12);
   return Math.max(0, raw);
 }
 
