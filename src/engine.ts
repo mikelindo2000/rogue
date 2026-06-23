@@ -12,7 +12,35 @@ import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equi
 import { VitalsSoundTracker } from './audio/vitals';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
-import type { SaveGameV1 } from './persistence/savegame';
+import type { SaveGameV2 } from './persistence/savegame';
+import {
+  buildRunSummary,
+  createRunStats,
+  recordAttack,
+  recordChest,
+  recordDamageDealt,
+  recordDamageTaken,
+  recordEquipmentChange,
+  recordExploredTiles,
+  recordFoodEaten,
+  recordFoodPickedUp,
+  recordGearPickedUp,
+  recordLevelGain,
+  recordMonsterDodge,
+  recordMonsterKilled,
+  recordPotionDrunk,
+  recordPotionPickedUp,
+  recordScrollTriggered,
+  recordSearch,
+  recordSecretReveal,
+  recordStairs,
+  recordStatusTurn,
+  recordStep,
+  recordVitals,
+  type DeathCause,
+  type RunStatsV1,
+  type RunSummaryV1,
+} from './runStats';
 import {
   loadDiscovery,
   saveDiscovery,
@@ -53,6 +81,8 @@ export class GameEngine {
   public logs: string[] = [];
   /** Turns elapsed this run — surfaced in the HUD; no effect on game logic. */
   public turn: number = 0;
+  public stats: RunStatsV1 = createRunStats();
+  public finalRunSummary: RunSummaryV1 | null = null;
 
   public statusEffects: StatusEffects = {
     vigorTurns: 0,
@@ -88,6 +118,7 @@ export class GameEngine {
   /** Notified after complete run-state mutations so the host can autosave.
    *  Wired in main.ts; never called mid-command (see autosave call sites). */
   public onRunChanged?: () => void;
+  public onRunFinished?: (summary: RunSummaryV1) => void;
 
   private autosave() {
     this.onRunChanged?.();
@@ -106,6 +137,8 @@ export class GameEngine {
   public initGame(seed: number = randomSeed()) {
     this.seed = seed;
     this.rng = makeRng(seed);
+    this.stats = createRunStats(seed);
+    this.finalRunSummary = null;
     this.player = createPlayer();
     this.dungeonFloor = 1;
     this.turn = 0;
@@ -199,10 +232,11 @@ export class GameEngine {
       for (let yy = py - dr; yy <= py + dr; yy++) {
         for (let xx = px - dr; xx <= px + dr; xx++) {
           if (xx < 0 || xx >= this.COLS || yy < 0 || yy >= this.ROWS) continue;
-          this.visible[yy][xx] = true;
-          this.explored[yy][xx] = true;
+      this.visible[yy][xx] = true;
+      this.explored[yy][xx] = true;
         }
       }
+      recordExploredTiles(this.stats, this.explored);
       this.recordSightings();
       return;
     }
@@ -249,6 +283,7 @@ export class GameEngine {
     // dark room (handled by Rule A above) or in corridors/doorways.
     this.revealRoom(px, py);
 
+    recordExploredTiles(this.stats, this.explored);
     this.recordSightings();
   }
 
@@ -273,33 +308,41 @@ export class GameEngine {
    * the player is in a corridor or doorway (handled by the raycast above).
    */
   private revealRoom(px: number, py: number) {
-    const isInterior = (ch: string | undefined) => ch === TILE.FLOOR || (ch !== undefined && STAIR_TILES.has(ch));
-    if (!isInterior(this.map[py]?.[px])) return;
-
     const reveal = (x: number, y: number) => {
       if (x < 0 || x >= this.COLS || y < 0 || y >= this.ROWS) return;
       this.visible[y][x] = true;
       this.explored[y][x] = true;
     };
 
-    const seen = new Set<number>([py * this.COLS + px]);
-    const stack: [number, number][] = [[px, py]];
-    while (stack.length) {
-      const [x, y] = stack.pop()!;
+    this.floodRoomInterior(px, py, (x, y) => {
       reveal(x, y);
-
       // Light the bounding wall ring (including diagonal corners) for this cell.
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
           if (dr === 0 && dc === 0) continue;
-          const nx = x + dc;
-          const ny = y + dr;
-          const ch = this.map[ny]?.[nx];
-          if (isWall(ch) || ch === TILE.DOOR) reveal(nx, ny);
+          const ch = this.map[y + dr]?.[x + dc];
+          if (isWall(ch) || ch === TILE.DOOR) reveal(x + dc, y + dr);
         }
       }
+    });
+  }
 
-      // Continue the flood across the room's floor (orthogonal only).
+  /**
+   * Flood the contiguous room-floor interior the player stands on, calling
+   * `visit(x, y)` for each interior tile (floor + stairs). The single source of
+   * truth for "which tiles are this room" — shared by revealRoom (lighting a lit
+   * room) and lightCurrentRoom (the Scroll of Light) so the two never diverge.
+   * No-op when the player is on a corridor/doorway/wall.
+   */
+  private floodRoomInterior(px: number, py: number, visit: (x: number, y: number) => void) {
+    const isInterior = (ch: string | undefined) => ch === TILE.FLOOR || (ch !== undefined && STAIR_TILES.has(ch));
+    if (!isInterior(this.map[py]?.[px])) return;
+
+    const seen = new Set<number>([py * this.COLS + px]);
+    const stack: [number, number][] = [[px, py]];
+    while (stack.length) {
+      const [x, y] = stack.pop()!;
+      visit(x, y);
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dc;
         const ny = y + dr;
@@ -322,6 +365,13 @@ export class GameEngine {
     const m = this.monsters.find(mon => mon.x === tx && mon.y === ty);
     if (m) {
       this.playerAttack(m);
+      if (this.gameWon) {
+        this.updateUI();
+        this.updateFOV();
+        this.draw();
+        this.autosave();
+        return;
+      }
       this.processTurn();
       return;
     }
@@ -336,6 +386,7 @@ export class GameEngine {
     ) {
       this.player.x = tx;
       this.player.y = ty;
+      recordStep(this.stats);
 
       this.checkItems();
 
@@ -360,6 +411,7 @@ export class GameEngine {
   public search(): boolean {
     if (this.gameOver || this.gameWon) return false;
 
+    recordSearch(this.stats);
     const found = this.tryRevealNearbySecret(0.25);
     this.addLog(found ? "You found a hidden door." : "You search carefully.");
     this.processTurn();
@@ -373,6 +425,7 @@ export class GameEngine {
     if (!isSecretDoor(this.map[ty]?.[tx])) return false;
 
     const found = this.rng.chance(0.15);
+    recordSearch(this.stats);
     if (found) {
       this.revealSecretDoor(tx, ty);
       this.addLog("You found a hidden door.");
@@ -400,6 +453,7 @@ export class GameEngine {
   private revealSecretDoor(x: number, y: number) {
     this.map[y][x] = TILE.DOOR;
     this.secretsFoundThisRun++;
+    recordSecretReveal(this.stats);
     this.updateFOV();
     this.sound.emit({ type: 'map.secretReveal' });
   }
@@ -454,6 +508,7 @@ export class GameEngine {
       const wasInCorridor = previousTile === TILE.CORRIDOR;
       this.player.x = tx;
       this.player.y = ty;
+      recordStep(this.stats, true);
 
       this.checkItems();
 
@@ -483,6 +538,7 @@ export class GameEngine {
 
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
+    recordStairs(this.stats, this.dungeonFloor, delta);
     this.sound.emit({ type: 'map.stairs', dir: delta > 0 ? 'down' : 'up' });
 
     // Log the transition before loading the floor, so any messages the
@@ -554,6 +610,7 @@ export class GameEngine {
       this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
       this.ui.fxMonsterDodge(monster, this.player.x, this.player.y);
       this.sound.emit({ type: 'combat.miss', actor: 'monster' });
+      recordMonsterDodge(this.stats);
       return;
     }
 
@@ -578,6 +635,7 @@ export class GameEngine {
     }
 
     monster.hp -= outcome.damage;
+    recordDamageDealt(this.stats, outcome.damage);
     this.addLog(`You strike ${monster.name} for ${outcome.damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
     this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: outcome.damage });
 
@@ -594,6 +652,7 @@ export class GameEngine {
   }
 
   public playerAttack(monster: Monster) {
+    recordAttack(this.stats);
     this.sound.emit({ type: 'combat.swing', actor: 'player' });
     const mainWep = this.player.inventory.weapons[this.player.equipped.mainHand];
     if (mainWep) {
@@ -630,8 +689,10 @@ export class GameEngine {
 
       if (xpGained > 0) {
         this.addLog(`Gained ${xpGained} Experience.`);
+        const levelBefore = this.player.level;
         const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
         if (leveled) {
+          recordLevelGain(this.stats, this.player.level - levelBefore);
           this.ui.updateDropdowns(this.player);
           this.sound.emit({ type: 'player.levelUp' });
         }
@@ -651,7 +712,9 @@ export class GameEngine {
           this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
         }
       }
+      recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
       this.monsters = this.monsters.filter(m => m !== monster);
+      if (this.gameWon) this.finalizeRun('won');
     }
   }
 
@@ -673,12 +736,15 @@ export class GameEngine {
         }
 
         this.player.gold += g;
+        recordChest(this.stats, g);
         this.addLog(`Looted a Chest! Found +${g} Gold.`);
 
         if (this.player.level < 20) {
           this.addLog(`Gained +${g} Experience from the chest contents.`);
+          const levelBefore = this.player.level;
           const leveled = gainXp(this.player, g, (msg) => this.addLog(msg), this.statusEffects);
           if (leveled) {
+            recordLevelGain(this.stats, this.player.level - levelBefore);
             this.ui.updateDropdowns(this.player);
             this.sound.emit({ type: 'player.levelUp' });
           }
@@ -692,11 +758,13 @@ export class GameEngine {
           pickedUp = false;
         } else {
           this.player.inventory.food++;
+          recordFoodPickedUp(this.stats);
           this.addLog("Looted Rations. Added to inventory.");
         }
       } else if (item.type === 'potion') {
         const pType = item.data.potionType;
         this.player.inventory.potions.push(pType);
+        recordPotionPickedUp(this.stats, pType);
         this.addLog(`Picked up a Potion of ${pType.charAt(0).toUpperCase() + pType.slice(1)}.`);
       } else if (item.type === 'scroll' && item.data?.scrollType) {
         // Named, carryable scroll — picked up into inventory, read on demand.
@@ -709,15 +777,19 @@ export class GameEngine {
         if (r < scroll.vigorCut) {
           this.statusEffects.vigorTurns = status.vigorTurns;
           this.player.hp = this.player.maxHp * status.vigorHpMultiplier;
+          recordScrollTriggered(this.stats, 'vigor');
           this.addLog("Vigor! HP doubled.");
         } else if (r < scroll.fatigueCut) {
           this.player.hunger = scroll.fatigueHunger;
+          recordScrollTriggered(this.stats, 'fatigue');
           this.addLog("Suddenly fatigued!");
         } else if (r < scroll.midasCut) {
           this.statusEffects.midasTurns = status.midasTurns;
+          recordScrollTriggered(this.stats, 'midas');
           this.addLog("Midas scroll active.");
         } else {
           this.player.hp -= scroll.trapDamage;
+          recordScrollTriggered(this.stats, 'trap');
           this.addLog(`Trap scroll triggered! -${scroll.trapDamage} HP.`);
         }
       } else if (item.type === 'repair_scroll') {
@@ -735,9 +807,11 @@ export class GameEngine {
         if (c.includes('sword') || c.includes('mace') || c === 'dagger' || c === 'staff') {
           item.data.type = c as GearItem['type'];
           this.player.inventory.weapons.push(item.data);
+          recordGearPickedUp(this.stats, item.data);
           this.addLog(`Looted: ${styledName} (+${item.data.dmg} ATK).`);
         } else {
           this.player.inventory[c as GearSlot].push(item.data);
+          recordGearPickedUp(this.stats, item.data);
           this.addLog(`Looted: ${styledName} (${item.data.def} DEF).`);
         }
       }
@@ -774,6 +848,7 @@ export class GameEngine {
     }
 
     this.sound.emit({ type: 'item.consume', kind: 'potion' });
+    recordPotionDrunk(this.stats, pType);
     this.player.inventory.potions.splice(index, 1);
     this.ui.updateDropdowns(this.player);
     this.processTurn();
@@ -811,6 +886,7 @@ export class GameEngine {
     }
 
     scrolls.splice(index, 1);
+    recordScrollTriggered(this.stats, `read:${type}`);
     this.sound.emit({ type: 'item.consume', kind: 'scroll' });
     this.ui.updateDropdowns(this.player);
     this.processTurn();
@@ -886,6 +962,7 @@ export class GameEngine {
         this.addLog("Ate rations. Hunger restored.");
       }
       this.sound.emit({ type: 'item.consume', kind: 'food' });
+      recordFoodEaten(this.stats);
       this.updateUI();
       this.processTurn();
       return true;
@@ -899,6 +976,7 @@ export class GameEngine {
     const before = snapshotEquipped(this.player);
     const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, ok);
+    if (ok) recordEquipmentChange(this.stats);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
     this.autosave();
@@ -933,6 +1011,7 @@ export class GameEngine {
     const before = snapshotEquipped(this.player);
     const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, equipped);
+    if (equipped) recordEquipmentChange(this.stats);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
     if (equipped) this.autosave();
@@ -960,6 +1039,7 @@ export class GameEngine {
       const before = snapshotEquipped(this.player);
       const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
       this.emitEquipSounds(before, equipped);
+      if (equipped) recordEquipmentChange(this.stats);
       this.ui.updateDropdowns(this.player);
       this.updateUI();
       if (equipped) this.autosave();
@@ -970,7 +1050,9 @@ export class GameEngine {
   }
 
   public processTurn() {
+    if (this.gameOver || this.gameWon) return;
     this.turn++;
+    const hpAtTurnStart = this.player.hp;
 
     // Decr status effects
     if (this.statusEffects.vigorTurns > 0) {
@@ -1014,6 +1096,10 @@ export class GameEngine {
 
     if (this.player.hp <= 0) {
       this.gameOver = true;
+      const cause: DeathCause = hpAtTurnStart <= 0 ? 'trap_scroll' : 'starvation';
+      recordDamageTaken(this.stats, Math.max(0, hpAtTurnStart - this.player.hp));
+      recordVitals(this.stats, this.player.hp, this.player.hunger);
+      this.finalizeRun('died', cause);
       this.addLog("GAME OVER. Press R.");
       this.sound.emit({ type: 'player.death' });
       this.updateUI();
@@ -1045,15 +1131,26 @@ export class GameEngine {
       this.dark
     );
     if (this.player.hp < hpBeforeMonsters) {
+      recordDamageTaken(this.stats, hpBeforeMonsters - this.player.hp);
       this.ui.fxPlayerHit();
       this.sound.emit({ type: 'combat.hit', actor: 'monster', target: 'player' });
     }
 
     if (this.player.hp <= 0) {
       this.gameOver = true;
+      recordVitals(this.stats, this.player.hp, this.player.hunger);
+      this.finalizeRun('died', 'monster');
       this.addLog("GAME OVER. Press R.");
       this.sound.emit({ type: 'player.death' });
     } else {
+      recordVitals(this.stats, this.player.hp, this.player.hunger);
+      recordStatusTurn(this.stats, {
+        vigor: this.statusEffects.vigorTurns > 0,
+        midas: this.statusEffects.midasTurns > 0,
+        strength: this.statusEffects.strengthTurns > 0,
+        invisible: this.statusEffects.invisTurns > 0,
+        armored: this.statusEffects.armorTurns > 0,
+      });
       this.emitVitalSounds();
     }
 
@@ -1095,12 +1192,30 @@ export class GameEngine {
     );
   }
 
+  private finalizeRun(outcome: 'won' | 'died', deathCause?: DeathCause): RunSummaryV1 {
+    if (this.finalRunSummary?.runId === this.stats.runId) return this.finalRunSummary;
+    const summary = buildRunSummary({
+      outcome,
+      seed: this.seed,
+      turns: this.turn,
+      floorReached: this.dungeonFloor,
+      player: this.player,
+      finalDefense: getTotalDef(this.player, this.statusEffects),
+      stats: this.stats,
+      finalLogs: this.logs,
+      deathCause,
+    });
+    this.finalRunSummary = summary;
+    this.onRunFinished?.(summary);
+    return summary;
+  }
+
   /**
    * Deep, JSON-serializable snapshot of the full run state. `visible` is
    * omitted (recomputed on restore via updateFOV) and `discovery` is excluded
    * (persisted independently in discovery.ts).
    */
-  public snapshot(): SaveGameV1 {
+  public snapshot(): SaveGameV2 {
     return {
       seed: this.seed,
       rngState: this.rng.getState(),
@@ -1125,6 +1240,7 @@ export class GameEngine {
       }]),
       searchHintShown: this.searchHintShown,
       secretsFoundThisRun: this.secretsFoundThisRun,
+      stats: structuredClone(this.stats),
     };
   }
 
@@ -1132,7 +1248,7 @@ export class GameEngine {
    * Rebuild the run from an ALREADY-VALIDATED save (savegame.ts owns
    * validation). Returns false and leaves prior state if the rebuild throws.
    */
-  public restore(save: SaveGameV1): boolean {
+  public restore(save: SaveGameV2): boolean {
     try {
       this.seed = save.seed;
       this.rng = makeRng(save.seed, save.rngState);
@@ -1160,6 +1276,8 @@ export class GameEngine {
       }]));
       this.searchHintShown = save.searchHintShown;
       this.secretsFoundThisRun = save.secretsFoundThisRun;
+      this.stats = structuredClone(save.stats);
+      this.finalRunSummary = null;
 
       this.updateFOV();
       this.ui.updateDropdowns(this.player);
@@ -1167,6 +1285,8 @@ export class GameEngine {
       this.ui.resetLog();
       this.ui.renderLogs(this.logs);
       this.ui.syncDiscovery(this.discovery);
+      if (this.gameWon) this.finalizeRun('won');
+      else if (this.gameOver) this.finalizeRun('died', this.stats.deathCause ?? 'unknown');
       return true;
     } catch (e) {
       console.error('Failed to restore save game', e);

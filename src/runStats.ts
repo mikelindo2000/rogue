@@ -133,6 +133,8 @@ export interface BuildRunSummaryParams {
   finalLogs: string[];
   completedAt?: string;
   nowMs?: number;
+  deathCause?: DeathCause;
+  killedByMonsterId?: string;
 }
 
 const POTION_TYPES = ['healing', 'strength', 'invisibility', 'armor'] as const satisfies readonly PotionType[];
@@ -430,7 +432,12 @@ function offHandName(player: Player): string | undefined {
 export function buildRunSummary(params: BuildRunSummaryParams): RunSummaryV1 {
   const { outcome, seed, turns, floorReached, player, finalDefense, finalLogs } = params;
   const completedAt = params.completedAt ?? params.stats.endedAt ?? isoNow();
-  const stats = finalizeRunStats(params.stats, outcome, { completedAt, nowMs: params.nowMs });
+  const stats = finalizeRunStats(params.stats, outcome, {
+    completedAt,
+    nowMs: params.nowMs,
+    deathCause: params.deathCause,
+    killedByMonsterId: params.killedByMonsterId,
+  });
   const armorCount = GEAR_SLOTS.reduce((sum, slot) => sum + player.inventory[slot].length, 0);
   const summaryBase = {
     runId: stats.runId,
@@ -453,7 +460,7 @@ export function buildRunSummary(params: BuildRunSummaryParams): RunSummaryV1 {
     hunger: player.hunger,
     inventory: {
       food: player.inventory.food,
-      potions: countValues(POTION_TYPES.flatMap(type => new Array(player.inventory.potions.filter(p => p === type).length).fill(type))),
+      potions: { ...emptyPotionCounts(), ...countValues(POTION_TYPES.flatMap(type => new Array(player.inventory.potions.filter(p => p === type).length).fill(type))) },
       scrolls: { ...emptyScrollCounts(), ...countValues(SCROLL_TYPES.flatMap(type => new Array(player.inventory.scrolls.filter(s => s === type).length).fill(type))) },
       weapons: player.inventory.weapons.length,
       armor: armorCount,

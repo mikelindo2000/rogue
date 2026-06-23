@@ -9,11 +9,12 @@
 import type { Player, Monster, Item, StatusEffects } from '../types';
 import type { FloorState } from '../engine';
 import { SCROLL_TYPES } from '../itemVisuals';
+import { normalizeRunStats, type RunStatsV1 } from '../runStats';
 import { defineStore, resolveBackend, type Store } from './store';
 
 const KNOWN_SCROLL_TYPES = new Set<string>(SCROLL_TYPES);
 
-export interface SaveGameV1 {
+export interface SaveGameV2 {
   seed: number;
   rngState: number;
   player: Player;
@@ -33,13 +34,14 @@ export interface SaveGameV1 {
   floorStates: [number, FloorState][];
   searchHintShown: boolean;
   secretsFoundThisRun: number;
+  stats: RunStatsV1;
 }
 
 const STORAGE_KEY = 'rogue_savegame';
-const VERSION = 1;
+const VERSION = 2;
 
-function store(backend?: Storage | null): Store<SaveGameV1 | null> {
-  return defineStore<SaveGameV1 | null>({
+function store(backend?: Storage | null): Store<SaveGameV2 | null> {
+  return defineStore<SaveGameV2 | null>({
     key: STORAGE_KEY,
     version: VERSION,
     defaults: null,
@@ -48,12 +50,12 @@ function store(backend?: Storage | null): Store<SaveGameV1 | null> {
   });
 }
 
-export function loadSaveGame(backend?: Storage | null): SaveGameV1 | null {
+export function loadSaveGame(backend?: Storage | null): SaveGameV2 | null {
   const raw = store(backend).load();
   return validateSaveGame(raw);
 }
 
-export function saveSaveGame(save: SaveGameV1, backend?: Storage | null): void {
+export function saveSaveGame(save: SaveGameV2, backend?: Storage | null): void {
   store(backend).save(save);
 }
 
@@ -71,10 +73,10 @@ function isGridOfArrays(v: unknown): boolean {
 
 /**
  * Runtime validation of a parsed save blob. Returns the value typed as
- * `SaveGameV1` only when every required field is present and well-typed;
+ * `SaveGameV2` only when every required field is present and well-typed;
  * otherwise `null`. Unknown extra fields are ignored.
  */
-export function validateSaveGame(raw: unknown): SaveGameV1 | null {
+export function validateSaveGame(raw: unknown): SaveGameV2 | null {
   if (!isObject(raw)) return null;
 
   const numericFields = ['seed', 'rngState', 'turn', 'dungeonFloor', 'secretsFoundThisRun'];
@@ -155,5 +157,8 @@ export function validateSaveGame(raw: unknown): SaveGameV1 | null {
   }
   if (!isObject(p.inventory) || !isObject(p.equipped)) return null;
 
-  return raw as unknown as SaveGameV1;
+  const stats = normalizeRunStats(raw.stats, raw.seed as number);
+  if (!stats) return null;
+
+  return { ...(raw as unknown as Omit<SaveGameV2, 'stats'>), stats };
 }

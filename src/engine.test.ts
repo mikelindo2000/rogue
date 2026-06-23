@@ -140,6 +140,44 @@ describe('GameEngine boss victory conditions', () => {
 
     expect(engine.gameWon).toBe(false);
   });
+
+  it('creates a victory summary only for the real final boss condition', () => {
+    const early = makeBossKiller(1);
+    early.playerAttack(makeBoss());
+    expect(early.gameWon).toBe(false);
+    expect(early.finalRunSummary).toBeNull();
+
+    const finale = makeBossKiller(20);
+    const dragon = makeBoss('Dragon King');
+    const marcus = makeBoss('Marcus the Brave');
+    finale.monsters = [dragon, marcus];
+    finale.playerAttack(dragon);
+    expect(finale.finalRunSummary).toBeNull();
+
+    finale.playerAttack(marcus);
+    expect(finale.finalRunSummary?.outcome).toBe('won');
+    expect(finale.finalRunSummary?.bossesDefeated).toBe(2);
+  });
+});
+
+describe('GameEngine terminal run summaries', () => {
+  it('finalizes a starvation death once and ignores later processTurn calls', () => {
+    const engine = makeRunner();
+    engine.player.hp = 1;
+    engine.player.hunger = 0;
+
+    engine.processTurn();
+    const summary = engine.finalRunSummary;
+
+    expect(engine.gameOver).toBe(true);
+    expect(summary?.outcome).toBe('died');
+    expect(summary?.deathCause).toBe('starvation');
+    expect(summary?.turns).toBe(1);
+
+    engine.processTurn();
+    expect(engine.turn).toBe(1);
+    expect(engine.finalRunSummary).toBe(summary);
+  });
 });
 
 describe('GameEngine stair travel', () => {

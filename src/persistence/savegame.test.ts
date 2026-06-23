@@ -187,12 +187,14 @@ describe('savegame storage round trip', () => {
     const engine = newEngine();
     engine.initGame(SEED);
     for (let i = 0; i < 10; i++) engine.processTurn();
+    engine.stats.stepsWalked = 3;
 
     const snap = engine.snapshot();
     saveSaveGame(snap, mem);
     const loaded = loadSaveGame(mem);
 
     expect(loaded).toEqual(snap);
+    expect(loaded?.stats.stepsWalked).toBe(3);
   });
 });
 
@@ -205,6 +207,16 @@ describe('savegame validation', () => {
     engine.initGame(SEED);
     const snap = engine.snapshot();
     mem.setItem(KEY, JSON.stringify({ v: 99, data: snap }));
+
+    expect(loadSaveGame(mem)).toBeNull();
+  });
+
+  it('discards old V1 save wrappers instead of migrating them', () => {
+    const mem = new MemoryStorage();
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot();
+    mem.setItem(KEY, JSON.stringify({ v: 1, data: snap }));
 
     expect(loadSaveGame(mem)).toBeNull();
   });
