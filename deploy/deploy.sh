@@ -242,16 +242,120 @@ server {
 NGINX
 }
 
+preflight_deploy() {
+  log "Running deploy preflight"
+  ssh "$DEPLOY_SERVER" bash -s -- "$DEPLOY_APP_DIR" <<'REMOTE'
+set -Eeuo pipefail
+
+app_dir="$1"
+
+for command_name in nginx certbot systemctl mktemp sha256sum; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    printf 'missing remote command: %s\n' "$command_name" >&2
+    exit 1
+  }
+done
+
+[[ -d /etc/nginx/sites-available ]] || {
+  printf 'missing nginx sites-available directory\n' >&2
+  exit 1
+}
+
+[[ -d /etc/nginx/sites-enabled ]] || {
+  printf 'missing nginx sites-enabled directory\n' >&2
+  exit 1
+}
+
+mkdir -p "$app_dir/dist" /var/www/html
+[[ -w "$app_dir/dist" ]] || {
+  printf 'remote dist directory is not writable: %s/dist\n' "$app_dir" >&2
+  exit 1
+}
+REMOTE
+}
+
 install_nginx_config() {
   local mode="$1"
   local tmp_config
   tmp_config="$(mktemp)"
   write_nginx_config "$mode" "$tmp_config"
 
-  log "Installing nginx config ($mode)"
-  scp -q "$tmp_config" "$DEPLOY_SERVER:/etc/nginx/sites-available/$DEPLOY_DOMAIN"
+  local remote_tmp="/tmp/rogue-nginx-$DEPLOY_DOMAIN.$$"
+  log "Checking nginx config ($mode)"
+  scp -q "$tmp_config" "$DEPLOY_SERVER:$remote_tmp"
   rm -f "$tmp_config"
-  ssh "$DEPLOY_SERVER" "ln -sf /etc/nginx/sites-available/$DEPLOY_DOMAIN /etc/nginx/sites-enabled/$DEPLOY_DOMAIN && nginx -t && systemctl reload nginx"
+
+  local status
+  if ssh "$DEPLOY_SERVER" bash -s -- "$mode" "$DEPLOY_DOMAIN" "$remote_tmp" <<'REMOTE'
+set -Eeuo pipefail
+
+mode="$1"
+domain="$2"
+candidate="$3"
+available="/etc/nginx/sites-available/$domain"
+enabled="/etc/nginx/sites-enabled/$domain"
+candidate_hash="$(sha256sum "$candidate" | awk '{print $1}')"
+current_hash=""
+enabled_target=""
+
+if [[ -f "$available" ]]; then
+  current_hash="$(sha256sum "$available" | awk '{print $1}')"
+fi
+
+if [[ -L "$enabled" ]]; then
+  enabled_target="$(readlink "$enabled")"
+fi
+
+if [[ "$candidate_hash" == "$current_hash" && "$enabled_target" == "$available" ]]; then
+  rm -f "$candidate"
+  exit 10
+fi
+
+backup=""
+had_available=0
+if [[ -e "$available" ]]; then
+  had_available=1
+  backup="$(mktemp)"
+  cp -a "$available" "$backup"
+fi
+
+cleanup() {
+  rm -f "$candidate"
+  if [[ -n "${backup:-}" ]]; then
+    rm -f "$backup"
+  fi
+}
+trap cleanup EXIT
+
+printf 'Installing nginx config (%s)\n' "$mode"
+cp "$candidate" "$available"
+ln -sfn "$available" "$enabled"
+
+if ! nginx -t; then
+  if [[ "$had_available" == "1" ]]; then
+    cp -a "$backup" "$available"
+  else
+    rm -f "$available" "$enabled"
+  fi
+  printf 'nginx config failed validation; restored previous %s config\n' "$domain" >&2
+  exit 1
+fi
+
+systemctl reload nginx
+REMOTE
+  then
+    log "Installed nginx config ($mode)"
+    return
+  else
+    status=$?
+  fi
+
+  if [[ "$status" -eq 10 ]]; then
+    log "nginx config ($mode) already current; skipping reload"
+    return
+  fi
+
+  fail "nginx config ($mode) failed preflight"
 }
 
 ensure_certificate() {
@@ -266,16 +370,62 @@ ensure_certificate() {
 }
 
 ensure_certificate_renewal() {
-  log "Configuring Let's Encrypt automatic renewal"
-  ssh "$DEPLOY_SERVER" "mkdir -p /etc/letsencrypt/renewal-hooks/deploy && cat >/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh <<'HOOK'
+  log "Checking Let's Encrypt automatic renewal"
+  local status
+  if ssh "$DEPLOY_SERVER" bash -s <<'REMOTE'
+set -Eeuo pipefail
+
+hook_dir="/etc/letsencrypt/renewal-hooks/deploy"
+hook_path="$hook_dir/reload-nginx.sh"
+desired_hook="$(mktemp)"
+
+cleanup() {
+  rm -f "$desired_hook"
+}
+trap cleanup EXIT
+
+cat >"$desired_hook" <<'HOOK'
 #!/usr/bin/env bash
 set -euo pipefail
 systemctl reload nginx
 HOOK
-chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+
+mkdir -p "$hook_dir"
+
+hook_current=0
+if [[ -f "$hook_path" ]] && [[ "$(sha256sum "$hook_path" | awk '{print $1}')" == "$(sha256sum "$desired_hook" | awk '{print $1}')" ]]; then
+  hook_current=1
+else
+  cp "$desired_hook" "$hook_path"
+  chmod +x "$hook_path"
+fi
+
+timer_current=0
+if systemctl is-enabled certbot.timer >/dev/null 2>&1 && systemctl is-active certbot.timer >/dev/null 2>&1; then
+  timer_current=1
+fi
+
+if [[ "$hook_current" == "1" && "$timer_current" == "1" ]]; then
+  exit 10
+fi
+
 systemctl enable --now certbot.timer
 systemctl is-enabled certbot.timer >/dev/null
-systemctl is-active certbot.timer >/dev/null"
+systemctl is-active certbot.timer >/dev/null
+REMOTE
+  then
+    log "Configured Let's Encrypt automatic renewal"
+    return
+  else
+    status=$?
+  fi
+
+  if [[ "$status" -eq 10 ]]; then
+    log "Let's Encrypt automatic renewal already current"
+    return
+  fi
+
+  fail "Let's Encrypt automatic renewal preflight failed"
 }
 
 deploy_static_files() {
@@ -291,13 +441,19 @@ deploy_static_files() {
 
 verify_deploy() {
   log "Verifying https://$DEPLOY_DOMAIN"
-  local curl_args=()
+  local resolve_arg=""
   if ! dig +short "$DEPLOY_DOMAIN" | grep -Fxq "$DEPLOY_DNS_TARGET"; then
-    curl_args=(--resolve "$DEPLOY_DOMAIN:443:$DEPLOY_DNS_TARGET")
+    resolve_arg="$DEPLOY_DOMAIN:443:$DEPLOY_DNS_TARGET"
   fi
 
-  curl -fsSI "${curl_args[@]}" "https://$DEPLOY_DOMAIN" >/dev/null
-  curl -fsS "${curl_args[@]}" "https://$DEPLOY_DOMAIN" | grep -Eq '<div id="app"></div>|<script[^>]+type="module"'
+  if [[ -n "$resolve_arg" ]]; then
+    curl -fsSI --resolve "$resolve_arg" "https://$DEPLOY_DOMAIN" >/dev/null
+    curl -fsS --resolve "$resolve_arg" "https://$DEPLOY_DOMAIN" | grep -Eq '<div id="app"></div>|<script[^>]+type="module"'
+    return
+  fi
+
+  curl -fsSI "https://$DEPLOY_DOMAIN" >/dev/null
+  curl -fsS "https://$DEPLOY_DOMAIN" | grep -Eq '<div id="app"></div>|<script[^>]+type="module"'
 }
 
 main() {
@@ -324,6 +480,7 @@ main() {
   require_command scp
   require_command ssh
 
+  preflight_deploy
   upsert_dns_record
   wait_for_dns
   deploy_static_files
