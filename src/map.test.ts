@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
-import { generateLevel } from './map';
+import { generateLevel, darkRoomChance } from './map';
 import { makeRng } from './rng';
-import { TILE, isWalkable } from './tiles';
+import { TILE, isWalkable, STAIR_TILES } from './tiles';
 
 // Engine dimensions (see Engine.COLS / Engine.ROWS in src/engine.ts).
 const COLS = 46;
@@ -343,5 +343,67 @@ describe('generateLevel', () => {
         }
       }
     }
+  });
+});
+
+describe('dark rooms', () => {
+  const anyDark = (lvl: Level) => lvl.dark.some(row => row.some(Boolean));
+
+  it('produces no dark tiles on floors 1-2 (any seed)', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      expect(anyDark(gen(1, seed)), `floor 1 seed ${seed}`).toBe(false);
+      expect(anyDark(gen(2, seed)), `floor 2 seed ${seed}`).toBe(false);
+    }
+  });
+
+  it('never darkens floor 20 (the finale stays lit)', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      expect(anyDark(gen(20, seed)), `floor 20 seed ${seed}`).toBe(false);
+    }
+  });
+
+  it('can produce dark rooms from floor 3 onward', () => {
+    let sawDark = false;
+    for (let seed = 1; seed <= 40 && !sawDark; seed++) sawDark = anyDark(gen(3, seed));
+    expect(sawDark).toBe(true);
+  });
+
+  it('darkRoomChance is 0 on floors 1-2 and 20, positive and non-decreasing 3..19', () => {
+    expect(darkRoomChance(1)).toBe(0);
+    expect(darkRoomChance(2)).toBe(0);
+    expect(darkRoomChance(20)).toBe(0);
+    for (let f = 3; f < 19; f++) {
+      expect(darkRoomChance(f)).toBeGreaterThan(0);
+      expect(darkRoomChance(f + 1) >= darkRoomChance(f) || darkRoomChance(f + 1) === 0).toBe(true);
+    }
+  });
+
+  it('never marks the player start tile dark', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const lvl = gen(8, seed);
+      expect(lvl.dark[lvl.playerY][lvl.playerX], `seed ${seed}`).toBe(false);
+    }
+  });
+
+  it('only marks interior floor/stair tiles dark, never walls/doors/corridors/void', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const lvl = gen(12, seed);
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (!lvl.dark[y][x]) continue;
+          const ch = lvl.map[y][x];
+          expect(ch === TILE.FLOOR || STAIR_TILES.has(ch), `seed ${seed} (${x},${y})='${ch}'`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('returns real-room rects covering the player start', () => {
+    const lvl = gen(5, 7);
+    expect(lvl.rooms.length).toBeGreaterThanOrEqual(2);
+    const inStart = lvl.rooms.some(
+      r => lvl.playerX >= r.l && lvl.playerX <= r.r && lvl.playerY >= r.t && lvl.playerY <= r.b
+    );
+    expect(inStart).toBe(true);
   });
 });

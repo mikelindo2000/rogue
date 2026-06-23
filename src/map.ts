@@ -3,7 +3,7 @@ import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
 import { POTION_TYPES, potionVisual } from './itemVisuals';
-import { TILE, isWalkable } from './tiles';
+import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
 import { assert, devAssert } from './assert';
 
@@ -52,6 +52,18 @@ interface Room {
   r: number;
   b: number;
   /** A walkable anchor: room centre for real rooms, the junction for gone. */
+  cx: number;
+  cy: number;
+}
+
+/** Public, serialization-free room bounds surfaced to the engine (E1). Real
+ *  rooms only; `cx/cy` is the walkable centre. Generation builds the full `Room`
+ *  internally — this is the slice runtime code is allowed to see. */
+export interface RoomRect {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
   cx: number;
   cy: number;
 }
@@ -319,6 +331,17 @@ function pickDepthMonster(floor: number, rng: RNG): MonsterTemplate | null {
   return pool[pool.length - 1];
 }
 
+/**
+ * Per-room chance of being dark on `floor`. Zero on floors 1-2 (teach the game
+ * with everything lit) and floor 20 (the boss finale stays lit); otherwise it
+ * climbs with depth, capped. See design/DARK_ROOMS_AND_LIGHT_PLAN.md.
+ */
+export function darkRoomChance(floor: number): number {
+  const M = BALANCE.map;
+  if (floor < 3 || floor >= 20) return 0;
+  return Math.min(M.darkRoomMaxChance, M.darkRoomBase + (floor - 3) * M.darkRoomFloorScale);
+}
+
 export function generateLevel(
   dungeonFloor: number,
   // Kept for signature stability; monster variety is now gated on dungeon depth
@@ -329,6 +352,8 @@ export function generateLevel(
   rng: RNG
 ): {
   map: string[][];
+  dark: boolean[][];
+  rooms: RoomRect[];
   playerX: number;
   playerY: number;
   monsters: Monster[];
@@ -339,6 +364,9 @@ export function generateLevel(
   stairsDownY: number;
 } {
   const map: string[][] = new Array(rows).fill(0).map(() => new Array(cols).fill(TILE.VOID));
+  // Parallel to the engine's explored/visible grids: true on a dark room's
+  // interior tiles (floor + stairs). Filled after stairs are placed, below.
+  const dark: boolean[][] = new Array(rows).fill(0).map(() => new Array(cols).fill(false));
   const monsters: Monster[] = [];
   const items: Item[] = [];
 
@@ -495,6 +523,25 @@ export function generateLevel(
     rows
   );
 
+  // Mark dark rooms. Runs AFTER start/stairs are fixed so we can spare the start
+  // room (never blind the player on arrival) and honour the darkStairRooms knob.
+  // Interior includes the stairs tile (matches the engine's room predicate), so
+  // standing on the stairs in a dark room still shows only the 3x3.
+  const dchance = darkRoomChance(dungeonFloor);
+  if (dchance > 0) {
+    for (const room of realRooms) {
+      if (room === startRoom) continue;
+      if (!BALANCE.map.darkStairRooms && room === endRoom) continue;
+      if (!rng.chance(dchance)) continue;
+      for (let y = room.t + 1; y < room.b; y++) {
+        for (let x = room.l + 1; x < room.r; x++) {
+          const ch = map[y][x];
+          if (ch === TILE.FLOOR || STAIR_TILES.has(ch)) dark[y][x] = true;
+        }
+      }
+    }
+  }
+
   for (const encounter of encountersForFloor(dungeonFloor)) {
     const encounterRoom = roomForEncounter(encounter, endRoom);
     spawnEncounter(encounter, encounterRoom, monsters, map);
@@ -571,6 +618,8 @@ export function generateLevel(
 
   return {
     map,
+    dark,
+    rooms: realRooms.map(({ l, t, r, b, cx, cy }) => ({ l, t, r, b, cx, cy })),
     playerX,
     playerY,
     monsters,

@@ -63,7 +63,21 @@ export const BALANCE = {
       scrollCut: 0.85,
       gearChance: 0.45,
       monsterChance: 0.82,
+      // Of the generic scrolls that spawn on floor 3+, this fraction become a
+      // Scroll of Light instead (the rest stay the random-effect scroll).
+      lightScrollCut: 0.5,
     },
+    // Dark rooms (original-Rogue style): a room with no ambient light reveals
+    // only the player's immediate 3x3 until lit. Never on floors 1-2 (learn the
+    // game first) or floor 20 (the finale stays lit). Chance climbs with depth.
+    // See design/DARK_ROOMS_AND_LIGHT_PLAN.md.
+    darkRoomBase: 0.15,
+    darkRoomFloorScale: 0.03,
+    darkRoomMaxChance: 0.5,
+    // When false, the up/down stair rooms are never dark. Default true: stairs
+    // can sit in darkness (found by walking in), which adds tension without ever
+    // blocking reachability (darkness never changes walkability).
+    darkStairRooms: true,
   },
   fov: {
     rays: 72,
