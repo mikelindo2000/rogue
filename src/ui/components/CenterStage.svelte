@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
-  import KeyCap from './primitives/KeyCap.svelte';
+  import EndRunScreen from './EndRunScreen.svelte';
   import { getDungeonStyle } from '../../theme';
   import { pickRandomBg, backgroundUrl } from '../backgrounds';
 
@@ -55,17 +55,7 @@
     <MonsterTooltip />
   {/if}
 
-  {#if ui.gameOver || ui.gameWon}
-    <div class="end-overlay">
-      <div class="end-card" class:won={ui.gameWon}>
-        <div class="end-title">{ui.gameWon ? 'Victory' : 'You died'}</div>
-        <div class="end-sub">
-          {ui.gameWon ? 'You escaped the dungeon.' : 'The dungeon claims another.'}
-        </div>
-        <div class="end-hint">Press <KeyCap>R</KeyCap> to restart</div>
-      </div>
-    </div>
-  {/if}
+  <EndRunScreen />
 </div>
 
 <style>
@@ -144,50 +134,5 @@
   .stairs-pill .text {
     font: 500 var(--fs-sm) var(--font-ui);
     color: var(--text-muted);
-  }
-  .end-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
-  }
-  .end-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 28px 40px;
-    background: var(--surface-popover);
-    border: 1px solid var(--danger);
-    border-radius: var(--r-2xl);
-    box-shadow: var(--shadow-pop);
-    text-align: center;
-  }
-  .end-card.won {
-    border-color: var(--accent);
-  }
-  .end-title {
-    font: 700 24px var(--font-display);
-    letter-spacing: var(--tracking-tight);
-    color: var(--danger);
-  }
-  .end-card.won .end-title {
-    color: var(--accent);
-  }
-  .end-sub {
-    font: 500 var(--fs-body) var(--font-ui);
-    color: var(--text-muted);
-  }
-  .end-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-    font: 500 var(--fs-sm) var(--font-ui);
-    color: var(--text-dim);
   }
 </style>

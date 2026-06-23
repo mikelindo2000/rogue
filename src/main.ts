@@ -6,7 +6,16 @@ import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
 import { loadSaveGame, saveSaveGame } from './persistence/savegame';
+import {
+  clearRunHistory,
+  compareRunToRecords,
+  computeRecords,
+  loadRunHistory,
+  upsertRunSummary,
+} from './persistence/runHistory';
 import { loadSettings, updateSettings } from './persistence/settings';
+import { buildCopySummary } from './ui/endRunView';
+import type { RunSummaryV1 } from './runStats';
 import { createAudioService } from './audio/service';
 import { createMusicService } from './audio/music';
 import { selectMusicContext } from './audio/director';
@@ -58,6 +67,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }),
     );
 
+  const publishEndRunSummary = (summary: RunSummaryV1) => {
+    const history = loadRunHistory();
+    const historyWithoutCurrent = { runs: history.runs.filter(run => run.runId !== summary.runId) };
+    const recordsBefore = computeRecords(historyWithoutCurrent);
+    const comparison = compareRunToRecords(summary, recordsBefore);
+    const updatedHistory = upsertRunSummary(summary);
+    ui.endRunSummary = summary;
+    ui.endRunComparison = comparison;
+    ui.endRunHistory = updatedHistory.runs;
+    ui.endRunRecords = computeRecords(updatedHistory);
+  };
+
   // Autosave: trailing debounce around normal writes, plus an immediate flush
   // on tab close/hide. Wired before the initial load/restore so the fresh-run
   // autosave from initGame() (or restore path) is captured.
@@ -80,6 +101,11 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTimer = setTimeout(flushSave, 500);
   };
   engine.onRunChanged = () => {
+    scheduleSave();
+    updateMusic();
+  };
+  engine.onRunFinished = (summary) => {
+    publishEndRunSummary(summary);
     scheduleSave();
     updateMusic();
   };
@@ -115,6 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.eat = () => engine.consumeFood();
   actions.restart = () => {
     if (engine.gameOver || engine.gameWon) {
+      ui.endRunSummary = null;
+      ui.endRunComparison = null;
+      ui.endRunCopyStatus = '';
       engine.initGame();
       engine.draw();
     }
@@ -157,6 +186,29 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.testSound = () => {
     audio.unlock();
     audio.test();
+  };
+  actions.copyEndRunSummary = () => {
+    if (!ui.endRunSummary) return;
+    const text = buildCopySummary(ui.endRunSummary, ui.endRunComparison);
+    if (!navigator.clipboard?.writeText) {
+      ui.endRunCopyStatus = 'Clipboard unavailable';
+      return;
+    }
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        ui.endRunCopyStatus = 'Copied summary';
+      })
+      .catch(() => {
+        ui.endRunCopyStatus = 'Copy failed';
+      });
+  };
+  actions.clearRunHistory = () => {
+    clearRunHistory();
+    ui.endRunHistory = [];
+    ui.endRunRecords = computeRecords({ runs: [] });
+    ui.endRunComparison = ui.endRunSummary
+      ? compareRunToRecords(ui.endRunSummary, ui.endRunRecords)
+      : null;
   };
   actions.selectInventoryItem = (ref) => {
     ui.selectedInventoryRef = ref;

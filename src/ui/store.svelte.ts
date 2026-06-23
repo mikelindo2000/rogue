@@ -10,6 +10,8 @@ import type { IconName } from './icons';
 import type { HungerTone } from './format';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
+import type { RunSummaryV1 } from '../runStats';
+import type { BrowserRecords, RunRecordComparison } from '../persistence/runHistory';
 
 /** One selectable option in an equipment slot's picker. */
 export interface EquipOption {
@@ -158,6 +160,12 @@ export interface UIState {
   musicVolume: number; // 0..1
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
+  // end-run stats and browser-local records
+  endRunSummary: RunSummaryV1 | null;
+  endRunRecords: BrowserRecords | null;
+  endRunComparison: RunRecordComparison | null;
+  endRunHistory: RunSummaryV1[];
+  endRunCopyStatus: string;
 }
 
 export const ui = $state<UIState>({
@@ -203,6 +211,11 @@ export const ui = $state<UIState>({
   musicMuted: false,
   musicVolume: 0.4,
   discovery: emptyDiscovery(),
+  endRunSummary: null,
+  endRunRecords: null,
+  endRunComparison: null,
+  endRunHistory: [],
+  endRunCopyStatus: '',
 });
 
 /** Action hooks the chrome calls; main.ts points these at the live engine. */
@@ -220,6 +233,8 @@ export interface UIActions {
   setMusicMuted(muted: boolean): void;
   setMusicVolume(volume: number): void;
   testSound(): void;
+  copyEndRunSummary(): void;
+  clearRunHistory(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
 }
@@ -238,6 +253,8 @@ export const actions: UIActions = {
   setMusicMuted: () => {},
   setMusicVolume: () => {},
   testSound: () => {},
+  copyEndRunSummary: () => {},
+  clearRunHistory: () => {},
   selectInventoryItem: () => {},
   inventoryAction: () => {},
 };
