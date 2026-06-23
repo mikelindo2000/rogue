@@ -55,6 +55,21 @@ export const BALANCE = {
     roomMaxW: 11,
     roomMinH: 3,
     roomMaxH: 6,
+    // Per-room size mode (original Rogue varied room size freely within a cell).
+    // With probability largeRoomChance a room biases toward the largest interior
+    // its cell can safely hold (a grand chamber); with smallRoomChance it biases
+    // toward the minimum (a closet); otherwise the full range is sampled. Both
+    // stay within [roomMin, cell max], so start/stairs rooms need no special
+    // handling — they are no smaller or larger than today's possible extremes.
+    largeRoomChance: 0.16,
+    smallRoomChance: 0.16,
+    // Maze cells: the authentic Rogue "different-shaped room". Instead of a
+    // rectangle, one eligible cell can fill with a twisty maze of corridors.
+    // None on floors 1-3 (learn the game first); at most one per floor so it
+    // stays special. Counts against the same non-room budget as gone cells, so
+    // the floor never drops below its real-room safety floor.
+    mazeRoomMinFloor: 4,
+    mazeRoomChance: 0.12,
     spawn: {
       foodChance: 0.28,
       consumableChance: 0.65,

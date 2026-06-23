@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
-import { generateLevel, darkRoomChance } from './map';
+import { generateLevel, darkRoomChance, mazeRoomChance } from './map';
 import { makeRng } from './rng';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
@@ -505,5 +505,228 @@ describe('dark rooms', () => {
     let saw = false;
     for (let seed = 1; seed <= 200 && !saw; seed++) saw = scrollTypesOn(gen(1, seed)).includes('light');
     expect(saw).toBe(true);
+  });
+});
+
+// ---- Map variety: monster scatter, room size modes, maze cells -------------
+describe('less predictable monster placement', () => {
+  const roomFor = (rooms: { l: number; t: number; r: number; b: number }[], x: number, y: number) =>
+    rooms.find(r => x >= r.l && x <= r.r && y >= r.t && y <= r.b);
+
+  it('does not pin every normal monster to its room top-left corner (seeds 1..40)', () => {
+    let topLeft = 0;
+    let offset = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const lvl = gen(8, seed, 20);
+      for (const m of lvl.monsters) {
+        if (m.special) continue; // encounters keep their centred placement
+        const room = roomFor(lvl.rooms, m.x, m.y);
+        if (!room) continue;
+        if (m.x === room.l + 1 && m.y === room.t + 1) topLeft++;
+        else offset++;
+      }
+    }
+    // The old generator put 100% of normal monsters at (l+1, t+1). The scatter
+    // should make the off-corner tiles the overwhelming majority.
+    expect(offset).toBeGreaterThan(0);
+    expect(offset).toBeGreaterThan(topLeft);
+  });
+
+  it('never scatters a normal monster onto an item, the player, or another monster (seeds 1..40)', () => {
+    // Change 1 governs the random monster pool only; centred encounter spawns are
+    // a separate system (and predate this change), so they are excluded here.
+    for (let floor = 4; floor <= 16; floor += 4) {
+      for (let seed = 1; seed <= 40; seed++) {
+        const lvl = gen(floor, seed, 20);
+        const occupied = new Set<string>();
+        for (const m of lvl.monsters) occupied.add(`${m.x},${m.y}`);
+        const normals = lvl.monsters.filter(m => !m.special);
+        const seen = new Set<string>();
+        for (const m of normals) {
+          const key = `${m.x},${m.y}`;
+          // No two normal monsters share a tile, and a normal never lands on the
+          // player or an item.
+          expect(seen.has(key), `floor ${floor} seed ${seed}: two normal monsters on (${key})`).toBe(false);
+          seen.add(key);
+          expect(key, `floor ${floor} seed ${seed}: monster on player`).not.toBe(`${lvl.playerX},${lvl.playerY}`);
+          expect(
+            lvl.items.some(it => it.x === m.x && it.y === m.y),
+            `floor ${floor} seed ${seed}: monster shares tile with item at (${key})`
+          ).toBe(false);
+        }
+      }
+    }
+  });
+});
+
+describe('room size modes', () => {
+  const ROOM_MAX_IW = 11; // BALANCE.map.roomMaxW
+  const ROOM_MIN_IW = 4; // BALANCE.map.roomMinW
+
+  function parseRoomRects(map: string[][]) {
+    const rects: Array<{ l: number; t: number; r: number; b: number }> = [];
+    for (let t = 0; t < map.length; t++) {
+      for (let l = 0; l < map[t].length; l++) {
+        if (map[t][l] !== TILE.CORNER_TL) continue;
+        let r = l + 1;
+        while (r < map[t].length && map[t][r] !== TILE.CORNER_TR) r++;
+        let b = t + 1;
+        while (b < map.length && map[b][l] !== TILE.CORNER_BL) b++;
+        rects.push({ l, t, r, b });
+      }
+    }
+    return rects;
+  }
+
+  it('produces both near-minimum and near-maximum rooms across a seed sweep', () => {
+    let sawLarge = false;
+    let sawSmall = false;
+    for (let seed = 1; seed <= 60 && !(sawLarge && sawSmall); seed++) {
+      for (const { l, r } of parseRoomRects(gen(10, seed).map)) {
+        const interiorW = r - l - 1;
+        if (interiorW >= ROOM_MAX_IW - 1) sawLarge = true;
+        if (interiorW <= ROOM_MIN_IW) sawSmall = true;
+      }
+    }
+    expect(sawLarge, 'expected at least one near-max-width room across seeds').toBe(true);
+    expect(sawSmall, 'expected at least one minimum-width room across seeds').toBe(true);
+  });
+
+  it('never exceeds the configured interior bounds (seeds 1..40, floors 3/10/17)', () => {
+    for (const floor of [3, 10, 17]) {
+      for (let seed = 1; seed <= 40; seed++) {
+        for (const { l, t, r, b } of parseRoomRects(gen(floor, seed).map)) {
+          const interiorW = r - l - 1;
+          const interiorH = b - t - 1;
+          expect(interiorW, `floor ${floor} seed ${seed}`).toBeLessThanOrEqual(ROOM_MAX_IW);
+          expect(interiorW, `floor ${floor} seed ${seed}`).toBeGreaterThanOrEqual(ROOM_MIN_IW);
+          expect(interiorH, `floor ${floor} seed ${seed}`).toBeGreaterThanOrEqual(3);
+          expect(interiorH, `floor ${floor} seed ${seed}`).toBeLessThanOrEqual(6);
+        }
+      }
+    }
+  });
+});
+
+describe('maze cells', () => {
+  it('mazeRoomChance is 0 below the min floor and on floor 20, positive in between', () => {
+    expect(mazeRoomChance(1)).toBe(0);
+    expect(mazeRoomChance(3)).toBe(0);
+    expect(mazeRoomChance(4)).toBeGreaterThan(0);
+    expect(mazeRoomChance(19)).toBeGreaterThan(0);
+    expect(mazeRoomChance(20)).toBe(0);
+  });
+
+  it('carves no maze on floors 1-3 or floor 20 (seeds 1..60)', () => {
+    for (const floor of [1, 2, 3, 20]) {
+      for (let seed = 1; seed <= 60; seed++) {
+        expect(gen(floor, seed).mazeRects, `floor ${floor} seed ${seed}`).toHaveLength(0);
+      }
+    }
+  });
+
+  it('carves at most one maze per floor (seeds 1..60, floors 4..19)', () => {
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 60; seed++) {
+        expect(gen(floor, seed).mazeRects.length, `floor ${floor} seed ${seed}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('does carve mazes on deeper floors across a seed sweep', () => {
+    let count = 0;
+    for (let floor = 4; floor < 20 && count < 5; floor++) {
+      for (let seed = 1; seed <= 60 && count < 5; seed++) {
+        count += gen(floor, seed).mazeRects.length;
+      }
+    }
+    expect(count, 'expected several mazes across a deep-floor seed sweep').toBeGreaterThan(0);
+  });
+
+  it('every carved maze is corridor-filled and walkable-reachable from the player (full sweep)', () => {
+    // No early-out: an earlier version of this test stopped after 10 mazes and
+    // missed that a secret door could seal a maze off (~3.4% of mazes). Sweep
+    // ALL mazes across floors 4..19 x seeds 1..400 so the orphan case can't hide.
+    let checked = 0;
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 400; seed++) {
+        const lvl = gen(floor, seed);
+        for (const rect of lvl.mazeRects) {
+          checked++;
+          // The lattice corners are always carved corridors.
+          for (const [x, y] of [[rect.l, rect.t], [rect.r, rect.b]] as const) {
+            expect(lvl.map[y][x], `floor ${floor} seed ${seed}: maze corner (${x},${y}) not corridor`).toBe(TILE.CORRIDOR);
+          }
+          // No rectangular room corner glyph lies inside a maze rect.
+          for (let y = rect.t; y <= rect.b; y++) {
+            for (let x = rect.l; x <= rect.r; x++) {
+              const ch = lvl.map[y][x];
+              expect([TILE.CORNER_TL, TILE.CORNER_TR, TILE.CORNER_BL, TILE.CORNER_BR].includes(ch as never), `floor ${floor} seed ${seed}: room corner inside maze at (${x},${y})`).toBe(false);
+            }
+          }
+          // The maze connects into the rest of the floor by WALKING — no secret
+          // search required (secret-door placement must not seal the maze off).
+          expect(
+            reachable(lvl.map, lvl.playerX, lvl.playerY, rect.l, rect.t),
+            `floor ${floor} seed ${seed}: maze at (${rect.l},${rect.t}) unreachable from player`
+          ).toBe(true);
+        }
+      }
+    }
+    expect(checked, 'expected to validate many mazes').toBeGreaterThan(50);
+  });
+
+  it('never fully orphans a real room on a maze floor (reachable with secret search)', () => {
+    // A real room MAY legitimately sit behind a secret door (classic Rogue
+    // optional rooms), so walkable-only reachability is not guaranteed. What must
+    // always hold is that the maze never seals a room off entirely — every room
+    // is reachable once secret doors are allowed.
+    const reachableThroughSecrets = (map: string[][], sx: number, sy: number, tx: number, ty: number): boolean => {
+      const seen = new Set<string>([`${sx},${sy}`]);
+      const queue: Array<[number, number]> = [[sx, sy]];
+      while (queue.length) {
+        const [x, y] = queue.shift()!;
+        if (x === tx && y === ty) return true;
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (ny < 0 || ny >= map.length || nx < 0 || nx >= map[ny].length) continue;
+          const ch = map[ny][nx];
+          if (!isWalkable(ch) && ch !== TILE.SECRET_DOOR) continue;
+          const k = `${nx},${ny}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          queue.push([nx, ny]);
+        }
+      }
+      return false;
+    };
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 120; seed++) {
+        const lvl = gen(floor, seed);
+        if (lvl.mazeRects.length === 0) continue;
+        for (const room of lvl.rooms) {
+          expect(
+            reachableThroughSecrets(lvl.map, lvl.playerX, lvl.playerY, room.cx, room.cy),
+            `floor ${floor} seed ${seed}: room (${room.cx},${room.cy}) fully orphaned on a maze floor`
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('spawns no items or monsters inside a maze region (seeds 1..80, floors 6..19)', () => {
+    const inRect = (r: { l: number; t: number; r: number; b: number }, x: number, y: number) =>
+      x >= r.l && x <= r.r && y >= r.t && y <= r.b;
+    for (let floor = 6; floor < 20; floor++) {
+      for (let seed = 1; seed <= 80; seed++) {
+        const lvl = gen(floor, seed);
+        if (lvl.mazeRects.length === 0) continue;
+        for (const rect of lvl.mazeRects) {
+          expect(lvl.items.some(it => inRect(rect, it.x, it.y)), `floor ${floor} seed ${seed}: item in maze`).toBe(false);
+          expect(lvl.monsters.some(m => inRect(rect, m.x, m.y)), `floor ${floor} seed ${seed}: monster in maze`).toBe(false);
+        }
+      }
+    }
   });
 });

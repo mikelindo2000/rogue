@@ -49,6 +49,14 @@ interface Room {
   gx: number;
   gy: number;
   gone: boolean;
+  /**
+   * A maze cell: the cell is filled with a connected lattice of corridors
+   * instead of a rectangular room. Like a gone cell it is not a "real" room
+   * (no player/stairs/items/monsters spawn in it), but it threads passages and
+   * participates in the connectivity graph. For maze rooms l/t/r/b are the
+   * lattice bounding box (corridor extents), not wall bounds.
+   */
+  maze?: boolean;
   /** Outer-wall bounds, inclusive (real rooms only). */
   l: number;
   t: number;
@@ -125,6 +133,71 @@ function carveRoom(map: string[][], room: Room) {
   map[b][r] = TILE.CORNER_BR;
 }
 
+/**
+ * Carve a connected maze of corridor tiles inside a cell region, returning the
+ * lattice bounding box (the extreme corridor cells). Corridors sit on an even
+ * lattice (rxa, rxa+2, …); the void between them is the maze's walls — exactly
+ * how the rest of the map already separates corridors from rock, so no new tile
+ * is needed. A randomized depth-first backtracker visits every lattice cell, so
+ * the maze is a single connected component and every boundary lattice cell is a
+ * corridor (which makeExit relies on to hand neighbours a valid junction).
+ */
+function carveMaze(
+  map: string[][],
+  rxa: number,
+  rya: number,
+  rxb: number,
+  ryb: number,
+  rng: RNG
+): { l: number; t: number; r: number; b: number } {
+  // Lattice extents: largest even offset from the origin that fits the region.
+  const cols = Math.floor((rxb - rxa) / 2) + 1;
+  const rowsN = Math.floor((ryb - rya) / 2) + 1;
+  const lastCol = rxa + (cols - 1) * 2;
+  const lastRow = rya + (rowsN - 1) * 2;
+
+  const visited = new Set<number>();
+  const key = (cx: number, cy: number) => cy * cols + cx;
+  // Iterative DFS over lattice coordinates (cx,cy), mapping to map tiles
+  // (rxa+2*cx, rya+2*cy). Carve the cell, then a random unvisited neighbour,
+  // knocking out the wall tile between them.
+  const stack: Array<{ cx: number; cy: number }> = [{ cx: 0, cy: 0 }];
+  visited.add(key(0, 0));
+  map[rya][rxa] = TILE.CORRIDOR;
+  while (stack.length) {
+    const { cx, cy } = stack[stack.length - 1];
+    const dirs = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+    ];
+    // Fisher–Yates the four directions so the maze shape varies by seed.
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = rng.int(i + 1);
+      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+    }
+    let advanced = false;
+    for (const { dx, dy } of dirs) {
+      const ncx = cx + dx;
+      const ncy = cy + dy;
+      if (ncx < 0 || ncy < 0 || ncx >= cols || ncy >= rowsN) continue;
+      if (visited.has(key(ncx, ncy))) continue;
+      visited.add(key(ncx, ncy));
+      // Knock out the wall tile between this cell and the neighbour, then the
+      // neighbour itself.
+      map[rya + cy * 2 + dy][rxa + cx * 2 + dx] = TILE.CORRIDOR;
+      map[rya + ncy * 2][rxa + ncx * 2] = TILE.CORRIDOR;
+      stack.push({ cx: ncx, cy: ncy });
+      advanced = true;
+      break;
+    }
+    if (!advanced) stack.pop();
+  }
+
+  return { l: rxa, t: rya, r: lastCol, b: lastRow };
+}
+
 /** Lay a corridor tile, but never paint over a room's floor, wall, or door. */
 function dig(map: string[][], x: number, y: number) {
   if (map[y][x] === TILE.VOID) map[y][x] = TILE.CORRIDOR;
@@ -154,6 +227,24 @@ function makeExit(
   rng: RNG
 ): { x: number; y: number } {
   if (room.gone) return { x: room.cx, y: room.cy };
+  if (room.maze) {
+    // Hand back a boundary lattice corridor on the requested side. Every lattice
+    // cell is a carved corridor and the maze is one connected component, so a
+    // passage joined here reaches the whole maze. No door is stamped — the maze
+    // has corridor walls (void), not room walls.
+    const latticeRow = (y: number) => {
+      const steps = Math.max(0, Math.min((room.b - room.t) / 2, Math.round((y - room.t) / 2)));
+      return room.t + steps * 2;
+    };
+    const latticeCol = (x: number) => {
+      const steps = Math.max(0, Math.min((room.r - room.l) / 2, Math.round((x - room.l) / 2)));
+      return room.l + steps * 2;
+    };
+    if (side === 'E') return { x: room.r, y: latticeRow(room.cy) };
+    if (side === 'W') return { x: room.l, y: latticeRow(room.cy) };
+    if (side === 'S') return { x: latticeCol(room.cx), y: room.b };
+    return { x: latticeCol(room.cx), y: room.t }; // 'N'
+  }
   if (side === 'E') {
     const dy = rng.range(room.t + 1, room.b - 1);
     map[dy][room.r] = TILE.DOOR;
@@ -230,7 +321,13 @@ function tryPlaceSecretDoors(
   stairsDownY: number,
   rng: RNG,
   cols: number,
-  rows: number
+  rows: number,
+  // Extra tiles that must stay reachable without searching. Maze cells link to
+  // the floor through a neighbouring real room's door, which is a legitimate
+  // secret-door candidate; sealing that door would orphan the maze (it holds no
+  // mandatory progression, but the design promises maze contents are reachable
+  // by walking, not only by searching). Each anchor is a known-walkable tile.
+  mustReach: Array<{ x: number; y: number }> = []
 ) {
   if (dungeonFloor < 3 || dungeonFloor >= 20 || stairsDownX < 0 || stairsDownY < 0) return;
 
@@ -248,7 +345,10 @@ function tryPlaceSecretDoors(
   for (const candidate of candidates) {
     const original = map[candidate.y][candidate.x];
     map[candidate.y][candidate.x] = TILE.SECRET_DOOR;
-    if (isReachable(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows)) {
+    const keepsReachable =
+      isReachable(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows) &&
+      mustReach.every(t => isReachable(map, playerX, playerY, t.x, t.y, cols, rows));
+    if (keepsReachable) {
       placed++;
       if (placed >= desired) break;
     } else {
@@ -345,6 +445,18 @@ export function darkRoomChance(floor: number): number {
   return Math.min(M.darkRoomMaxChance, M.darkRoomBase + (floor - 3) * M.darkRoomFloorScale);
 }
 
+/**
+ * Per-cell chance the floor's one allowed maze cell lands here. Zero below
+ * `mazeRoomMinFloor` and on floor 20 (the finale stays a clean roomed arena);
+ * otherwise a flat chance — at most one maze is carved per floor regardless, so
+ * the maze stays a rare structural surprise rather than a recurring motif.
+ */
+export function mazeRoomChance(floor: number): number {
+  const M = BALANCE.map;
+  if (floor < M.mazeRoomMinFloor || floor >= 20) return 0;
+  return M.mazeRoomChance;
+}
+
 export function generateLevel(
   dungeonFloor: number,
   // Kept for signature stability; monster variety is now gated on dungeon depth
@@ -367,6 +479,12 @@ export function generateLevel(
   stairsUpY: number;
   stairsDownX: number;
   stairsDownY: number;
+  /**
+   * Serialization-free generation debug: the lattice bounding box of each maze
+   * cell carved this floor (0 or 1 in v1). The engine ignores this; it exists so
+   * tests can assert maze structure without re-deriving it from raw tiles.
+   */
+  mazeRects: RoomRect[];
 } {
   const map: string[][] = new Array(rows).fill(0).map(() => new Array(cols).fill(TILE.VOID));
   // Parallel to the engine's explored/visible grids: true on a dark room's
@@ -400,10 +518,15 @@ export function generateLevel(
 
   // Boss floors stay fully roomed so the finale never hides behind gone cells.
   const goneChance = dungeonFloor === 20 ? 0 : M.goneRoomChance;
+  // Gone cells AND the (at most one) maze cell both draw from this budget, so
+  // the floor always keeps at least four real rooms — the safety floor the
+  // start/stairs/encounter systems assume.
   const maxGone = Math.max(0, cellCount - 4);
+  const mChance = mazeRoomChance(dungeonFloor);
 
   const rooms: (Room | null)[] = new Array(cellCount).fill(null);
   let goneSoFar = 0;
+  let mazeCarved = false;
   for (let gy = 0; gy < GROWS; gy++) {
     for (let gx = 0; gx < GCOLS; gx++) {
       const idx = gy * GCOLS + gx;
@@ -425,11 +548,49 @@ export function generateLevel(
         continue;
       }
 
-      // Interior (floor) dimensions, capped to the region after walls.
+      // At most one maze cell per floor, drawn from the same non-room budget so
+      // real-room count stays safe. Needs at least a 3x3 lattice to be a maze.
+      if (
+        !mazeCarved &&
+        goneSoFar < maxGone &&
+        regionW >= 3 &&
+        regionH >= 3 &&
+        rng.chance(mChance)
+      ) {
+        goneSoFar++;
+        mazeCarved = true;
+        const box = carveMaze(map, rxa, rya, rxb, ryb, rng);
+        rooms[idx] = {
+          gx,
+          gy,
+          gone: false,
+          maze: true,
+          ...box,
+          cx: Math.floor((box.l + box.r) / 2),
+          cy: Math.floor((box.t + box.b) / 2),
+        };
+        continue;
+      }
+
+      // Interior (floor) dimensions, capped to the region after walls. A size
+      // mode biases the roll: large rooms hug the cell's max interior, small
+      // rooms hug the minimum, both staying within [roomMin, cell max].
       const maxIW = Math.min(M.roomMaxW, regionW - 2);
       const maxIH = Math.min(M.roomMaxH, regionH - 2);
-      const iw = rng.range(M.roomMinW, maxIW);
-      const ih = rng.range(M.roomMinH, maxIH);
+      let loW: number = M.roomMinW;
+      let hiW: number = maxIW;
+      let loH: number = M.roomMinH;
+      let hiH: number = maxIH;
+      const sizeRoll = rng.next();
+      if (sizeRoll < M.largeRoomChance) {
+        loW = Math.max(M.roomMinW, maxIW - 2);
+        loH = Math.max(M.roomMinH, maxIH - 1);
+      } else if (sizeRoll < M.largeRoomChance + M.smallRoomChance) {
+        hiW = Math.max(M.roomMinW, Math.min(maxIW, M.roomMinW + 1));
+        hiH = Math.max(M.roomMinH, Math.min(maxIH, M.roomMinH + 1));
+      }
+      const iw = rng.range(loW, hiW);
+      const ih = rng.range(loH, hiH);
       const ow = iw + 2;
       const oh = ih + 2;
       const l = rng.range(rxa, rxb - ow + 1);
@@ -483,7 +644,10 @@ export function generateLevel(
 
   // Player and stairs always land in real rooms, kept far apart by taking the
   // first and last real cell in reading order.
-  const realRooms = rooms.filter((rm): rm is Room => rm !== null && !rm.gone);
+  const realRooms = rooms.filter((rm): rm is Room => rm !== null && !rm.gone && !rm.maze);
+  // Maze cells are off the real-room list but must stay reachable; (l,t) is the
+  // DFS origin, always a carved corridor.
+  const mazeRooms = rooms.filter((rm): rm is Room => rm !== null && rm.maze === true);
   assert(realRooms.length >= 2, `floor ${dungeonFloor}: need >=2 real rooms, got ${realRooms.length}`);
 
   const startRoom = realRooms[0];
@@ -525,7 +689,8 @@ export function generateLevel(
     stairsDownY,
     rng,
     cols,
-    rows
+    rows,
+    mazeRooms.map(m => ({ x: m.l, y: m.t }))
   );
 
   // Mark dark rooms. Runs AFTER start/stairs are fixed so we can spare the start
@@ -638,11 +803,21 @@ export function generateLevel(
       if (rng.chance(spawn.monsterChance)) {
         const tmpl = pickDepthMonster(dungeonFloor, rng);
         if (tmpl) {
-          const mx = room.l + 1;
-          const my = room.t + 1;
-          // Avoid spawning directly on top of another monster
-          if (!monsters.some(m => m.x === mx && m.y === my)) {
-            monsters.push({ ...tmpl, x: mx, y: my, frozenTurns: 0 });
+          // Scatter to a random interior tile (matching item spawns) instead of
+          // always the top-left corner, which produced a visible per-floor
+          // pattern. Reject the player's tile, occupied tiles, and item tiles;
+          // skip the spawn rather than force an overlap if no tile is free.
+          let placed: { x: number; y: number } | null = null;
+          for (let tries = 0; tries < 8 && !placed; tries++) {
+            const mx = rng.range(room.l + 1, room.r - 1);
+            const my = rng.range(room.t + 1, room.b - 1);
+            if (mx === playerX && my === playerY) continue;
+            if (monsters.some(m => m.x === mx && m.y === my)) continue;
+            if (items.some(it => it.x === mx && it.y === my)) continue;
+            placed = { x: mx, y: my };
+          }
+          if (placed) {
+            monsters.push({ ...tmpl, x: placed.x, y: placed.y, frozenTurns: 0 });
           }
         }
       }
@@ -673,6 +848,9 @@ export function generateLevel(
     stairsUpX,
     stairsUpY,
     stairsDownX,
-    stairsDownY
+    stairsDownY,
+    mazeRects: rooms
+      .filter((rm): rm is Room => rm !== null && rm.maze === true)
+      .map(({ l, t, r, b, cx, cy }) => ({ l, t, r, b, cx, cy })),
   };
 }
