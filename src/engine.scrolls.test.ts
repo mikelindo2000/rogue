@@ -1,0 +1,161 @@
+import { describe, expect, it } from 'vitest';
+import { GameEngine } from './engine';
+import { TILE } from './tiles';
+import { BALANCE } from './config';
+import type { Monster } from './types';
+
+const makeUi = () => ({
+  renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
+  syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, fxFreeze: () => {},
+  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {},
+});
+
+const grid = <T,>(engine: GameEngine, fill: T) =>
+  new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(fill));
+
+function makeRunner(floor = 1) {
+  const engine = new GameEngine(makeUi() as any);
+  engine.dungeonFloor = floor;
+  engine.map = grid(engine, TILE.VOID);
+  engine.explored = grid(engine, false);
+  engine.visible = grid(engine, false);
+  engine.dark = grid(engine, false);
+  engine.items = [];
+  engine.monsters = [];
+  engine.traps = [];
+  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
+  engine.player.hunger = 100;
+  engine.player.x = 2;
+  engine.player.y = 2;
+  return engine;
+}
+
+const carve = (engine: GameEngine, y: number, x1: number, x2: number, tile = TILE.FLOOR) => {
+  for (let x = x1; x <= x2; x++) engine.map[y][x] = tile;
+};
+
+const monster = (over: Partial<Monster> = {}): Monster => ({
+  x: 3, y: 2, symbol: 'r', name: 'Rat', hp: 5, maxHp: 5, atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0, ...over,
+});
+
+describe('scroll Phase 1 effects', () => {
+  it('Light: lights a dark room (consumes) but is kept in a lit room', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    engine.dark[2][1] = engine.dark[2][2] = engine.dark[2][3] = engine.dark[2][4] = true;
+    engine.player.inventory.scrolls = ['light'];
+    const turn0 = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).not.toContain('light');
+    expect(engine.turn).toBe(turn0 + 1);
+
+    // Reading again in a now-lit room is a no-op: kept, no turn.
+    engine.player.inventory.scrolls = ['light'];
+    const turn1 = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toContain('light');
+    expect(engine.turn).toBe(turn1);
+  });
+
+  it('Sleep: puts the player to sleep and consumes the scroll', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.scrolls = ['sleep'];
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).not.toContain('sleep');
+    // The read spends a turn; sleep then ticks down on subsequent actions.
+    expect(engine.trapEffects.sleepTurns).toBeGreaterThanOrEqual(BALANCE.scrolls.sleepTurns - 1);
+  });
+
+  it('Teleportation: relocates the player and consumes the scroll', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    carve(engine, 10, 6, 12);
+    engine.player.inventory.scrolls = ['teleportation'];
+    const before = { x: engine.player.x, y: engine.player.y };
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).not.toContain('teleportation');
+    expect({ x: engine.player.x, y: engine.player.y }).not.toEqual(before);
+  });
+
+  it('Magic Mapping: reveals the layout, then is a no-op once fully explored', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 6);
+    engine.player.inventory.scrolls = ['magic_mapping'];
+    engine.useScroll(0);
+    expect(engine.explored[2][6]).toBe(true);
+    expect(engine.player.inventory.scrolls).not.toContain('magic_mapping');
+
+    // Now everything is explored: a second mapping read is kept and free.
+    engine.player.inventory.scrolls = ['magic_mapping'];
+    const turn = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toContain('magic_mapping');
+    expect(engine.turn).toBe(turn);
+  });
+
+  it('Hold Monster: freezes monsters in sight', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    const m = monster({ x: 3, y: 2 });
+    engine.monsters = [m];
+    engine.visible[2][3] = true;
+    engine.player.inventory.scrolls = ['hold_monster'];
+    engine.useScroll(0);
+    expect(m.frozenTurns).toBeGreaterThan(0);
+    expect(engine.player.inventory.scrolls).not.toContain('hold_monster');
+  });
+
+  it('Create Monster: spawns a monster on an adjacent tile', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    carve(engine, 1, 1, 4);
+    carve(engine, 3, 1, 4);
+    engine.player.inventory.scrolls = ['create_monster'];
+    engine.useScroll(0);
+    expect(engine.monsters.length).toBe(1);
+    const m = engine.monsters[0];
+    expect(Math.max(Math.abs(m.x - engine.player.x), Math.abs(m.y - engine.player.y))).toBe(1);
+    expect(engine.player.inventory.scrolls).not.toContain('create_monster');
+  });
+
+  it('Aggravate Monsters: wakes every monster to hunting', () => {
+    const engine = makeRunner(7);
+    carve(engine, 2, 1, 4);
+    const sleeper = monster({ x: 20, y: 5, ai: { state: 'asleep', cooldowns: {}, swipeToggle: false } });
+    engine.monsters = [sleeper];
+    engine.player.inventory.scrolls = ['aggravate_monsters'];
+    engine.useScroll(0);
+    expect(sleeper.ai?.state).toBe('hunting');
+  });
+
+  it('Detection: marks matching floor items as explored and consumes', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    engine.items = [{ type: 'gold', symbol: '$', color: '#ff0', x: 15, y: 8 }];
+    engine.player.inventory.scrolls = ['gold_detection'];
+    engine.useScroll(0);
+    expect(engine.explored[8][15]).toBe(true);
+    expect(engine.player.inventory.scrolls).not.toContain('gold_detection');
+  });
+
+  it('Blank Paper: consumes with no effect', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.scrolls = ['blank_paper'];
+    const turn = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).not.toContain('blank_paper');
+    expect(engine.turn).toBe(turn + 1);
+  });
+
+  it('Unimplemented catalog scrolls are kept and spend no turn', () => {
+    const engine = makeRunner();
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.scrolls = ['identify'];
+    const turn = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toContain('identify');
+    expect(engine.turn).toBe(turn);
+  });
+});

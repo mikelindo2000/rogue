@@ -172,6 +172,13 @@ export const BALANCE = {
     fatigueHunger: 100,
     trapDamage: 5,
   },
+  // Read-on-demand scroll effects (see design/planning/scrolls_overhaul_plan.md).
+  // Distinct from the legacy `scroll` block above, which tuned the retired
+  // random-on-pickup scroll and is removed once that path is gone.
+  scrolls: {
+    sleepTurns: 4,        // Scroll of Sleep: turns the player is out
+    holdMonsterTurns: 8,  // Scroll of Hold Monster: turns held in place
+  },
   gold: {
     variance: 0.1, // +/- 10%
   },

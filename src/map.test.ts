@@ -4,6 +4,8 @@ import { generateLevel, darkRoomChance } from './map';
 import { makeRng } from './rng';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
+import { SCROLLS, isScrollImplemented } from './scrolls';
+import type { ScrollType } from './types';
 
 // Engine dimensions (see Engine.COLS / Engine.ROWS in src/engine.ts).
 const COLS = 46;
@@ -475,19 +477,33 @@ describe('dark rooms', () => {
     expect(inStart).toBe(true);
   });
 
-  const hasLightScroll = (lvl: Level) =>
-    lvl.items.some(it => it.type === 'scroll' && (it as any).data?.scrollType === 'light');
+  const scrollTypesOn = (lvl: Level): ScrollType[] =>
+    lvl.items.filter(it => it.type === 'scroll').map(it => (it as any).data?.scrollType as ScrollType);
 
-  it('never spawns a Scroll of Light below floor 3', () => {
-    for (let seed = 1; seed <= 60; seed++) {
-      expect(hasLightScroll(gen(1, seed)), `floor 1 seed ${seed}`).toBe(false);
-      expect(hasLightScroll(gen(2, seed)), `floor 2 seed ${seed}`).toBe(false);
+  it('every spawned scroll carries an implemented catalog type (no anonymous scrolls)', () => {
+    for (let floor = 1; floor <= 12; floor++) {
+      for (let seed = 1; seed <= 30; seed++) {
+        for (const t of scrollTypesOn(gen(floor, seed))) {
+          expect(t, `floor ${floor} seed ${seed}`).toBeDefined();
+          expect(isScrollImplemented(t), `floor ${floor} seed ${seed}: ${t}`).toBe(true);
+        }
+      }
     }
   });
 
-  it('can spawn a Scroll of Light from floor 3 onward', () => {
+  it('never spawns a scroll below its catalog min floor', () => {
+    for (const floor of [1, 2, 3, 5]) {
+      for (let seed = 1; seed <= 60; seed++) {
+        for (const t of scrollTypesOn(gen(floor, seed))) {
+          expect(SCROLLS[t].minFloor, `floor ${floor} seed ${seed}: ${t}`).toBeLessThanOrEqual(floor);
+        }
+      }
+    }
+  });
+
+  it('can spawn a Scroll of Light from floor 1 onward', () => {
     let saw = false;
-    for (let seed = 1; seed <= 120 && !saw; seed++) saw = hasLightScroll(gen(4, seed));
+    for (let seed = 1; seed <= 200 && !saw; seed++) saw = scrollTypesOn(gen(1, seed)).includes('light');
     expect(saw).toBe(true);
   });
 });

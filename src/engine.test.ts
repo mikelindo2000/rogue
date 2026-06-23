@@ -186,21 +186,6 @@ describe('GameEngine terminal run summaries', () => {
     expect(engine.finalRunSummary).toBe(summary);
   });
 
-  it('records fatal legacy trap-scroll damage before ending the run', () => {
-    const engine = makeRunner();
-    setChanceRoll(engine, 0.99);
-    engine.player.hp = 1;
-    engine.player.hunger = 100;
-    engine.items = [{ type: 'scroll', symbol: '?', color: '#cc66ff', x: engine.player.x, y: engine.player.y }];
-
-    engine.checkItems();
-    engine.processTurn();
-
-    expect(engine.gameOver).toBe(true);
-    expect(engine.finalRunSummary?.deathCause).toBe('trap_scroll');
-    expect(engine.finalRunSummary?.damageTaken).toBeGreaterThan(0);
-    expect(engine.finalRunSummary?.biggestHitTaken).toBeGreaterThan(0);
-  });
 });
 
 describe('GameEngine stair travel', () => {
@@ -351,20 +336,25 @@ describe('GameEngine hidden traps', () => {
     expect(engine.logs).toContain('A bear trap snaps shut!');
   });
 
-  it('repair scroll restores carried armor and shields through the pickup path', () => {
+  it('repair scroll is carried on pickup and mends gear only when read', () => {
     const engine = makeRunner();
     carveRow(engine, 2, 2, 3);
     engine.player.inventory.chest[1] = { name: 'Chainmail', def: 1, maxDef: 4, health: { current: 1, max: 4 }, rarity: 'common' };
     engine.player.inventory.shield.push({ name: 'Buckler', def: 0, maxDef: 3, health: { current: 0, max: 3 }, rarity: 'common' });
-    engine.items = [{ x: 3, y: 2, type: 'repair_scroll', symbol: '?', color: '#fff' }];
+    engine.items = [{ x: 3, y: 2, type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'repair' } }];
 
+    // Pickup must NOT apply the effect — the scroll is carried, gear still damaged.
     engine.handlePlayerMove(1, 0);
+    expect(engine.player.inventory.scrolls).toContain('repair');
+    expect(engine.player.inventory.chest[1].health).toEqual({ current: 1, max: 4 });
 
+    // Reading it repairs all defensive gear and consumes the scroll.
+    engine.useScroll(engine.player.inventory.scrolls.indexOf('repair'));
     expect(engine.player.inventory.chest[1].health).toEqual({ current: 4, max: 4 });
     expect(engine.player.inventory.chest[1].def).toBe(4);
     expect(engine.player.inventory.shield[1].health).toEqual({ current: 3, max: 3 });
     expect(engine.player.inventory.shield[1].def).toBe(3);
-    expect(engine.logs).toContain('All armor and shields repaired.');
+    expect(engine.player.inventory.scrolls).not.toContain('repair');
   });
 
   it('revealed armed traps still trigger, but spent traps do not', () => {

@@ -3,6 +3,7 @@ import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
 import { pickWandForFloor } from './wands';
+import { pickScrollForFloor } from './scrolls';
 import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
@@ -585,18 +586,16 @@ export function generateLevel(
             data: { potionType: chosenP },
           });
         } else if (rand < spawn.scrollCut) {
-          // From floor 3 (where dark rooms begin), a share of scrolls are a
-          // Scroll of Light; the rest stay the opaque random-effect scroll.
-          if (dungeonFloor >= 3 && rng.chance(spawn.lightScrollCut)) {
-            spawnAt(room, {
-              type: 'scroll',
-              symbol: '?',
-              color: scrollVisual('light').mapColor,
-              data: { scrollType: 'light' },
-            });
-          } else {
-            spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
-          }
+          // Every scroll is now a named, carryable scroll picked from the
+          // floor-gated catalog (repair included). Read on demand, never on
+          // pickup. See design/planning/scrolls_overhaul_plan.md.
+          const scrollType = pickScrollForFloor(dungeonFloor, rng);
+          spawnAt(room, {
+            type: 'scroll',
+            symbol: '?',
+            color: scrollVisual(scrollType).mapColor,
+            data: { scrollType },
+          });
         } else if (dungeonFloor >= BALANCE.wands.spawnMinFloor && rand < spawn.wandCut) {
           // A small slice of the consumable roll, gated to deeper floors, is a
           // zappable wand/staff. Rarer wands are gated further by floor inside
@@ -609,7 +608,15 @@ export function generateLevel(
             data: wand,
           });
         } else {
-          spawnAt(room, { type: 'repair_scroll', symbol: '?', color: '#ff00ff' });
+          // Leftover slice (the old repair-scroll fallback, plus the wand slice on
+          // shallow floors where wands are gated out) is another catalog scroll.
+          const scrollType = pickScrollForFloor(dungeonFloor, rng);
+          spawnAt(room, {
+            type: 'scroll',
+            symbol: '?',
+            color: scrollVisual(scrollType).mapColor,
+            data: { scrollType },
+          });
         }
       }
 

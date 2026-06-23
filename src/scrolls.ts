@@ -164,17 +164,39 @@ export interface ScrollSpawnEntry {
   weight: number;
 }
 
+/** Scroll types whose read effect is wired up in the engine. The spawn pool is
+ *  restricted to these so the player never picks up a scroll that does nothing.
+ *  Unimplemented catalog entries still exist as types (for docs, inventory
+ *  display, and save parity); flip them on here as each phase lands.
+ *
+ *  Phase 1 (live): no-target effects using existing systems.
+ *  Phase 2 (pending): enchant_weapon, enchant_armor, protect_armor, identify,
+ *    remove_curse — need the shared item-target picker.
+ *  Phase 3 (pending): monster_confusion, scare_monster — need new player/AI state. */
+export const IMPLEMENTED_SCROLLS: ReadonlySet<ScrollType> = new Set<ScrollType>([
+  'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
+  'create_monster', 'aggravate_monsters', 'food_detection', 'gold_detection',
+  'blank_paper',
+]);
+
+export function isScrollImplemented(type: ScrollType): boolean {
+  return IMPLEMENTED_SCROLLS.has(type);
+}
+
 /** Weighted spawn pool. Derived from the registry's `minFloor`/`rarity`, with
- *  rarer scrolls weighted down so the common utility scrolls dominate early. */
+ *  rarer scrolls weighted down so the common utility scrolls dominate early.
+ *  Only implemented effects spawn. */
 const RARITY_WEIGHT: Record<Rarity, number> = {
   common: 10, uncommon: 6, rare: 3, epic: 2, legendary: 1,
 };
 
-export const SCROLL_POOL: ScrollSpawnEntry[] = (Object.keys(SCROLLS) as ScrollType[]).map(type => ({
-  type,
-  minFloor: SCROLLS[type].minFloor,
-  weight: RARITY_WEIGHT[SCROLLS[type].rarity],
-}));
+export const SCROLL_POOL: ScrollSpawnEntry[] = (Object.keys(SCROLLS) as ScrollType[])
+  .filter(type => IMPLEMENTED_SCROLLS.has(type))
+  .map(type => ({
+    type,
+    minFloor: SCROLLS[type].minFloor,
+    weight: RARITY_WEIGHT[SCROLLS[type].rarity],
+  }));
 
 /** Pick a floor-appropriate scroll by weight. Falls back to Light if (somehow)
  *  nothing is eligible, so a spawn never produces an invalid item. */

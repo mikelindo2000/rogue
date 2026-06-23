@@ -1,9 +1,10 @@
-import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, TrapEffects, TrapKind, TrapState, WandItem } from './types';
+import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
 import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
+import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
@@ -979,35 +980,10 @@ export class GameEngine {
         this.addLog(`Picked up a Potion of ${pType.charAt(0).toUpperCase() + pType.slice(1)}.`);
       } else if (item.type === 'scroll' && item.data?.scrollType) {
         // Named, carryable scroll — picked up into inventory, read on demand.
+        // No scroll applies its effect on pickup any more.
         const sType = item.data.scrollType;
         this.player.inventory.scrolls.push(sType);
-        this.addLog(`Picked up a Scroll of ${sType.charAt(0).toUpperCase() + sType.slice(1)}.`);
-      } else if (item.type === 'scroll') {
-        const { scroll, status } = BALANCE;
-        const r = this.rng.next();
-        if (r < scroll.vigorCut) {
-          this.statusEffects.vigorTurns = status.vigorTurns;
-          this.player.hp = this.player.maxHp * status.vigorHpMultiplier;
-          recordScrollTriggered(this.stats, 'vigor');
-          this.addLog("Vigor! HP doubled.");
-        } else if (r < scroll.fatigueCut) {
-          this.player.hunger = scroll.fatigueHunger;
-          recordScrollTriggered(this.stats, 'fatigue');
-          this.addLog("Suddenly fatigued!");
-        } else if (r < scroll.midasCut) {
-          this.statusEffects.midasTurns = status.midasTurns;
-          recordScrollTriggered(this.stats, 'midas');
-          this.addLog("Midas scroll active.");
-        } else {
-          const hpBeforeTrap = this.player.hp;
-          this.player.hp -= scroll.trapDamage;
-          recordDamageTaken(this.stats, hpBeforeTrap - this.player.hp);
-          recordScrollTriggered(this.stats, 'trap');
-          this.addLog(`Trap scroll triggered! -${scroll.trapDamage} HP.`);
-        }
-      } else if (item.type === 'repair_scroll') {
-        const repaired = repairAllDefensiveGear(this.player);
-        this.addLog(repaired > 0 ? "All armor and shields repaired." : "Your armor and shields are already sound.");
+        this.addLog(`Picked up ${scrollDisplayName(sType)}.`);
       } else if (item.type === 'gear') {
         const c = item.data.category;
         const styledName = this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common');
@@ -1086,8 +1062,10 @@ export class GameEngine {
   /**
    * Read the scroll at `index`. A successful read consumes the scroll and costs a
    * turn (like a potion). A read with no effect (e.g. Light in an already-lit
-   * room or a corridor) is a no-op: the scroll is kept and no turn passes, so a
-   * misclick never silently burns a monster move.
+   * room, Repair with no damage) is a no-op for scrolls flagged
+   * `noOpKeepsScroll`: the scroll is kept and no turn passes, so a misclick never
+   * silently burns a monster move. The per-type effect lives in
+   * applyScrollEffect; effect metadata lives in the src/scrolls.ts registry.
    */
   public useScroll(index: number) {
     if (this.takeSleepTurn()) return;
@@ -1095,20 +1073,200 @@ export class GameEngine {
     if (index < 0 || index >= scrolls.length) return;
     const type = scrolls[index];
 
-    if (type === 'light') {
-      const lit = this.lightCurrentRoom();
-      if (!lit) {
-        this.addLog("You read the scroll, but the light reveals nothing new.");
-        return;
-      }
-      this.addLog("You read the Scroll of Light. The room floods with light!");
+    // Catalog types whose effect isn't wired up yet never spawn, but a legacy
+    // save or a future migration could carry one — keep it and spend no turn.
+    if (!isScrollImplemented(type)) {
+      this.addLog("You cannot puzzle out this scroll yet.");
+      return;
     }
+
+    const def = SCROLLS[type];
+    const effective = this.applyScrollEffect(type);
+    // A foreseeable no-op (lit room, undamaged gear, fully-mapped floor) keeps
+    // the scroll and spends no turn; everything else consumes and takes a turn.
+    if (!effective && def.noOpKeepsScroll) return;
 
     scrolls.splice(index, 1);
     recordScrollTriggered(this.stats, `read:${type}`);
     this.sound.emit({ type: 'item.consume', kind: 'scroll' });
     this.ui.updateDropdowns(this.player);
     this.processTurn();
+  }
+
+  /**
+   * Apply a scroll's effect. Returns whether the read accomplished something —
+   * used together with `noOpKeepsScroll` to decide whether the scroll is
+   * consumed. Always logs, so the player learns what happened regardless of the
+   * scroll text. Phase 1 effects only (no item targeting); see the plan.
+   */
+  private applyScrollEffect(type: ScrollType): boolean {
+    switch (type) {
+      case 'light': {
+        const lit = this.lightCurrentRoom();
+        this.addLog(lit
+          ? "You read the Scroll of Light. The room floods with light!"
+          : "You read the scroll, but the light reveals nothing new.");
+        return lit;
+      }
+      case 'repair': {
+        const repaired = repairAllDefensiveGear(this.player);
+        this.addLog(repaired > 0
+          ? "You read the Scroll of Repair. Your armor and shields mend."
+          : "You read the scroll, but your gear is already sound.");
+        return repaired > 0;
+      }
+      case 'magic_mapping': {
+        const revealed = this.revealFloorLayout();
+        this.addLog(revealed
+          ? "You read the Scroll of Magic Mapping. The floor's layout floods into your mind."
+          : "You read the scroll, but you have already mapped this floor.");
+        return revealed;
+      }
+      case 'teleportation': {
+        this.teleportPlayerSafely();
+        this.addLog("You read the Scroll of Teleportation and blink across the dungeon!");
+        return true;
+      }
+      case 'sleep': {
+        this.trapEffects.sleepTurns = Math.max(this.trapEffects.sleepTurns, BALANCE.scrolls.sleepTurns);
+        this.addLog("You read the Scroll of Sleep. Your eyes grow heavy and you slump to the floor!");
+        return true;
+      }
+      case 'hold_monster': {
+        const held = this.holdMonstersInSight();
+        this.addLog(held > 0
+          ? `You read the Scroll of Hold Monster. ${held} monster${held === 1 ? '' : 's'} freeze in place!`
+          : "You read the Scroll of Hold Monster, but nothing is in sight to hold.");
+        return true;
+      }
+      case 'create_monster': {
+        const spawned = this.spawnMonsterAdjacent();
+        this.addLog(spawned
+          ? "You read the Scroll of Create Monster. Something lurches into being beside you!"
+          : "You read the Scroll of Create Monster, but there is no room for it to form.");
+        return true;
+      }
+      case 'aggravate_monsters': {
+        const woke = this.aggravateAllMonsters();
+        this.addLog(woke > 0
+          ? "You read the Scroll of Aggravate Monsters. A furious din wakes every creature on the floor!"
+          : "You read the Scroll of Aggravate Monsters. The silence is somehow worse.");
+        return true;
+      }
+      case 'food_detection': {
+        const n = this.detectItems('food');
+        this.addLog(n > 0
+          ? `You read the Scroll of Food Detection. You sense ${n} cache${n === 1 ? '' : 's'} of food.`
+          : "You read the Scroll of Food Detection, but sense no food on this floor.");
+        return true;
+      }
+      case 'gold_detection': {
+        const n = this.detectItems('gold');
+        this.addLog(n > 0
+          ? `You read the Scroll of Gold Detection. You sense ${n} hoard${n === 1 ? '' : 's'} of gold.`
+          : "You read the Scroll of Gold Detection, but sense no gold on this floor.");
+        return true;
+      }
+      case 'blank_paper': {
+        this.addLog("You read the scroll, but the parchment is blank. Nothing happens.");
+        return true;
+      }
+      default:
+        // Unimplemented catalog types are filtered out before reaching here.
+        this.addLog("You cannot puzzle out this scroll yet.");
+        return false;
+    }
+  }
+
+  /** Magic Mapping: reveal the whole floor's layout (rooms, corridors, doors,
+   *  stairs, walls) without lighting dark rooms or exposing secret doors —
+   *  secret-door fairness is preserved. Returns true if anything was newly
+   *  revealed (so a fully-explored floor keeps the scroll). */
+  private revealFloorLayout(): boolean {
+    let revealed = false;
+    for (let y = 0; y < this.ROWS; y++) {
+      for (let x = 0; x < this.COLS; x++) {
+        const ch = this.map[y]?.[x];
+        if (ch === undefined || ch === TILE.VOID || isSecretDoor(ch)) continue;
+        if (!this.explored[y][x]) {
+          this.explored[y][x] = true;
+          revealed = true;
+        }
+      }
+    }
+    if (revealed) this.updateUI();
+    return revealed;
+  }
+
+  /** Hold Monster: freeze every monster currently in the player's view. Returns
+   *  the number held. */
+  private holdMonstersInSight(): number {
+    let held = 0;
+    for (const m of this.monsters) {
+      if (this.visible[m.y]?.[m.x]) {
+        m.frozenTurns = Math.max(m.frozenTurns, BALANCE.scrolls.holdMonsterTurns);
+        this.ui.fxFreeze(m.x, m.y);
+        held++;
+      }
+    }
+    return held;
+  }
+
+  /** Create Monster: spawn a floor-appropriate, non-special monster on a free
+   *  tile adjacent to the player. Returns false if no adjacent tile is open. */
+  private spawnMonsterAdjacent(): boolean {
+    const spots: Array<{ x: number; y: number }> = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const x = this.player.x + dx;
+        const y = this.player.y + dy;
+        if (!isWalkable(this.map[y]?.[x])) continue;
+        if (this.monsters.some(m => m.x === x && m.y === y)) continue;
+        if (this.armedTrapAt(x, y)) continue;
+        spots.push({ x, y });
+      }
+    }
+    if (spots.length === 0) return false;
+    const candidates = MONSTER_DATABASE.filter(t => t.minFloor <= this.dungeonFloor && !t.special);
+    if (candidates.length === 0) return false;
+    const tmpl = this.rng.pick(candidates);
+    const spot = this.rng.pick(spots);
+    const hp = getScaledMonsterHP(tmpl.hp, tmpl.name);
+    this.monsters.push({
+      ...tmpl,
+      x: spot.x,
+      y: spot.y,
+      hp,
+      maxHp: hp,
+      frozenTurns: 0,
+      canceledTurns: 0,
+      ai: { state: 'hunting', cooldowns: {}, swipeToggle: false },
+    });
+    return true;
+  }
+
+  /** Aggravate Monsters: wake every monster and set it hunting. Returns the
+   *  number of monsters affected. */
+  private aggravateAllMonsters(): number {
+    for (const m of this.monsters) {
+      if (m.ai) m.ai.state = 'hunting';
+      else m.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false };
+    }
+    return this.monsters.length;
+  }
+
+  /** Food/Gold Detection: mark every matching floor item as explored so it shows
+   *  on the map. Returns how many were sensed. */
+  private detectItems(kind: 'food' | 'gold'): number {
+    let count = 0;
+    for (const it of this.items) {
+      if (it.type !== kind) continue;
+      if (this.explored[it.y]) this.explored[it.y][it.x] = true;
+      count++;
+    }
+    if (count > 0) this.updateUI();
+    return count;
   }
 
   private useScrollType(ref: InventoryRef & { kind: 'scroll' }): boolean {
@@ -1122,7 +1280,16 @@ export class GameEngine {
     return true;
   }
 
-  /** Keyboard entry point ('r' during play): read the first carried scroll. */
+  /** Deliberate read of a specific carried scroll (by type) — the entry point
+   *  the inventory chooser uses. Routes through the same dispatcher as `r`. */
+  public readScrollRef(ref: InventoryRef & { kind: 'scroll' }): boolean {
+    if (this.gameOver || this.gameWon) return false;
+    return this.useScrollType(ref);
+  }
+
+  /** Keyboard entry point ('r' during play): read the first carried scroll.
+   *  The scroll-focused chooser (opened from `r` once the filtered inventory
+   *  lands) calls readScrollRef for a deliberate, type-specific read. */
   public readScroll(): boolean {
     if (this.takeSleepTurn()) return false;
     if (this.player.inventory.scrolls.length === 0) {
