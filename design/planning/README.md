@@ -24,6 +24,10 @@ and don't collide:
   framework letting the player dip carried items into potions to create coatings,
   blessed food, and diluted potions, with a starter interaction matrix over the
   four existing potions.
+- **[Scrolls Overhaul](scrolls_overhaul_plan.md)** — converts scrolls into a
+  first-class carried/read item line with a typed catalog, scroll-focused
+  inventory browsing, filters by type/tier/floor band, keyboard-first reading,
+  and generated full inventory art for every scroll.
 
 ## Cross-cutting concerns (read before implementing any one of them)
 
@@ -53,6 +57,10 @@ These three plans all touch the same seams. Coordinate so they integrate cleanly
    binding (`src/keyboard.ts`). Proposed keys — `P` put on ring, `z` zap wand,
    `d` dip — should be reconciled against current bindings together to avoid
    collisions (note `r` already reads scrolls).
+7. **Inventory filtering** should be shared. Scrolls need a focused browser, but
+   rings, wands, dipping targets, and future identification/curses should reuse
+   the same filter state and target-picker conventions instead of building
+   parallel item lists.
 
 ## Suggested sequencing
 
@@ -60,3 +68,11 @@ Rings Phase 1 (slot/equip plumbing) and the wands data model both exercise the
 `InventoryRef`/`EquipSlot`/savegame extensions — doing one first establishes the
 pattern the others follow. A shared **identification + curses** plan is the natural
 next document, since it unlocks the final phase of all three.
+
+## Map-generation expansion
+
+- **[Map Generation Variety](map_generation_variety_plan.md)** — expands the
+  classic 3x3 generator with rare large rooms, optional merged rooms, floor
+  profiles, room archetypes, corridor/hall variety, and less predictable monster
+  placement while preserving reachability, secret-door fairness, dark-room rules,
+  trap safety, and floor-20 finale constraints.
