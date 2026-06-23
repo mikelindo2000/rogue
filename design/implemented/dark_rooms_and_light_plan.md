@@ -58,7 +58,7 @@ This asymmetry is the blocker for a "read when you need it" light item.
 
 ### Documentation
 
-- `design/SPEC.md` is a UI redesign spec only — it does not document FOV or the
+- `design/implemented/spec.md` is a UI redesign spec only — it does not document FOV or the
   item system.
 - There is **no FOV/visibility design doc** and **no FOV test coverage**
   (`engine.test.ts` only resets the `visible` grid manually).
@@ -374,7 +374,7 @@ loudly at the source with a clear message.
 
 ### E5 — Documentation backfill *(the "missing documentation" ask)*
 
-- **New:** `design/VISIBILITY_AND_FOV.md` — the raycast + lit-room flood +
+- **New:** `design/implemented/visibility_and_fov.md` — the raycast + lit-room flood +
   `explored`/`visible`/`dark` model, now that a feature depends on it. (This
   doc's "Current state" section is a seed for it.)
 - **New / extend:** an items overview that states the potion-vs-scroll-vs-gear
@@ -392,7 +392,7 @@ plan). Even pre-feature, `revealRoom` and the raycast are untested.
 
 ## Image generation
 
-Both assets follow `design/INVENTORY_IMAGE_GENERATION.md` (FLUX.2-klein-4B,
+Both assets follow `design/implemented/inventory_image_generation.md` (FLUX.2-klein-4B,
 512×512, 2 steps). Add these rows to that doc's Subject Hints table:
 
 | Item | Subject | Seed |
@@ -492,7 +492,7 @@ side effect (the constructor already touches storage via `loadDiscovery`).
 - `VISION_RADIUS` and dark-room tuning live in `BALANCE`.
 - `generateLevel` exposes room metadata to the engine.
 - FOV and dark-room behavior are covered by tests; `npm run check` is green.
-- `design/VISIBILITY_AND_FOV.md` exists and the item/visibility docs are current.
+- `design/implemented/visibility_and_fov.md` exists and the item/visibility docs are current.
 
 ---
 

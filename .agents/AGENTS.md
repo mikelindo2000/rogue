@@ -113,7 +113,7 @@ The dungeon board itself stays on `<canvas>` and is rendered imperatively by
      `UIState`; add new side effects as `actions` hooks.
 
 3. **Design = source of truth**: components are implemented from the Claude
-   Design project (see `design/SPEC.md`). When changing the look, update the
+   Design project (see `design/implemented/spec.md`). When changing the look, update the
    tokens/components to match the design rather than hardcoding values.
 
 ---
@@ -175,7 +175,7 @@ The dungeon board itself stays on `<canvas>` and is rendered imperatively by
   `<monster-id>` must match `monsterId()` / the slug fallback in
   `src/discovery.ts`.
 - Regenerate future monster images from the recipe in
-  `design/MONSTER_IMAGE_GENERATION.md`. Do not assume any particular wrapper
+  `design/implemented/monster_image_generation.md`. Do not assume any particular wrapper
   CLI or another repo exists on a developer's machine; use any available image
   generator that can match the documented model/style/params and output paths.
 - Keep bestiary images as dark, text-free, centered creature portraits so they

@@ -79,7 +79,7 @@ no-op (kept, no turn spent). Spawns from floor 3 as a share of scrolls
 
 **Wand of Light** (phase 2, not implemented) — a reusable charged version. Art
 exists (`public/inventory/wand-of-light.png`); see
-`design/DARK_ROOMS_AND_LIGHT_PLAN.md` for the charges-subsystem sketch.
+`design/implemented/dark_rooms_and_light_plan.md` for the charges-subsystem sketch.
 
 ## Persistence
 

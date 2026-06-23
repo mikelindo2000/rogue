@@ -334,7 +334,7 @@ function pickDepthMonster(floor: number, rng: RNG): MonsterTemplate | null {
 /**
  * Per-room chance of being dark on `floor`. Zero on floors 1-2 (teach the game
  * with everything lit) and floor 20 (the boss finale stays lit); otherwise it
- * climbs with depth, capped. See design/DARK_ROOMS_AND_LIGHT_PLAN.md.
+ * climbs with depth, capped. See design/implemented/dark_rooms_and_light_plan.md.
  */
 export function darkRoomChance(floor: number): number {
   const M = BALANCE.map;

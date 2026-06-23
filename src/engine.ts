@@ -66,7 +66,7 @@ export class GameEngine {
   public visible: boolean[][] = [];
   /** True on the interior tiles of an unlit (dark) room — the player sees only
    *  their immediate 3x3 there until it is lit. Persisted (cannot be recomputed:
-   *  darkness is rolled at generation). See design/VISIBILITY_AND_FOV.md. */
+   *  darkness is rolled at generation). See design/implemented/visibility_and_fov.md. */
   public dark: boolean[][] = [];
   /** Real-room rects for the current floor (E1). In-memory only — never saved;
    *  undefined after a restore until the next generated floor. Informational

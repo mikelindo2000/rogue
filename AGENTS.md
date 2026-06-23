@@ -16,8 +16,8 @@ Rogue must be fully playable from the keyboard, in the spirit of the original Ro
 
 Rogue has a sound-effects and music layer. Two docs govern it — read them before touching audio:
 
-- [`design/SOUND_EFFECTS_SYSTEM_PLAN.md`](design/SOUND_EFFECTS_SYSTEM_PLAN.md) — the architecture: typed `SoundEvent`s emitted by `GameEngine` through a `SoundSink`, resolved to assets by the audio service. The engine never knows filenames or calls ElevenLabs.
-- [`design/SOUND_EFFECT_ASSET_PROMPTS.md`](design/SOUND_EFFECT_ASSET_PROMPTS.md) — the **house production guide**: the sonic identity, the exact reproducible prompt for every clip, the ElevenLabs generation recipe, naming/layout, and the music catalogue.
+- [`design/implemented/sound_effects_system_plan.md`](design/implemented/sound_effects_system_plan.md) — the architecture: typed `SoundEvent`s emitted by `GameEngine` through a `SoundSink`, resolved to assets by the audio service. The engine never knows filenames or calls ElevenLabs.
+- [`design/implemented/sound_effect_asset_prompts.md`](design/implemented/sound_effect_asset_prompts.md) — the **house production guide**: the sonic identity, the exact reproducible prompt for every clip, the ElevenLabs generation recipe, naming/layout, and the music catalogue.
 
 Rules:
 

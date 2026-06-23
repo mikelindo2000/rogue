@@ -267,7 +267,7 @@ Keep ElevenLabs prompt/source notes outside the engine, preferably in a design o
 asset-production doc:
 
 ```
-design/SOUND_EFFECT_ASSET_PROMPTS.md
+design/implemented/sound_effect_asset_prompts.md
 ```
 
 That doc can list prompt text, intended duration, license/provenance, generated

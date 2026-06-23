@@ -70,7 +70,7 @@ export const BALANCE = {
     // Dark rooms (original-Rogue style): a room with no ambient light reveals
     // only the player's immediate 3x3 until lit. Never on floors 1-2 (learn the
     // game first) or floor 20 (the finale stays lit). Chance climbs with depth.
-    // See design/DARK_ROOMS_AND_LIGHT_PLAN.md.
+    // See design/implemented/dark_rooms_and_light_plan.md.
     darkRoomBase: 0.15,
     darkRoomFloorScale: 0.03,
     darkRoomMaxChance: 0.5,
@@ -85,7 +85,7 @@ export const BALANCE = {
     // How far the player sees in a normal (lit) room or corridor, in tiles.
     radius: 6,
     // Sight radius inside an unlit (dark) room: only the immediate 3x3 block
-    // around the player. See design/VISIBILITY_AND_FOV.md.
+    // around the player. See design/implemented/visibility_and_fov.md.
     darkRadius: 1,
   },
   player: {

@@ -16,7 +16,7 @@ export const POTION_TYPES = ['healing', 'strength', 'invisibility', 'armor'] as 
  * Shared visual identity for potions across the floor glyph, compact inventory
  * icons, popover choices, and full inventory modal. Add new potion types here
  * first, then add the paired icon path in src/ui/icons.ts and generated art in
- * public/inventory/ using design/INVENTORY_IMAGE_GENERATION.md.
+ * public/inventory/ using design/implemented/inventory_image_generation.md.
  */
 export const POTION_VISUALS: Record<PotionType, PotionVisual> = {
   healing: {
@@ -63,7 +63,7 @@ export const SCROLL_TYPES = ['light'] as const satisfies readonly ScrollType[];
 /**
  * Shared visual identity for named scrolls across the floor glyph and inventory.
  * Add a new scroll type here first, then add the paired icon in src/ui/icons.ts
- * and generated art in public/inventory/ per design/INVENTORY_IMAGE_GENERATION.md.
+ * and generated art in public/inventory/ per design/implemented/inventory_image_generation.md.
  */
 export const SCROLL_VISUALS: Record<ScrollType, ScrollVisual> = {
   light: {

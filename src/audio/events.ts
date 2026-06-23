@@ -3,8 +3,8 @@
  * events; the audio layer (service + manifest) resolves them to assets. Engine
  * code never names a filename or touches a browser audio API.
  *
- * See design/SOUND_EFFECTS_SYSTEM_PLAN.md for the architecture and
- * design/SOUND_EFFECT_ASSET_PROMPTS.md for the asset catalogue.
+ * See design/implemented/sound_effects_system_plan.md for the architecture and
+ * design/implemented/sound_effect_asset_prompts.md for the asset catalogue.
  */
 
 export type SoundEvent =

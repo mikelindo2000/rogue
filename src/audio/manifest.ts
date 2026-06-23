@@ -1,7 +1,7 @@
 /**
  * Local asset registry + event→asset resolution. Runtime code reads only from
  * this typed manifest; ElevenLabs and prompt notes live in
- * design/SOUND_EFFECT_ASSET_PROMPTS.md, never here.
+ * design/implemented/sound_effect_asset_prompts.md, never here.
  *
  * Resolution keeps combat/death cues generic at the event level and resolves
  * monster-specific clips via a most-specific-wins cascade:
@@ -124,7 +124,7 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'equipment.rejected': return 'equip-rejected';
     case 'item.pickup': return event.kind === 'gold' ? 'item-gold' : 'item-pickup';
     // 'scroll' reuses the potion consume cue as a stand-in until a dedicated
-    // parchment/read clip is authored (see design/SOUND_EFFECT_ASSET_PROMPTS.md).
+    // parchment/read clip is authored (see design/implemented/sound_effect_asset_prompts.md).
     case 'item.consume': return event.kind === 'food' ? 'consume-food' : 'consume-potion';
     case 'map.stairs': return event.dir === 'down' ? 'stairs-down' : 'stairs-up';
     case 'map.secretReveal': return 'secret-reveal';
