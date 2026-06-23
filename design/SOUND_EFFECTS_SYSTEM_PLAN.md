@@ -208,18 +208,19 @@ Core responsibilities:
 
 Recommended settings shape, aligned with `PERSISTENCE_AND_SETTINGS_PLAN.md`:
 
+As shipped (`src/persistence/settings.ts`, nested under `settings.audio`):
+
 ```ts
 export interface AudioSettings {
   muted: boolean;
-  volume: number; // 0..1, default 0.7
-  // Added with the music section, not the first slice:
-  // musicMuted?: boolean;
-  // musicVolume?: number; // 0..1, default ~0.4
+  volume: number;      // 0..1, default 1
+  musicMuted: boolean; // shipped with the music layer
+  musicVolume: number; // 0..1, default 0.4
 }
 ```
 
-Settings loading must merge partial/older blobs (see Testing strategy), so adding the
-music fields later is backward-compatible: absent fields fall back to defaults.
+Settings loading merges partial/older blobs (see Testing strategy), so the music
+fields resolve from defaults against a pre-music save: backward-compatible.
 
 Use the persisted `muted` flag as the user's intent. If browser autoplay policy blocks
 audio before the first input, do not flip `muted`; keep the service in a locked state
@@ -286,7 +287,7 @@ identity cascade to key off of — reuse it instead of inventing a parallel taxo
 - archetype — `archetypeOf(template)` in `src/ai/archetypes.ts` resolves a monster to
   `default | brute | kiter | trickster | ambusher | …`. This lets a whole behavioral
   family share a cue (every trickster gets the same flee sting) for free.
-- `special?: 'hero' | 'boss'` on the template/monster — drives `combat.bossDeath` and
+- `special?: 'hero' | 'boss'` on the template/monster — drives the boss death cue and
   can gate boss-only stingers.
 
 Keep combat events generic and put identity in the **payload**, not the event name:
@@ -329,7 +330,7 @@ Rules and guardrails:
 - Per-monster sounds are **additive presentation only**. They must not change the event
   taxonomy, combat math, or game RNG, and the visual/log feedback stays identical
   (consistent with the non-goals).
-- Boss/hero cues should still go through `combat.bossDeath`/a `special` tier so they can
+- Boss/hero cues go through the `special` tier of `combat.death` so they can
   be louder, longer, and exempt from the normal death-cue cooldown.
 - Start with archetype-level coverage (a handful of clips covers every monster), then
   add per-`monsterId` clips only for signature creatures and bosses. This is a
