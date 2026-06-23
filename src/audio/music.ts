@@ -132,6 +132,16 @@ export class MusicService {
     const ctx = this.ctx;
     if (!cur || !ctx) return;
     this.current = null;
+    // Disconnect the faded voice once it stops so nodes don't accumulate over a
+    // long session of context switches.
+    cur.source.onended = () => {
+      try {
+        cur.source.disconnect();
+        cur.gain.disconnect();
+      } catch {
+        /* ignore */
+      }
+    };
     const t = ctx.currentTime;
     try {
       cur.gain.gain.cancelScheduledValues(t);

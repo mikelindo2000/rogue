@@ -33,6 +33,8 @@ export class AudioService implements SoundSink {
   private readonly lastPlayed = new Map<string, number>();
   private readonly warned = new Set<string>();
   private activeVoices = 0;
+  /** Live voice count per asset id, for per-asset maxVoices enforcement. */
+  private readonly assetVoices = new Map<string, number>();
 
   constructor(config: AudioServiceConfig) {
     this.muted = config.muted;
@@ -187,6 +189,8 @@ export class AudioService implements SoundSink {
     const last = this.lastPlayed.get(asset.id);
     if (last !== undefined && now - last < cooldown) return;
     if (this.activeVoices >= GLOBAL_MAX_VOICES) return;
+    const assetActive = this.assetVoices.get(asset.id) ?? 0;
+    if (asset.maxVoices !== undefined && assetActive >= asset.maxVoices) return;
     this.lastPlayed.set(asset.id, now);
 
     const src = ctx.createBufferSource();
@@ -196,8 +200,10 @@ export class AudioService implements SoundSink {
     src.connect(gain).connect(master);
 
     this.activeVoices++;
+    this.assetVoices.set(asset.id, assetActive + 1);
     src.onended = () => {
       this.activeVoices = Math.max(0, this.activeVoices - 1);
+      this.assetVoices.set(asset.id, Math.max(0, (this.assetVoices.get(asset.id) ?? 1) - 1));
       try {
         src.disconnect();
         gain.disconnect();

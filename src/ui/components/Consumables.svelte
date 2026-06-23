@@ -4,9 +4,16 @@
   import Popover, { type MenuItem } from './primitives/Popover.svelte';
 
   const items = $derived<MenuItem[]>(
-    ui.potions.map((p) => ({ value: String(p.idx), label: p.label }))
+    ui.potions.map((p) => ({
+      value: String(p.idx),
+      label: p.label,
+      icon: p.icon,
+      iconColor: p.color,
+      color: p.color,
+    }))
   );
   const noPotions = $derived(ui.potions.length === 0);
+  const firstPotion = $derived(ui.potions[0]);
 
   function onSelect(value: string) {
     actions.usePotion(Number(value));
@@ -25,7 +32,9 @@
         aria-expanded={open}
         aria-label="Use potion"
       >
-        <span class="icon" style:color="var(--info)"><Icon name="potion" size={16} /></span>
+        <span class="icon" style:color={firstPotion?.color ?? 'var(--info)'}>
+          <Icon name={firstPotion?.icon ?? 'potion-healing'} size={16} />
+        </span>
         <span class="text">Use potion</span>
         <span class="count tnum">{ui.potions.length}</span>
       </button>

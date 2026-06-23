@@ -19,6 +19,7 @@ import {
 } from './ui/inventoryStats';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
+import { potionVisual } from './itemVisuals';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import {
   drawAvatar,
@@ -1095,7 +1096,15 @@ export class GameUI {
     ui.inventoryItems = inv.cells;
     ui.inventory = inv.cells.slice(0, ui.inventoryMax);
     ui.inventoryCount = inv.count;
-    ui.potions = player.inventory.potions.map((p, i) => ({ idx: i, label: titleCase(p) }));
+    ui.potions = player.inventory.potions.map((p, i) => {
+      const visual = potionVisual(p);
+      return {
+        idx: i,
+        label: titleCase(p),
+        icon: visual.icon,
+        color: visual.uiColor,
+      };
+    });
   }
 
   private buildInventory(player: Player): { cells: InventoryCell[]; count: number } {
@@ -1119,10 +1128,11 @@ export class GameUI {
     player.inventory.potions.forEach(p => potCounts.set(p, (potCounts.get(p) ?? 0) + 1));
     for (const [type, n] of potCounts) {
       const ref: InventoryRef = { kind: 'potion', potionType: type };
+      const visual = potionVisual(type);
       cells.push({
-        icon: 'potion',
+        icon: visual.icon,
         artUrl: potionArtUrl(type),
-        rarityColor: 'var(--rarity-rare)',
+        rarityColor: visual.uiColor,
         count: n > 1 ? n : undefined,
         label: `Potion of ${titleCase(type)}${n > 1 ? ` ×${n}` : ''}`,
         detail: this.potionDetail(type),

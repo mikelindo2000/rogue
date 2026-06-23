@@ -8,21 +8,25 @@
  *   monsterId -> archetype -> special -> generic
  */
 import type { SoundEvent } from './events';
+import type { ArchetypeId } from '../ai/archetypes';
 
+/** Grouping tag. Reserved for future per-channel mixing; not yet honored at
+ *  runtime (global gain + per-asset volume is the only mixing today). */
 export type Channel = 'combat' | 'status' | 'equipment' | 'item' | 'ui';
 
 export interface SoundAsset {
   id: string;
   /** Files relative to AUDIO_BASE; the service randomizes between variants. */
   variants: string[];
+  /** Reserved grouping tag (see Channel) — not yet read at runtime. */
   channel: Channel;
   /** Per-asset volume multiplier (0..1), applied under the global gain. */
   volume?: number;
   /** Minimum ms between plays of this asset (de-chatter noisy cues). */
   cooldownMs?: number;
-  /** Max simultaneous voices for this asset. */
+  /** Max simultaneous voices for this asset (enforced in the service). */
   maxVoices?: number;
-  /** Higher wins when polyphony is contended. */
+  /** Reserved for priority-based voice stealing; not yet honored at runtime. */
   priority?: number;
   /** Preload after unlock (core cues) vs lazy-load on first use (rare/boss). */
   preload?: boolean;
@@ -75,8 +79,13 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'secret-reveal': { id: 'secret-reveal', variants: [sfx('secret-reveal-01.mp3')], channel: 'ui', volume: 0.85 },
 };
 
-/** Per-archetype death clips (the cascade's middle tier). */
-const DEATH_BY_ARCHETYPE: Record<string, string> = {
+/**
+ * Per-archetype death clips (the cascade's middle tier). Typed against the
+ * source-of-truth ArchetypeId union so renaming/adding an archetype surfaces
+ * here. Archetypes intentionally omitted (default, boss-swiper, raptor) fall
+ * through to the special/generic tiers — that's allowed, not an error.
+ */
+export const DEATH_BY_ARCHETYPE: Partial<Record<ArchetypeId, string>> = {
   skirmisher: 'death-skirmisher',
   ambusher: 'death-ambusher',
   brute: 'death-brute',
@@ -88,7 +97,7 @@ const DEATH_BY_ARCHETYPE: Record<string, string> = {
 /** Resolve a death event's clip id via monsterId → archetype → special → generic. */
 function resolveDeathClip(event: Extract<SoundEvent, { type: 'combat.death' }>): string {
   // (No per-monsterId overrides shipped yet; add them here when authored.)
-  const byArchetype = DEATH_BY_ARCHETYPE[event.archetype];
+  const byArchetype = DEATH_BY_ARCHETYPE[event.archetype as ArchetypeId];
   if (byArchetype) return byArchetype;
   if (event.special === 'boss' || event.special === 'hero') return 'death-boss';
   return 'death-default';

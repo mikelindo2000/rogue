@@ -192,7 +192,12 @@ export const MONSTER_DATABASE: MonsterTemplate[] = [
   { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 37, color: '#00ff00', minFloor: 14, special: 'hero' },
   { symbol: 'G', name: 'Golem', hp: 155, atk: 39, color: '#d2b48c', minFloor: 15 },
   { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 41, color: '#d2b48c', minFloor: 15, special: 'hero' },
-  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 42, color: '#39ff14', minFloor: 16 },
+  // atk 42 → 85: the Flying Serpent is a kiter (ranged poker). Its bolt is
+  // telegraphed + chip damage, so it connects only a fraction of each turn and
+  // reads "easy" at the plain-melee base atk (see the §3 telegraph-gating gotcha
+  // in guides/monster-authoring.md). Bumped to land the FAIR band at floor 16
+  // (harness threat ~0.42, mid-fair). Not comparable to a plain-melee row's atk.
+  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 85, color: '#39ff14', minFloor: 16 },
   { symbol: 'C', name: 'Cyclops', hp: 205, atk: 75, color: '#ffdab9', minFloor: 17 },
   { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 85, color: '#ffdab9', minFloor: 17, special: 'hero' },
   { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 47, color: '#ffff00', minFloor: 18 },

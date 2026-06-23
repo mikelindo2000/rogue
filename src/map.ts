@@ -1,7 +1,8 @@
-import { Item, ItemSpawn, Monster, PotionType } from './types';
+import { Item, ItemSpawn, Monster } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
+import { POTION_TYPES, potionVisual } from './itemVisuals';
 import { TILE, isWalkable } from './tiles';
 import { RNG } from './rng';
 import { assert, devAssert } from './assert';
@@ -490,9 +491,13 @@ export function generateLevel(
         if (rand < spawn.goldCut) {
           spawnAt(room, { type: 'gold', symbol: '$', color: '#ffff55' });
         } else if (rand < spawn.potionCut) {
-          const potionPool: PotionType[] = ['healing', 'strength', 'invisibility', 'armor'];
-          const chosenP = rng.pick(potionPool);
-          spawnAt(room, { type: 'potion', symbol: '!', color: '#00ffff', data: { potionType: chosenP } });
+          const chosenP = rng.pick(POTION_TYPES);
+          spawnAt(room, {
+            type: 'potion',
+            symbol: '!',
+            color: potionVisual(chosenP).mapColor,
+            data: { potionType: chosenP },
+          });
         } else if (rand < spawn.scrollCut) {
           spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
         } else {

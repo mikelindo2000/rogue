@@ -2,6 +2,8 @@
   export interface MenuItem {
     value: string;
     label: string;
+    icon?: import('../../icons').IconName;
+    iconColor?: string;
     color?: string; // var(--rarity-…) for the label text
     selected?: boolean;
     disabled?: boolean;
@@ -11,6 +13,7 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   type Placement = 'top' | 'bottom';
 
@@ -184,6 +187,11 @@
           onclick={() => choose(item)}
           style:color={item.color ?? 'var(--text)'}
         >
+          {#if item.icon}
+            <span class="menu-icon" style:color={item.iconColor ?? item.color ?? 'currentColor'}>
+              <Icon name={item.icon} size={15} />
+            </span>
+          {/if}
           <span class="lbl">{item.label}</span>
           {#if item.meta}<span class="meta">{item.meta}</span>{/if}
           {#if item.selected}<span class="check" aria-hidden="true">✓</span>{/if}
@@ -255,6 +263,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .menu-icon {
+    display: inline-flex;
+    flex: none;
   }
   .meta {
     font: 500 var(--fs-xs) var(--font-display);

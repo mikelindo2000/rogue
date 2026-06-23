@@ -9,7 +9,7 @@ import { loadSaveGame, saveSaveGame } from './persistence/savegame';
 import { loadSettings, updateSettings } from './persistence/settings';
 import { createAudioService } from './audio/service';
 import { createMusicService } from './audio/music';
-import type { MusicContextId } from './audio/manifest';
+import { selectMusicContext } from './audio/director';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first.
@@ -46,16 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', unlockAudio, { once: true });
   window.addEventListener('pointerdown', unlockAudio, { once: true });
 
-  // Map coarse game state to a music bed. Bosses win, then a cleared floor is a
-  // respite, then depth selects the explore theme; run end plays the game-over
-  // bed. setContext() ignores repeats and crossfades real changes.
-  const musicContextFor = (): MusicContextId | null => {
-    if (engine.gameOver || engine.gameWon) return 'gameover';
-    if (engine.monsters.some((m) => m.special === 'boss')) return 'boss';
-    if (engine.monsters.length === 0) return 'safe';
-    return engine.dungeonFloor <= 3 ? 'explore-shallow' : 'explore-deep';
-  };
-  const updateMusic = () => music.setContext(musicContextFor());
+  // Map coarse game state to a music bed (pure logic in selectMusicContext).
+  // setContext() ignores repeats and crossfades real changes.
+  const updateMusic = () =>
+    music.setContext(
+      selectMusicContext({
+        gameOver: engine.gameOver,
+        gameWon: engine.gameWon,
+        monsters: engine.monsters,
+        dungeonFloor: engine.dungeonFloor,
+      }),
+    );
 
   // Autosave: trailing debounce around normal writes, plus an immediate flush
   // on tab close/hide. Wired before the initial load/restore so the fresh-run
@@ -96,7 +97,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('beforeunload', flushSave);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushSave();
+    if (document.visibilityState === 'hidden') {
+      flushSave();
+    } else {
+      // Resume the (possibly auto-suspended) audio context when the tab returns.
+      audio.unlock();
+      music.unlock();
+    }
   });
 
   // Movement is suspended while any popover menu or modal dialog is open.

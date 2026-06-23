@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveClipId, resolveCue, SOUND_ASSETS } from './manifest';
+import { resolveClipId, resolveCue, SOUND_ASSETS, DEATH_BY_ARCHETYPE, MUSIC_TRACKS } from './manifest';
 import type { SoundEvent } from './events';
 
 const death = (over: Partial<Extract<SoundEvent, { type: 'combat.death' }>>): SoundEvent => ({
@@ -52,7 +52,7 @@ describe('manifest integrity', () => {
 
   it('every resolvable clip id exists in SOUND_ASSETS', () => {
     const ids = [
-      'combat-hit', 'player-hit', 'combat-miss', 'death-default', 'death-boss',
+      'combat-swing', 'combat-hit', 'player-hit', 'combat-miss', 'death-default', 'death-boss',
       'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death',
       'hunger-hungry', 'hunger-fatigued', 'hunger-starving', 'hunger-starvetick',
       'equip-weapon', 'equip-armor', 'equip-unequip', 'equip-rejected',
@@ -60,5 +60,17 @@ describe('manifest integrity', () => {
       'stairs-down', 'stairs-up', 'secret-reveal',
     ];
     for (const id of ids) expect(SOUND_ASSETS[id], id).toBeDefined();
+  });
+
+  it('every per-archetype death clip resolves to a real asset', () => {
+    for (const [archetype, clipId] of Object.entries(DEATH_BY_ARCHETYPE)) {
+      expect(SOUND_ASSETS[clipId as string], `${archetype} -> ${clipId}`).toBeDefined();
+    }
+  });
+
+  it('every music context maps to a real .mp3 path', () => {
+    for (const [ctx, file] of Object.entries(MUSIC_TRACKS)) {
+      expect(file, ctx).toMatch(/^music\/.+\.mp3$/);
+    }
   });
 });

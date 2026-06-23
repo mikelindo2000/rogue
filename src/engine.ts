@@ -542,6 +542,7 @@ export class GameEngine {
   }
 
   public playerAttack(monster: Monster) {
+    this.sound.emit({ type: 'combat.swing', actor: 'player' });
     const mainWep = this.player.inventory.weapons[this.player.equipped.mainHand];
     if (mainWep) {
       this.executeStrike(monster, mainWep);

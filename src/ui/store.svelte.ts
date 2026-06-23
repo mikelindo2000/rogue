@@ -83,6 +83,8 @@ export interface InventoryActionView {
 export interface PotionOption {
   idx: number;
   label: string;
+  icon: IconName;
+  color: string;
 }
 
 export interface LogLineView {

@@ -60,6 +60,10 @@
   --danger: #d9544a;            /* hostile, damage taken */
   --danger-soft: #c98a85;       /* low-threat monster glyph */
   --info: #58a0e6;             /* potions, rare */
+  --potion-healing: #ff5a6f;
+  --potion-strength: #f59f1a;
+  --potion-invisibility: #9fdcff;
+  --potion-armor: #6aa6d8;
   --magic: #b483e6;            /* scrolls, epic */
   --xp-from: #6a5acd;          /* xp bar gradient start */
   --xp-to: #a98fe6;            /* xp bar gradient end */

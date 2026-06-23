@@ -70,10 +70,21 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: {},
     abilities: [],
   },
-  // Keeps its distance and pelts from range.
+  // Keeps its distance and pelts telegraphed bolts from range — the ranged
+  // poker. Spacing takes priority over a free shot (kite movement), and each
+  // bolt commits to your tile for a turn (windupTurns:1) so you strafe off the
+  // line to dodge. Tuned as frequent chip rather than a heavy nuke: cooldown 0
+  // so it pokes whenever it's at range (still gated by the windup downtime), and
+  // a modest 1.2 multiplier so a single bolt stays light. The previous params
+  // (damageMultiplier 0.8, cooldown 1) stacked telegraph downtime × low
+  // multiplier × cooldown and read *trivial* in the harness — the bolt connected
+  // a tiny fraction of each turn (see the §3 telegraph-gating note in the
+  // monster-authoring guide). Only the Flying Serpent uses this archetype today,
+  // so this retune is effectively local to it; its base atk was raised to land
+  // the FAIR band (see MONSTER_DATABASE / MONSTER_ARCHETYPE notes).
   kiter: {
     movement: { style: 'kite', aggroRange: AGGRO + 2, keepDistance: 4 },
-    attacks: [melee({ id: 'bolt', range: 4, damageMultiplier: 0.8, windupTurns: 1, cooldown: 1 })],
+    attacks: [melee({ id: 'bolt', range: 4, damageMultiplier: 1.2, windupTurns: 1, cooldown: 0 })],
     defense: {},
     abilities: [],
   },
@@ -144,6 +155,16 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   // via the harness: threat unchanged vs default).
   'golem': 'ambusher',
   'gary-the-golem': 'ambusher',
+  // Flying Serpent: a ranged poker (kiter) — holds its distance and spits
+  // telegraphed bolts; you close the gap or strafe off its line to dodge. The
+  // bolt is BOTH telegraphed (windupTurns:1) AND low-multiplier chip, so it
+  // connects only a fraction of each turn and reads very *easy* at the base atk
+  // (see §3 telegraph-gating gotcha). Landed in the FAIR band by (a) retuning the
+  // shared kiter bolt to poke every turn (cooldown 0) at a modest 1.2 multiplier,
+  // and (b) bumping the Flying Serpent's base atk 42 → 85 in MONSTER_DATABASE.
+  // Harness: threat ~0.42 at floor 16 (mid-fair). Only the Flying Serpent uses
+  // the kiter archetype today, so the bolt retune is effectively local to it.
+  'flying-serpent': 'kiter',
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',

@@ -7,6 +7,14 @@ matched to the stable slug used by `inventoryArtUrl()`:
 public/inventory/<item-name-slug>.png
 ```
 
+Small line icons and color metadata are separate from these 512px art assets.
+Shared potion visuals live in `src/itemVisuals.ts`; paired bottle icons live in
+the grouped potion registry in `src/ui/icons.ts`. When adding a new potion,
+update `PotionType`, add its `POTION_VISUALS` entry, add the paired icon path,
+generate the matching `public/inventory/potion-of-<type>.png`, and add/extend
+tests so floor glyphs, inventory cells, popover rows, and modal details all use
+the same visual identity.
+
 ## Current Recipe
 
 - Model: `Runpod/FLUX.2-klein-4B-mflux-4bit`

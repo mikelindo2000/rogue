@@ -101,8 +101,10 @@
           </div>
           <button
             class="switch"
+            type="button"
             role="switch"
             aria-checked={ui.audioMuted}
+            aria-label="Mute sound effects"
             onclick={toggleMute}
           >
             <span class="switch-track"><span class="switch-thumb"></span></span>
@@ -110,7 +112,7 @@
           </button>
         </div>
 
-        <div class="field" class:disabled={ui.audioMuted}>
+        <div class="field">
           <div class="field-text">
             <span class="field-label">Effects volume</span>
             <span class="field-desc">Overall loudness of sound effects.</span>
@@ -124,7 +126,6 @@
               max="100"
               step="1"
               value={volumePct}
-              disabled={ui.audioMuted}
               aria-label="Effects volume"
               aria-valuetext="{volumePct} percent"
               oninput={onVolumeInput}
@@ -152,8 +153,10 @@
           </div>
           <button
             class="switch"
+            type="button"
             role="switch"
             aria-checked={ui.musicMuted}
+            aria-label="Mute music"
             onclick={toggleMusicMute}
           >
             <span class="switch-track"><span class="switch-thumb"></span></span>
@@ -161,7 +164,7 @@
           </button>
         </div>
 
-        <div class="field" class:disabled={ui.musicMuted}>
+        <div class="field">
           <div class="field-text">
             <span class="field-label">Music volume</span>
             <span class="field-desc">Loudness of the background score.</span>
@@ -175,7 +178,6 @@
               max="100"
               step="1"
               value={musicVolumePct}
-              disabled={ui.musicMuted}
               aria-label="Music volume"
               aria-valuetext="{musicVolumePct} percent"
               oninput={onMusicVolumeInput}
@@ -314,9 +316,6 @@
   .group-label + .field {
     border-top: none;
     padding-top: 6px;
-  }
-  .field.disabled {
-    opacity: 0.5;
   }
   .field-text {
     display: flex;

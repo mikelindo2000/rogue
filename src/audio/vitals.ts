@@ -48,11 +48,15 @@ export class VitalsSoundTracker {
     const pct = v.maxHp > 0 ? v.hp / v.maxHp : 0;
 
     // --- HP: critical (<=25%) outranks low (<=50%) on a shared crossing. ---
+    // Critical firing also disarms the low gate so it doesn't chirp on the next
+    // turn while HP sits in the critical band. By design (hysteresis), a partial
+    // recovery into the 50–60% band does NOT re-arm low — the player was just
+    // warned; only a recovery past 60% re-arms it. Same idea for critical at 35%.
     if (v.hp > 0) {
       if (this.critArmed && pct <= 0.25) {
         out.push({ type: 'player.criticalHealth' });
         this.critArmed = false;
-        this.lowArmed = false; // already past low; don't also chirp it
+        this.lowArmed = false;
       } else if (this.lowArmed && pct <= 0.5) {
         out.push({ type: 'player.lowHealth' });
         this.lowArmed = false;
