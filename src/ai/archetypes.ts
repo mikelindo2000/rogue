@@ -111,6 +111,7 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
 export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   'brown-bat': 'bat', // modern erratic flier with a telegraphed swoop + evasion
   'eagle': 'skirmisher',
+  'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
 };
