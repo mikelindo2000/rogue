@@ -144,4 +144,8 @@ export interface BrainContext {
   rng: RNG;
   /** Current engine turn (for cooldown bookkeeping). */
   turn: number;
+  /** Per-tile darkness grid (optional). A monster on a dark tile acquires the
+   *  player only within BALANCE.monster.darkAggroRange. Absent (headless sim,
+   *  tests) ⇒ all-lit ⇒ legacy behavior. */
+  dark?: boolean[][];
 }

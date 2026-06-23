@@ -949,7 +949,8 @@ export class GameEngine {
       {
         dive: (fx, fy, tx, ty, color) => this.ui.fxDive(fx, fy, tx, ty, color),
         whiff: (x, y) => this.ui.fxWhiff(x, y),
-      }
+      },
+      this.dark
     );
     if (this.player.hp < hpBeforeMonsters) {
       this.ui.fxPlayerHit();

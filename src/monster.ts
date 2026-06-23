@@ -35,7 +35,8 @@ export function processMonsterAI(
   addLog: (msg: string) => void,
   rng: RNG,
   turn = 0,
-  fx: AIFx = NO_FX
+  fx: AIFx = NO_FX,
+  dark?: boolean[][]
 ) {
   for (const m of monsters) {
     if (m.frozenTurns > 0) {
@@ -67,6 +68,7 @@ export function processMonsterAI(
       monsters,
       rng,
       turn,
+      dark,
     });
 
     applyAction(action, m, behavior, player, totalDef, addLog, rng, turn);

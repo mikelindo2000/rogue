@@ -115,6 +115,13 @@ export const BALANCE = {
     // Variety tracks DUNGEON DEPTH, not player level. Larger = monsters linger
     // longer (more variety per floor); smaller = tighter, faster-rotating pools.
     spawnDepthBand: 5,
+    // Acquisition range for a monster standing on a dark (unlit) tile. Darkness
+    // cuts both ways: a creature that can't see you can't beeline for you from
+    // across a black room, so dark rooms aren't a one-sided player nerf. The
+    // 'hunt' style chases when dist < range, so 3 means "a creature within ~2
+    // tiles in the dark still finds you" while it stays blind across the room.
+    // An already-hunting ambusher keeps its scent regardless.
+    darkAggroRange: 3,
   },
   status: {
     vigorTurns: 100,

@@ -147,6 +147,16 @@ export function decideMonsterAction(ctx: BrainContext): AIAction {
   return decideMovement(ctx, dist);
 }
 
+/** A monster on a dark tile can't see far: cap its acquisition range at
+ *  darkAggroRange. Lit tiles (or no dark grid) keep the profile's range. This
+ *  governs ACQUISITION only — an already-hunting ambusher (rt.state) is
+ *  unaffected, so it keeps pursuing once it has your scent. */
+function effectiveAggro(ctx: BrainContext, range: number): number {
+  const { monster: m } = ctx;
+  const onDark = ctx.dark?.[m.y]?.[m.x] === true;
+  return onDark ? Math.min(range, BALANCE.monster.darkAggroRange) : range;
+}
+
 function decideMovement(ctx: BrainContext, dist: number): AIAction {
   const { monster: m, player, behavior } = ctx;
   const mv = behavior.movement;
@@ -156,12 +166,14 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
     case 'stationary':
       return { type: 'wait' };
 
-    case 'hunt':
+    case 'hunt': {
       // Stationary outside aggro, chase within — the legacy rule.
-      return dist < mv.aggroRange ? stepToward(ctx, player.x, player.y) : { type: 'wait' };
+      const aggro = effectiveAggro(ctx, mv.aggroRange);
+      return dist < aggro ? stepToward(ctx, player.x, player.y) : { type: 'wait' };
+    }
 
     case 'ambush': {
-      const wake = mv.wakeRange ?? mv.aggroRange;
+      const wake = effectiveAggro(ctx, mv.wakeRange ?? mv.aggroRange);
       if (rt.state !== 'hunting') {
         if (dist <= wake) rt.state = 'hunting';
         else return { type: 'wait' };
@@ -170,7 +182,7 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
     }
 
     case 'erratic': {
-      if (dist >= mv.aggroRange) return { type: 'wait' };
+      if (dist >= effectiveAggro(ctx, mv.aggroRange)) return { type: 'wait' };
       // Hit-and-run: if the primary attack just fired (still on cooldown) and the
       // player is close, peel away rather than camp — the flighty bat retreats
       // between dives.
@@ -191,7 +203,7 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
     }
 
     case 'kite': {
-      if (dist >= mv.aggroRange) return { type: 'wait' };
+      if (dist >= effectiveAggro(ctx, mv.aggroRange)) return { type: 'wait' };
       const keep = mv.keepDistance ?? 3;
       if (dist < keep) return stepAway(ctx, player.x, player.y);
       if (dist > keep) return stepToward(ctx, player.x, player.y);

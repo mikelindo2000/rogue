@@ -326,3 +326,54 @@ describe('on-hit abilities', () => {
     expect(m.hp).toBe(15);
   });
 });
+
+describe('darkness reduces monster acquisition', () => {
+  const DARK_AGGRO = BALANCE.monster.darkAggroRange;
+
+  function decideWithDark(m: Monster, player: { x: number; y: number }, dark: boolean): AIAction {
+    const size = 13;
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => false));
+    if (dark) grid[m.y][m.x] = true;
+    return decideMonsterAction({
+      monster: m,
+      behavior: DEFAULT,
+      player: { x: player.x, y: player.y } as Player,
+      status: noStatus(),
+      map: floorMap(size),
+      cols: size,
+      rows: size,
+      monsters: [m],
+      rng: makeRng(1),
+      turn: 0,
+      dark: grid,
+    });
+  }
+
+  it('a hunt monster on a dark tile ignores a player beyond darkAggroRange', () => {
+    // dist 4 (> darkAggro 3, < normal AGGRO 6): lit chases, dark waits.
+    const m = mob({ x: 10, y: 6 });
+    expect(decideWithDark(m, { x: 6, y: 6 }, false)).toEqual({ type: 'move', dx: -1, dy: 0 });
+    expect(decideWithDark(mob({ x: 10, y: 6 }), { x: 6, y: 6 }, true)).toEqual({ type: 'wait' });
+  });
+
+  it('a hunt monster on a dark tile still finds a player within darkAggroRange', () => {
+    // dist 2 (< darkAggro 3): chases even in the dark.
+    const m = mob({ x: 8, y: 6 });
+    expect(decideWithDark(m, { x: 6, y: 6 }, true)).toEqual({ type: 'move', dx: -1, dy: 0 });
+    expect(DARK_AGGRO).toBeLessThan(BALANCE.monster.aggroRange);
+  });
+
+  it('an already-hunting ambusher keeps pursuing through the dark', () => {
+    const ambusher: MonsterBehavior = { id: 'ambusher', ...ARCHETYPES.ambusher };
+    const m = mob({ x: 12, y: 6 });
+    m.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false };
+    const size = 13;
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => false));
+    grid[m.y][m.x] = true; // far away (dist 6) and in the dark...
+    const action = decideMonsterAction({
+      monster: m, behavior: ambusher, player: { x: 6, y: 6 } as Player, status: noStatus(),
+      map: floorMap(size), cols: size, rows: size, monsters: [m], rng: makeRng(1), turn: 0, dark: grid,
+    });
+    expect(action).toEqual({ type: 'move', dx: -1, dy: 0 }); // ...still hunts
+  });
+});
