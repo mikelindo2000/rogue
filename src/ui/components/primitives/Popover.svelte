@@ -92,10 +92,11 @@
     const viewportMaxH = Math.max(0, viewportH - VIEWPORT_PAD * 2);
     const preferredH = Math.max(64, nextPlacement === 'bottom' ? spaceBelow : spaceAbove);
     const maxHeight = Math.min(PANEL_MAX_HEIGHT, preferredH, viewportMaxH);
+    const panelHeight = Math.min(panel.scrollHeight, maxHeight);
     const top =
       nextPlacement === 'bottom'
-        ? clamp(anchor.bottom + PANEL_GAP, VIEWPORT_PAD, viewportH - VIEWPORT_PAD - maxHeight)
-        : clamp(anchor.top - PANEL_GAP - maxHeight, VIEWPORT_PAD, viewportH - VIEWPORT_PAD - maxHeight);
+        ? clamp(anchor.bottom + PANEL_GAP, VIEWPORT_PAD, viewportH - VIEWPORT_PAD - panelHeight)
+        : clamp(anchor.top - PANEL_GAP - panelHeight, VIEWPORT_PAD, viewportH - VIEWPORT_PAD - panelHeight);
 
     placement = nextPlacement;
     panelStyle = `left:${left}px;top:${top}px;width:${width}px;max-height:${maxHeight}px;`;
