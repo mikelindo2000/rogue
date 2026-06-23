@@ -35,6 +35,10 @@
     <span class="lbl">eat</span>
     </span>
     <span class="hint">
+    <KeyCap>q</KeyCap>
+    <span class="lbl">quaff</span>
+    </span>
+    <span class="hint">
     <KeyCap>Space</KeyCap>
     <span class="lbl">search</span>
     </span>

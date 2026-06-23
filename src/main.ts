@@ -182,18 +182,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   actions.setCompendiumOpen = (open) => {
+    if (open) ui.potionMenuOpen = false;
     ui.compendiumOpen = open;
   };
   actions.setInventoryOpen = (open) => {
+    if (open) ui.potionMenuOpen = false;
     ui.inventoryOpen = open;
     if (open && !ui.selectedInventoryRef) {
       ui.selectedInventoryRef = ui.inventoryItems[0]?.ref ?? null;
     }
   };
+  actions.setPotionMenuOpen = (open) => {
+    if (open && (overlayOpen() || ui.potions.length === 0)) return;
+    ui.potionMenuOpen = open;
+  };
   actions.setBalancePanelOpen = (open) => {
+    if (open) ui.potionMenuOpen = false;
     ui.balancePanelOpen = open;
   };
   actions.setSettingsOpen = (open) => {
+    if (open) ui.potionMenuOpen = false;
     ui.settingsOpen = open;
   };
   actions.setAudioMuted = (muted) => {
@@ -329,6 +337,15 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (!overlayOpen()) {
         engine.readScroll();
       }
+    },
+  });
+
+  keyboard.register({
+    keys: ['q'],
+    description: 'Quaff a potion',
+    context: 'game',
+    callback: () => {
+      actions.setPotionMenuOpen(true);
     },
   });
 

@@ -167,6 +167,7 @@ export interface UIState {
   compendiumOpen: boolean;
   inventoryOpen: boolean;
   selectedInventoryRef: InventoryRef | null;
+  potionMenuOpen: boolean;
   /** Dev-only balance report overlay (⌘/Ctrl+B). */
   balancePanelOpen: boolean;
   settingsOpen: boolean;
@@ -227,6 +228,7 @@ export const ui = $state<UIState>({
   compendiumOpen: false,
   inventoryOpen: false,
   selectedInventoryRef: null,
+  potionMenuOpen: false,
   balancePanelOpen: false,
   settingsOpen: false,
   audioMuted: false,
@@ -254,6 +256,7 @@ export interface UIActions {
   restart(): void;
   setCompendiumOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
+  setPotionMenuOpen(open: boolean): void;
   setBalancePanelOpen(open: boolean): void;
   setSettingsOpen(open: boolean): void;
   setAudioMuted(muted: boolean): void;
@@ -285,6 +288,7 @@ export const actions: UIActions = {
   restart: () => {},
   setCompendiumOpen: () => {},
   setInventoryOpen: () => {},
+  setPotionMenuOpen: () => {},
   setBalancePanelOpen: () => {},
   setSettingsOpen: () => {},
   setAudioMuted: () => {},
