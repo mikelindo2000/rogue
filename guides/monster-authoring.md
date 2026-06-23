@@ -182,6 +182,22 @@ If unsure of the slug, check the monster's `name` in `MONSTER_DATABASE`
 
 ### 3. Vet the difficulty with the harness (do NOT skip)
 
+> **⚠ The #1 tuning gotcha — telegraphed vs movement-only archetypes.** The base
+> `atk` values in `MONSTER_DATABASE` are tuned for **plain melee that hits every
+> turn**. Two cases:
+> - **Movement-only archetypes** (`ambusher`, `skirmisher`) keep plain-melee
+>   combat, so they're **balance-neutral** — the monster's threat is unchanged.
+>   Just *confirm* it's still fair; **do not bump atk**.
+> - **Telegraphed / gated archetypes** (`brute`, `bat`, `raptor`, `kiter`, and
+>   anything with `windupTurns > 0`) only connect **~0.3×/turn** (windup downtime
+>   × the assumed dodge rate). That gating *more than cancels* a `>1` damage
+>   multiplier, so the monster will read **easy** at its current base atk. Expect
+>   to **roughly double (or more) the base `atk`** in `MONSTER_DATABASE` to reach
+>   the fair band. The displayed atk is therefore **not comparable across
+>   archetypes** — a telegraphed slammer needs a bigger number than a plain-melee
+>   monster of the same floor to land the same threat. (Examples: Eagle→raptor
+>   needed atk 12→17; Cyclops→brute needed 43→75.)
+
 A combat-affecting archetype changes the monster's effective damage. Check it
 stays in the **fair** band before shipping. Two ways:
 
@@ -386,18 +402,19 @@ assignment + harness tuning; the noted gotcha is the thing to watch.
 | Monster (floor) | Archetype | Effect & flavor | Difficulty target | Gotcha |
 | --- | --- | --- | --- | --- |
 | **Leprechaun** (5) | `trickster` | Steals gold on a hit, then flees — canonical Rogue. | Fair, but fleeing lowers its uptime → it'll read *easier* than its threat number. | **Already shipped** (threat 0.386, fair, at base stats — a 1-line assignment, no tuning). `stealGold` is implemented. Flee makes the harness slightly overstate threat (it doesn't model the monster leaving), so leaving it at the low end of fair is correct. |
-| **Eagle** (4) | new `raptor` (erratic + telegraphed dive, light evasion) | A faster, less punishing cousin of the bat — teaches dodging again mid-early. | Fair at floor 4. | Currently `skirmisher` (movement-only). Reuse the `bat` shape but lower `damageMultiplier`/`dodgeChance`. Two telegraphed fliers (bat F1, raptor F4) is good escalation. |
-| **Cyclops / Colossal Cyclops** (17) | `brute` | Slow, heavily telegraphed slam — dodge it or eat a big hit. | Fair→hard (elite higher). | `brute` exists. Its slam is `windupTurns: 1` so it telegraphs automatically. Verify the harness — `brute` damage is `×1.6`. |
-| **Golem / Gary** (15) | `ambusher` or `brute` | A stone sentinel that's inert until you're close, then commits. | Fair. | `ambusher` latches permanently once woken — intended. Pairs well thematically with high HP. |
+| ~~**Eagle** (4)~~ ✅ shipped | `raptor` (new) | Telegraphed dive + light evasion — gentler bat cousin. | Fair (0.375 @ F4). | Telegraph-gated → base atk bumped 12→17 (see the §3 gotcha). |
+| ~~**Cyclops / Colossal Cyclops** (17)~~ ✅ shipped | `brute` | Heavily telegraphed slam — dodge or eat a big hit. | Fair (0.48 / 0.61). | Telegraph-gated → atk bumped 43→75 / 45→85 (see the §3 gotcha). |
+| ~~**Golem / Gary** (15)~~ ✅ shipped | `ambusher` | Stone sentinel, inert until you're close, then latches. | Fair (0.49 / 0.58). | Movement-only → **balance-neutral, no tuning** (threat unchanged vs default). |
 | **Flying Serpent** (16) | `kiter` | Spits from range; you close the gap or strafe off its line. | Fair. | Exercises the ranged path. The bolt is telegraphed → step off the target tile to dodge. The dive streak doubles as the projectile; a dedicated `'bolt'` animCue is optional polish. |
 | **Zombie / Zachary** (19) | new `leech` (hunt + `leechHeal` on hit) | Heals itself when it bites you — attrition pressure. | Fair→hard. | `leechHeal` is implemented. It lengthens fights (self-heal), which raises threat — tune `magnitude` and re-check the harness; don't let TTK balloon. |
 | **Nymph** (9) | `trickster` (ideally `stealItem`) | Steals and vanishes. | Fair. | `stealItem` is **schema-only** — implement it in `fireAbility` first, or ship with `stealGold` as a placeholder. |
 
-The Leprechaun is already shipped (the worked example above). A good next
-parallel batch with no core changes: **Cyclops** (brute, no new code) and
-**Golem** (ambusher, no new code), plus **Eagle** (one new `raptor` archetype).
-Those barely overlap. Save **Nymph/`stealItem`** and any **new movement style**
-for a serialized core pass.
+Shipped so far: Leprechaun (trickster), Eagle (raptor), Cyclops + Colossal
+Cyclops (brute), Golem + Gary (ambusher). The remaining candidates above —
+**Flying Serpent** (kiter, exercises the ranged path), **Zombie** (a new `leech`
+archetype), and **Nymph** (needs `stealItem` implemented in `fireAbility`) —
+each touch a bit of core (`stealItem`) or a new archetype, so land them with a
+short serialized pass rather than fully parallel.
 
 ---
 
