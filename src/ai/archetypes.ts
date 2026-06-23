@@ -37,7 +37,8 @@ export type ArchetypeId =
   | 'trickster'
   | 'boss-swiper'
   | 'bat'
-  | 'raptor';
+  | 'raptor'
+  | 'leech';
 
 export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // Stationary until the player is within aggro, then beeline + bite. Legacy.
@@ -120,6 +121,24 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: { dodgeChance: 0.15 },
     abilities: [],
   },
+  // The Zombie: a plain chase-and-bite hunter whose bite drains your vitality —
+  // every landed hit heals it a little (leechHeal on-hit), turning a fight into a
+  // war of attrition. Its DIRECT melee is identical to `default` (hunt movement,
+  // melee, damageMultiplier 1, no windup), so its base atk stays balance-neutral
+  // and reads FAIR for direct damage with no atk change. The only added pressure
+  // is the heal, which the balance harness does NOT model (the combat sim has no
+  // healing term), so its magnitude is a *playtest* knob, not a harness one.
+  //
+  // magnitude: 3 HP per landed bite. Deliberately conservative — that's ~1% of the
+  // Zombie's 275 HP and a small fraction of its ~49-atk hit, so a competent player
+  // still out-damages the heal and the leech reads as attrition *flavor* rather
+  // than an unwinnable heal wall. (Heal is capped at maxHp in fireAbility.)
+  leech: {
+    movement: { style: 'hunt', aggroRange: AGGRO },
+    attacks: [melee()],
+    defense: {},
+    abilities: [{ id: 'leechHeal', chance: 1, magnitude: 3, cooldown: 0, trigger: 'onHit' }],
+  },
   // Marcus the Brave: chase-and-bite, but every other swing is a double-damage
   // swipe. Reproduces the old name-special as data.
   'boss-swiper': {
@@ -165,6 +184,16 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   // Harness: threat ~0.42 at floor 16 (mid-fair). Only the Flying Serpent uses
   // the kiter archetype today, so the bolt retune is effectively local to it.
   'flying-serpent': 'kiter',
+  // Zombie & elite Zachary: plain hunt-and-bite, but each bite leeches HP
+  // (leechHeal on-hit) — a war of attrition. DIRECT melee is identical to default
+  // (melee, multiplier 1, no windup), so this is balance-neutral for direct damage
+  // and stays FAIR at floor 19 with NO base-atk change (harness: Zombie threat
+  // ~0.54, Zachary ~0.62, both mid/upper-fair). The extra attrition from the heal
+  // is NOT modeled by the harness (no healing term in the sim), so the leechHeal
+  // magnitude (3 HP/hit) is tuned by playtest, not by the harness — see the leech
+  // archetype comment.
+  'zombie': 'leech',
+  'zachary-the-zombie': 'leech',
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
