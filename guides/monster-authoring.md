@@ -140,6 +140,13 @@ abilities: [{
 
 The common case — give an existing monster a distinct, balance-checked behavior.
 
+> **Fast path:** if a fitting archetype already exists *and* it's complete (its
+> abilities are already implemented in `fireAbility`), the entire change is **one
+> line** in `MONSTER_ARCHETYPE` (step 2) plus tests (step 4) and the harness check
+> (step 3). Skip step 1. The Leprechaun → `trickster` is exactly this: the
+> archetype, the `stealGold` ability, and the engine support all pre-exist, so
+> the diff is a single assignment line. Don't over-build.
+
 ### 1. Pick or write an archetype (`src/ai/archetypes.ts`)
 
 Reuse one of the presets if it fits: `skirmisher` (erratic), `ambusher`,
@@ -181,7 +188,10 @@ stays in the **fair** band before shipping. Two ways:
 - **In-game:** press **Ctrl/Cmd+B** to open the Balance Report. Find your
   monster; aim for `difficulty: fair` (threat ~0.35–0.70) at the floor it first
   appears. Elites (`↑` variants) can sit a bit higher.
-- **Headless** (for precise tuning): write a throwaway in `src/ai/` like:
+- **Headless** (for precise tuning): write a throwaway in `src/ai/` and run it
+  with **`npx tsx src/ai/scratch.ts`** (plain `node` won't run TypeScript/ESM
+  imports). Or — cleaner — make it a real test that asserts the fair band, like
+  the harness test in `src/ai/leprechaun.test.ts`, and run it with `npx vitest`.
 
   ```ts
   import { analyzeMonster } from './balance';
@@ -191,9 +201,14 @@ stays in the **fair** band before shipping. Two ways:
   console.log(analyzeMonster(t, { trials: 2000, shapeFor: shapeForTemplate }));
   ```
 
+  `analysis.threat` is the deterministic closed-form number (no MC variance) and
+  drives `difficulty`; the `winRate`/`meanTtk` fields are the Monte-Carlo extras.
   Tune the archetype's `damageMultiplier` (and/or the monster's base `atk` in
-  `MONSTER_DATABASE`) until `analysis.threat` lands in band. To **solve** for a
-  target instead of guessing, use `autoBalanceAttack` (monotonic bisection):
+  `MONSTER_DATABASE`) until `analysis.threat` lands in band — **anywhere inside
+  [0.35, 0.70] is done.** Only adjust if it falls *outside* the band; don't chase
+  a specific number. To **solve** for a target instead of guessing (useful for
+  telegraphed/heavy attacks where you're picking a multiplier), use
+  `autoBalanceAttack` (monotonic bisection):
 
   ```ts
   import { autoBalanceAttack, expectedPlayerAtFloor, monsterCombatFromTemplate } from './balance';
@@ -370,7 +385,7 @@ assignment + harness tuning; the noted gotcha is the thing to watch.
 
 | Monster (floor) | Archetype | Effect & flavor | Difficulty target | Gotcha |
 | --- | --- | --- | --- | --- |
-| **Leprechaun** (5) | `trickster` | Steals gold on a hit, then flees — canonical Rogue. | Fair, but fleeing lowers its uptime → it'll read *easier* than its threat number. | `stealGold` is implemented. Flee makes the harness slightly overstate threat (it doesn't model the monster leaving). Lean to the high side. |
+| **Leprechaun** (5) | `trickster` | Steals gold on a hit, then flees — canonical Rogue. | Fair, but fleeing lowers its uptime → it'll read *easier* than its threat number. | **Already shipped** (threat 0.386, fair, at base stats — a 1-line assignment, no tuning). `stealGold` is implemented. Flee makes the harness slightly overstate threat (it doesn't model the monster leaving), so leaving it at the low end of fair is correct. |
 | **Eagle** (4) | new `raptor` (erratic + telegraphed dive, light evasion) | A faster, less punishing cousin of the bat — teaches dodging again mid-early. | Fair at floor 4. | Currently `skirmisher` (movement-only). Reuse the `bat` shape but lower `damageMultiplier`/`dodgeChance`. Two telegraphed fliers (bat F1, raptor F4) is good escalation. |
 | **Cyclops / Colossal Cyclops** (17) | `brute` | Slow, heavily telegraphed slam — dodge it or eat a big hit. | Fair→hard (elite higher). | `brute` exists. Its slam is `windupTurns: 1` so it telegraphs automatically. Verify the harness — `brute` damage is `×1.6`. |
 | **Golem / Gary** (15) | `ambusher` or `brute` | A stone sentinel that's inert until you're close, then commits. | Fair. | `ambusher` latches permanently once woken — intended. Pairs well thematically with high HP. |
@@ -378,10 +393,11 @@ assignment + harness tuning; the noted gotcha is the thing to watch.
 | **Zombie / Zachary** (19) | new `leech` (hunt + `leechHeal` on hit) | Heals itself when it bites you — attrition pressure. | Fair→hard. | `leechHeal` is implemented. It lengthens fights (self-heal), which raises threat — tune `magnitude` and re-check the harness; don't let TTK balloon. |
 | **Nymph** (9) | `trickster` (ideally `stealItem`) | Steals and vanishes. | Fair. | `stealItem` is **schema-only** — implement it in `fireAbility` first, or ship with `stealGold` as a placeholder. |
 
-Good first parallel batch: **Leprechaun** (trickster, no new code), **Cyclops**
-(brute, no new code), **Eagle** (one new archetype). Those three barely overlap
-and need no core changes. Save **Nymph/`stealItem`** and any **new movement
-style** for a serialized core pass.
+The Leprechaun is already shipped (the worked example above). A good next
+parallel batch with no core changes: **Cyclops** (brute, no new code) and
+**Golem** (ambusher, no new code), plus **Eagle** (one new `raptor` archetype).
+Those barely overlap. Save **Nymph/`stealItem`** and any **new movement style**
+for a serialized core pass.
 
 ---
 
