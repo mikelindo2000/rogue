@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ui, actions } from '../store.svelte';
+  import { pickEndRunArt } from '../endRunArt';
   import { buildEndRunView, type EndRunStat } from '../endRunView';
   import KeyCap from './primitives/KeyCap.svelte';
 
@@ -17,6 +18,9 @@
   let activeTab = $state<TabId>('story');
   let selectedHistory = $state(0);
   let confirmClear = $state(false);
+  let artOpen = $state(true);
+  let artRunId = $state<string | null>(null);
+  let closeArtButton = $state<HTMLButtonElement | null>(null);
   let restartButton = $state<HTMLButtonElement | null>(null);
   let clearButton = $state<HTMLButtonElement | null>(null);
   let confirmClearButton = $state<HTMLButtonElement | null>(null);
@@ -28,6 +32,7 @@
       : null
   );
   const isOpen = $derived(!!summary && (ui.gameOver || ui.gameWon));
+  const endArt = $derived(summary ? pickEndRunArt(summary) : null);
   const activeIndex = $derived(TABS.findIndex(t => t.id === activeTab));
   const activeStats: EndRunStat[] = $derived(
     !view ? [] :
@@ -41,11 +46,17 @@
 
   $effect(() => {
     if (isOpen) {
-      requestAnimationFrame(() => restartButton?.focus());
+      if (summary && artRunId !== summary.runId) {
+        artRunId = summary.runId;
+        artOpen = true;
+      }
+      requestAnimationFrame(() => (artOpen ? closeArtButton : restartButton)?.focus());
     } else {
       activeTab = 'story';
       selectedHistory = 0;
       confirmClear = false;
+      artOpen = true;
+      artRunId = null;
     }
   });
 
@@ -60,8 +71,21 @@
     selectTab(TABS[next].id);
   }
 
+  function closeArt() {
+    artOpen = false;
+    requestAnimationFrame(() => restartButton?.focus());
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (!isOpen) return;
+    if (artOpen) {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeArt();
+      }
+      return;
+    }
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       e.stopPropagation();
@@ -118,117 +142,139 @@
     tabindex="-1"
   >
     <div class="panel">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">{view.outcomeLabel}</p>
-          <h2>{view.title}</h2>
-          <p class="subtitle">{view.subtitle}</p>
-        </div>
-        <div class="hero-meta">
-          <span>{view.completedAt}</span>
-          <span>{view.duration}</span>
-          <span>Seed {summary.seed}</span>
-        </div>
-      </header>
-
-      {#if view.recordBadges.length > 0}
-        <div class="badges" aria-label="Record highlights">
-          {#each view.recordBadges as badge}
-            <span>{badge}</span>
-          {/each}
-        </div>
-      {/if}
-
-      <section class="headline" aria-label="Headline stats">
-        {#each view.headline as stat}
-          <div class="metric">
-            <span class="metric-label">{stat.label}</span>
-            <span class="metric-value">{stat.value}</span>
+      {#if artOpen && endArt}
+        <button
+          bind:this={closeArtButton}
+          class="art-curtain"
+          aria-label="Close ending image and show run statistics"
+          onclick={closeArt}
+        >
+          <img src={endArt.url} alt="" />
+          <span class="art-shade"></span>
+          <span class="art-copy">
+            <span class="eyebrow">{view.outcomeLabel}</span>
+            <strong>{view.title}</strong>
+            <span>{view.subtitle}</span>
+          </span>
+          <span class="art-close">
+            Close image to see stats
+            <KeyCap>Enter</KeyCap>
+            <KeyCap>Esc</KeyCap>
+          </span>
+        </button>
+      {:else}
+        <header class="hero">
+          <div>
+            <p class="eyebrow">{view.outcomeLabel}</p>
+            <h2>{view.title}</h2>
+            <p class="subtitle">{view.subtitle}</p>
           </div>
-        {/each}
-      </section>
-
-      <div class="tabs" role="tablist" aria-label="End-run sections">
-        {#each TABS as tab}
-          <button
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            class:active={activeTab === tab.id}
-            onclick={() => selectTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        {/each}
-      </div>
-
-      <section class="content" aria-live="polite">
-        {#if activeTab === 'history'}
-          <div class="history-head">
-            <span>Result</span>
-            <span>Score</span>
-            <span>Floor</span>
-            <span>Turns</span>
-            <span>When</span>
+          <div class="hero-meta">
+            <span>{view.completedAt}</span>
+            <span>{view.duration}</span>
+            <span>Seed {summary.seed}</span>
           </div>
-          {#if view.history.length === 0}
-            <p class="empty">No browser history yet.</p>
-          {:else}
-            <div class="history" role="listbox" aria-label="Previous runs">
-              {#each view.history as run, i}
-                <button
-                  class:selected={selectedHistory === i}
-                  role="option"
-                  aria-selected={selectedHistory === i}
-                  onclick={() => selectedHistory = i}
-                >
-                  <span>{run.result}</span>
-                  <span>{run.score}</span>
-                  <span>{run.floor}</span>
-                  <span>{run.turns}</span>
-                  <span>{run.when}</span>
-                </button>
-              {/each}
-            </div>
-          {/if}
-          <p class="local-note">Saved in this browser only.</p>
-        {:else}
-          <div class="stats-grid">
-            {#each activeStats as stat}
-              <div class="stat-row">
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                {#if stat.detail}<em>{stat.detail}</em>{/if}
-              </div>
+        </header>
+
+        {#if view.recordBadges.length > 0}
+          <div class="badges" aria-label="Record highlights">
+            {#each view.recordBadges as badge}
+              <span>{badge}</span>
             {/each}
           </div>
+        {/if}
 
-          {#if activeTab === 'story' && summary.awards.length > 0}
-            <div class="awards" aria-label="Awards">
-              {#each summary.awards as award}
-                <span>{award}</span>
+        <section class="headline" aria-label="Headline stats">
+          {#each view.headline as stat}
+            <div class="metric">
+              <span class="metric-label">{stat.label}</span>
+              <span class="metric-value">{stat.value}</span>
+            </div>
+          {/each}
+        </section>
+
+        <div class="tabs" role="tablist" aria-label="End-run sections">
+          {#each TABS as tab}
+            <button
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              class:active={activeTab === tab.id}
+              onclick={() => selectTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          {/each}
+        </div>
+
+        <section class="content" aria-live="polite">
+          {#if activeTab === 'history'}
+            <div class="history-head">
+              <span>Result</span>
+              <span>Score</span>
+              <span>Floor</span>
+              <span>Turns</span>
+              <span>When</span>
+            </div>
+            {#if view.history.length === 0}
+              <p class="empty">No browser history yet.</p>
+            {:else}
+              <div class="history" role="listbox" aria-label="Previous runs">
+                {#each view.history as run, i}
+                  <button
+                    class:selected={selectedHistory === i}
+                    role="option"
+                    aria-selected={selectedHistory === i}
+                    onclick={() => selectedHistory = i}
+                  >
+                    <span>{run.result}</span>
+                    <span>{run.score}</span>
+                    <span>{run.floor}</span>
+                    <span>{run.turns}</span>
+                    <span>{run.when}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+            <p class="local-note">Saved in this browser only.</p>
+          {:else}
+            <div class="stats-grid">
+              {#each activeStats as stat}
+                <div class="stat-row">
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                  {#if stat.detail}<em>{stat.detail}</em>{/if}
+                </div>
               {/each}
             </div>
-          {/if}
-        {/if}
-      </section>
 
-      <footer class="actions">
-        <button bind:this={restartButton} class="primary" onclick={() => actions.restart()}>
-          Restart <KeyCap>R</KeyCap>
-        </button>
-        <button onclick={() => actions.copyEndRunSummary()}>Copy summary</button>
-        {#if confirmClear}
-          <span class="confirm" role="group" aria-label="Confirm clear history">
-            <button bind:this={confirmClearButton} onclick={clearHistory}>Confirm clear</button>
-            <button onclick={cancelClearHistory}>Cancel</button>
-          </span>
-        {:else}
-          <button bind:this={clearButton} onclick={requestClearHistory}>Clear local history</button>
-        {/if}
-        {#if ui.endRunCopyStatus}
-          <span class="copy-status">{ui.endRunCopyStatus}</span>
-        {/if}
-      </footer>
+            {#if activeTab === 'story' && summary.awards.length > 0}
+              <div class="awards" aria-label="Awards">
+                {#each summary.awards as award}
+                  <span>{award}</span>
+                {/each}
+              </div>
+            {/if}
+          {/if}
+        </section>
+
+        <footer class="actions">
+          <button bind:this={restartButton} class="primary" onclick={() => actions.restart()}>
+            Restart <KeyCap>R</KeyCap>
+          </button>
+          <button onclick={() => actions.copyEndRunSummary()}>Copy summary</button>
+          {#if confirmClear}
+            <span class="confirm" role="group" aria-label="Confirm clear history">
+              <button bind:this={confirmClearButton} onclick={clearHistory}>Confirm clear</button>
+              <button onclick={cancelClearHistory}>Cancel</button>
+            </span>
+          {:else}
+            <button bind:this={clearButton} onclick={requestClearHistory}>Clear local history</button>
+          {/if}
+          {#if ui.endRunCopyStatus}
+            <span class="copy-status">{ui.endRunCopyStatus}</span>
+          {/if}
+        </footer>
+      {/if}
     </div>
   </div>
 {/if}
@@ -256,6 +302,76 @@
     border-radius: var(--r-xl);
     background: var(--surface-app);
     box-shadow: var(--shadow-pop);
+  }
+  .art-curtain {
+    position: relative;
+    flex: 1;
+    min-height: min(760px, 92vh);
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    background: #000;
+    color: var(--text-bright);
+    cursor: pointer;
+    text-align: left;
+  }
+  .art-curtain img,
+  .art-shade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .art-curtain img {
+    object-fit: cover;
+  }
+  .art-shade {
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.05) 42%, rgba(0, 0, 0, 0.72)),
+      radial-gradient(80% 74% at 50% 45%, transparent 46%, rgba(0, 0, 0, 0.55));
+  }
+  .art-copy,
+  .art-close {
+    position: absolute;
+    z-index: 1;
+  }
+  .art-copy {
+    left: clamp(18px, 4vw, 42px);
+    right: clamp(18px, 4vw, 42px);
+    bottom: clamp(72px, 12vh, 112px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 680px;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.92);
+  }
+  .art-copy strong {
+    font: 800 clamp(28px, 5vw, 52px) var(--font-display);
+    line-height: 0.98;
+  }
+  .art-copy span:last-child {
+    max-width: 540px;
+    color: rgba(245, 238, 219, 0.88);
+    font: 700 var(--fs-body) var(--font-ui);
+  }
+  .art-close {
+    right: clamp(16px, 3vw, 28px);
+    bottom: clamp(16px, 3vw, 24px);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 70%, white 10%);
+    border-radius: var(--r-md);
+    background: rgba(0, 0, 0, 0.68);
+    color: var(--text-bright);
+    font: 800 var(--fs-sm) var(--font-display);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  .art-curtain:focus-visible .art-close {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
   }
   .hero {
     flex: none;
