@@ -176,6 +176,7 @@ describe('savegame floorStates survival', () => {
     expect(lFloor).toBe(1);
     expect(lFs.map).toEqual(fs.map);
     expect(lFs.explored).toEqual(fs.explored);
+    expect(lFs.dark).toEqual(fs.dark);
     expect(lFs.monsters).toEqual(fs.monsters);
     expect(lFs.items).toEqual(fs.items);
   });

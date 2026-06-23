@@ -220,11 +220,14 @@ player sees one tile while monsters sense and path to them from six tiles of
 blackness, and the telegraph that would warn the player does not even render
 until the creature is adjacent (above). That is an accident, not a design.
 
-**Decision: darkness cuts both ways.** When the player is in an *unlit* room, a
-monster **in that same dark room** uses a reduced aggro range
-`BALANCE.monster.darkAggroRange` (default = `BALANCE.fov.darkRadius + 1`, i.e.
-2). Outside dark rooms, aggro is unchanged. Effect: neither side notices the
-other across a black room; an already-hunting monster still behaves normally
+**Decision: darkness cuts both ways.** When a monster stands on a dark tile it
+uses a reduced acquisition range `BALANCE.monster.darkAggroRange` (shipped
+default **3**). The `hunt` style chases when `dist < range`, so 3 means "a
+creature within ~2 tiles in the dark still finds you" while it stays blind across
+the room. (An earlier draft proposed `darkRadius + 1 = 2`; 2 would have let a
+hunter chase only when adjacent, which felt too passive, so the implementation
+ships 3.) Outside dark rooms, aggro is unchanged. Effect: neither side notices
+the other across a black room; an already-hunting monster still behaves normally
 (it has your scent), so this only governs *acquisition*, not active pursuit.
 This is one small, localized check in `brain.ts`'s target-acquisition step,
 gated on a single new `BALANCE` knob, and keeps the lit-room game identical.

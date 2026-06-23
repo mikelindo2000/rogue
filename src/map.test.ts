@@ -406,4 +406,20 @@ describe('dark rooms', () => {
     );
     expect(inStart).toBe(true);
   });
+
+  const hasLightScroll = (lvl: Level) =>
+    lvl.items.some(it => it.type === 'scroll' && (it as any).data?.scrollType === 'light');
+
+  it('never spawns a Scroll of Light below floor 3', () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      expect(hasLightScroll(gen(1, seed)), `floor 1 seed ${seed}`).toBe(false);
+      expect(hasLightScroll(gen(2, seed)), `floor 2 seed ${seed}`).toBe(false);
+    }
+  });
+
+  it('can spawn a Scroll of Light from floor 3 onward', () => {
+    let saw = false;
+    for (let seed = 1; seed <= 120 && !saw; seed++) saw = hasLightScroll(gen(4, seed));
+    expect(saw).toBe(true);
+  });
 });

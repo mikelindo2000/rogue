@@ -146,6 +146,16 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     if (typeof floor !== 'number' || floor < 1 || floor > 20) return null;
     if (!isObject(fs)) return null;
     if (!isGridOfArrays(fs.map) || !isGridOfArrays(fs.explored)) return null;
+    // `dark` is optional per floor (pre-dark-rooms saves omit it); when present it
+    // must mirror that floor's map dimensions, same as the top-level dark grid.
+    if (fs.dark !== undefined) {
+      if (!isGridOfArrays(fs.dark) || (fs.dark as unknown[]).length !== (fs.map as unknown[]).length) return null;
+      const fsMap = fs.map as unknown[];
+      const fsDark = fs.dark as unknown[];
+      for (let y = 0; y < fsDark.length; y++) {
+        if ((fsDark[y] as unknown[]).length !== (fsMap[y] as unknown[]).length) return null;
+      }
+    }
     if (!Array.isArray(fs.monsters) || !Array.isArray(fs.items)) return null;
   }
 

@@ -518,6 +518,30 @@ describe('dark-room FOV', () => {
     expect(restored.restore(snap)).toBe(true);
     expect(restored.dark.every(row => row.every(v => v === false))).toBe(true);
   });
+
+  it('keeps a room lit across descend/return (floor cache preserves cleared dark)', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.dungeonFloor = 1;
+    engine.player.x = 5; engine.player.y = 4;
+    engine.player.hunger = 100;
+
+    // Light the room, clearing its dark bits.
+    engine.player.inventory.scrolls = ['light'];
+    engine.useScroll(0);
+    expect(engine.dark[4][5]).toBe(false);
+
+    // Descend (caches floor 1 with the cleared dark), then return from the cache.
+    (engine as any).travelStairs(1);
+    expect(engine.dungeonFloor).toBe(2);
+    (engine as any).travelStairs(-1);
+    expect(engine.dungeonFloor).toBe(1);
+
+    // The room must still be lit — the [R-A2] "re-darkens after backtrack" bug.
+    expect(engine.dark[4][5]).toBe(false);
+    expect(engine.dark[4][8]).toBe(false);
+  });
 });
 
 describe('scroll system', () => {
