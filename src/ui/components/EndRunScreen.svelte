@@ -18,6 +18,8 @@
   let selectedHistory = $state(0);
   let confirmClear = $state(false);
   let restartButton = $state<HTMLButtonElement | null>(null);
+  let clearButton = $state<HTMLButtonElement | null>(null);
+  let confirmClearButton = $state<HTMLButtonElement | null>(null);
 
   const summary = $derived(ui.endRunSummary);
   const view = $derived(
@@ -91,6 +93,17 @@
   function clearHistory() {
     actions.clearRunHistory();
     confirmClear = false;
+    requestAnimationFrame(() => restartButton?.focus());
+  }
+
+  function requestClearHistory() {
+    confirmClear = true;
+    requestAnimationFrame(() => confirmClearButton?.focus());
+  }
+
+  function cancelClearHistory() {
+    confirmClear = false;
+    requestAnimationFrame(() => clearButton?.focus());
   }
 </script>
 
@@ -206,11 +219,11 @@
         <button onclick={() => actions.copyEndRunSummary()}>Copy summary</button>
         {#if confirmClear}
           <span class="confirm" role="group" aria-label="Confirm clear history">
-            <button onclick={clearHistory}>Confirm clear</button>
-            <button onclick={() => confirmClear = false}>Cancel</button>
+            <button bind:this={confirmClearButton} onclick={clearHistory}>Confirm clear</button>
+            <button onclick={cancelClearHistory}>Cancel</button>
           </span>
         {:else}
-          <button onclick={() => confirmClear = true}>Clear local history</button>
+          <button bind:this={clearButton} onclick={requestClearHistory}>Clear local history</button>
         {/if}
         {#if ui.endRunCopyStatus}
           <span class="copy-status">{ui.endRunCopyStatus}</span>

@@ -157,6 +157,7 @@ describe('GameEngine boss victory conditions', () => {
     finale.playerAttack(marcus);
     expect(finale.finalRunSummary?.outcome).toBe('won');
     expect(finale.finalRunSummary?.bossesDefeated).toBe(2);
+    expect(finale.finalRunSummary?.turns).toBe(1);
   });
 });
 
@@ -177,6 +178,22 @@ describe('GameEngine terminal run summaries', () => {
     engine.processTurn();
     expect(engine.turn).toBe(1);
     expect(engine.finalRunSummary).toBe(summary);
+  });
+
+  it('records fatal legacy trap-scroll damage before ending the run', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.99);
+    engine.player.hp = 1;
+    engine.player.hunger = 100;
+    engine.items = [{ type: 'scroll', symbol: '?', color: '#cc66ff', x: engine.player.x, y: engine.player.y }];
+
+    engine.checkItems();
+    engine.processTurn();
+
+    expect(engine.gameOver).toBe(true);
+    expect(engine.finalRunSummary?.deathCause).toBe('trap_scroll');
+    expect(engine.finalRunSummary?.damageTaken).toBeGreaterThan(0);
+    expect(engine.finalRunSummary?.biggestHitTaken).toBeGreaterThan(0);
   });
 });
 

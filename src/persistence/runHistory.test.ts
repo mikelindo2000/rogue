@@ -22,7 +22,7 @@ const summary = (id: string, patch: Partial<RunSummaryV1> = {}): RunSummaryV1 =>
   runId: id,
   completedAt: `2026-06-22T00:00:${id.padStart(2, '0')}.000Z`,
   outcome: 'died',
-  scoreVersion: 1,
+  scoreVersion: 2,
   score: 100,
   seed: 1,
   turns: 100,
@@ -86,6 +86,23 @@ describe('run history persistence', () => {
     expect(runs[0].runId).toBe('260');
     expect(runs.some(run => run.runId === '1')).toBe(false);
   });
+
+  it('drops malformed and stale-score summaries while loading history', () => {
+    const mem = new MemoryStorage();
+    mem.setItem('rogue_run_history', JSON.stringify({
+      v: 1,
+      data: {
+        runs: [
+          summary('valid'),
+          { ...summary('missing-turns'), turns: undefined },
+          { ...summary('old-score'), scoreVersion: 1 },
+          { ...summary('nan'), damageTaken: Number.NaN },
+        ],
+      },
+    }));
+
+    expect(loadRunHistory(mem).runs.map(run => run.runId)).toEqual(['valid']);
+  });
 });
 
 describe('run history records', () => {
@@ -111,4 +128,3 @@ describe('run history records', () => {
     expect(comparison.badges.some(b => b.key === 'mostMonstersKilled')).toBe(false);
   });
 });
-

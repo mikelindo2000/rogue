@@ -5,7 +5,7 @@ import { GameUI } from './ui';
 import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
-import { loadSaveGame, saveSaveGame } from './persistence/savegame';
+import { clearSaveGame, loadSaveGame, saveSaveGame } from './persistence/savegame';
 import {
   clearRunHistory,
   compareRunToRecords,
@@ -83,10 +83,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // on tab close/hide. Wired before the initial load/restore so the fresh-run
   // autosave from initGame() (or restore path) is captured.
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let suppressedEndedRunId: string | null = null;
   const flushSave = () => {
     if (saveTimer !== null) {
       clearTimeout(saveTimer);
       saveTimer = null;
+    }
+    if (
+      suppressedEndedRunId &&
+      (engine.gameOver || engine.gameWon) &&
+      engine.stats.runId === suppressedEndedRunId
+    ) {
+      return;
     }
     // snapshot() only clones plain data, but guard the unload-path flush so a
     // stray throw can never block tab close.
@@ -141,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.eat = () => engine.consumeFood();
   actions.restart = () => {
     if (engine.gameOver || engine.gameWon) {
+      suppressedEndedRunId = null;
       ui.endRunSummary = null;
       ui.endRunComparison = null;
       ui.endRunCopyStatus = '';
@@ -203,7 +212,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   };
   actions.clearRunHistory = () => {
+    suppressedEndedRunId = ui.endRunSummary?.runId ?? null;
     clearRunHistory();
+    clearSaveGame();
     ui.endRunHistory = [];
     ui.endRunRecords = computeRecords({ runs: [] });
     ui.endRunComparison = ui.endRunSummary

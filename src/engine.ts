@@ -714,7 +714,18 @@ export class GameEngine {
       }
       recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
       this.monsters = this.monsters.filter(m => m !== monster);
-      if (this.gameWon) this.finalizeRun('won');
+      if (this.gameWon) {
+        this.turn++;
+        recordVitals(this.stats, this.player.hp, this.player.hunger);
+        recordStatusTurn(this.stats, {
+          vigor: this.statusEffects.vigorTurns > 0,
+          midas: this.statusEffects.midasTurns > 0,
+          strength: this.statusEffects.strengthTurns > 0,
+          invisible: this.statusEffects.invisTurns > 0,
+          armored: this.statusEffects.armorTurns > 0,
+        });
+        this.finalizeRun('won');
+      }
     }
   }
 
@@ -788,7 +799,9 @@ export class GameEngine {
           recordScrollTriggered(this.stats, 'midas');
           this.addLog("Midas scroll active.");
         } else {
+          const hpBeforeTrap = this.player.hp;
           this.player.hp -= scroll.trapDamage;
+          recordDamageTaken(this.stats, hpBeforeTrap - this.player.hp);
           recordScrollTriggered(this.stats, 'trap');
           this.addLog(`Trap scroll triggered! -${scroll.trapDamage} HP.`);
         }

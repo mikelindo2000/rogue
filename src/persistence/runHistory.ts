@@ -1,5 +1,5 @@
 import { defineStore, resolveBackend } from './store';
-import type { RunOutcome, RunSummaryV1 } from '../runStats';
+import { SCORE_VERSION, type RunOutcome, type RunSummaryV1 } from '../runStats';
 
 export interface RunHistoryV1 {
   runs: RunSummaryV1[];
@@ -86,15 +86,43 @@ function normalizeHistory(raw: unknown): RunHistoryV1 {
   const runs = (raw as Partial<RunHistoryV1>).runs;
   if (!Array.isArray(runs)) return defaultHistory();
   return {
-    runs: runs.filter((r): r is RunSummaryV1 =>
-      !!r &&
-      typeof r === 'object' &&
-      typeof (r as RunSummaryV1).runId === 'string' &&
-      typeof (r as RunSummaryV1).completedAt === 'string' &&
-      ((r as RunSummaryV1).outcome === 'won' || (r as RunSummaryV1).outcome === 'died') &&
-      typeof (r as RunSummaryV1).score === 'number'
-    ).slice(0, HISTORY_LIMIT),
+    runs: runs.filter(isValidRunSummary).slice(0, HISTORY_LIMIT),
   };
+}
+
+function finite(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function finiteRecord(v: unknown): v is Record<string, number> {
+  return !!v && typeof v === 'object' && Object.values(v).every(finite);
+}
+
+function isValidRunSummary(r: unknown): r is RunSummaryV1 {
+  if (!r || typeof r !== 'object') return false;
+  const s = r as RunSummaryV1;
+  if (typeof s.runId !== 'string' || typeof s.completedAt !== 'string') return false;
+  if (s.outcome !== 'won' && s.outcome !== 'died') return false;
+  if (s.scoreVersion !== SCORE_VERSION) return false;
+  for (const key of [
+    'score',
+    'seed',
+    'turns',
+    'elapsedMs',
+    'floorReached',
+    'deepestFloor',
+    'playerLevel',
+    'goldCollected',
+    'monstersKilled',
+    'bossesDefeated',
+    'damageTaken',
+    'secretsFound',
+  ] as const) {
+    if (!finite(s[key])) return false;
+  }
+  if (!finiteRecord(s.potionsDrunk) || !finiteRecord(s.gearPickedUpByRarity)) return false;
+  if (!s.inventory || typeof s.inventory !== 'object') return false;
+  return true;
 }
 
 export function loadRunHistory(backend?: Storage | null): RunHistoryV1 {
@@ -172,4 +200,3 @@ export function compareRunToRecords(summary: RunSummaryV1, recordsBeforeCurrent:
   }
   return { isFirstRecordedRun, badges };
 }
-
