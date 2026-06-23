@@ -1,7 +1,7 @@
 # Sound Effects System — Plan
 
 Status: **proposed** (design only — implementation deferred pending review)
-Date: 2026-06-23
+Date: 2026-06-22
 
 ## Goal
 
@@ -103,8 +103,9 @@ Start with names stable enough for code, broad enough for asset iteration:
 | `combat.miss` | evasive monster dodge / monster whiff |
 | `combat.death` | normal monster death |
 | `combat.bossDeath` | required boss death |
-| `player.levelUp` | `gainXp` returns leveled |
-| `player.lowHealth` | HP crosses warning/critical thresholds downward |
+| `player.levelUp` | `gainXp` returns `true` (leveled) |
+| `player.lowHealth` | HP crosses the warning threshold (50%) downward |
+| `player.criticalHealth` | HP crosses the critical threshold (25%) downward |
 | `player.death` | game over |
 | `hunger.hungry` | hunger crosses `BALANCE.player.hungerHungry` downward |
 | `hunger.fatigued` | hunger crosses `BALANCE.player.hungerFatigued` downward |
@@ -122,7 +123,9 @@ Start with names stable enough for code, broad enough for asset iteration:
 
 Prefer fewer event names with useful payloads over many asset-specific names. For
 example, `equipment.equipArmor` can carry `{ slot, rarity }`; the manifest can decide
-whether rare armor gets a different clip.
+whether rare armor gets a different clip. The "player hit" cue from the Goal section is
+not a separate event — it is `combat.hit` with `{ actor: 'monster', target: 'player' }`,
+and the manifest can map that payload to a distinct clip.
 
 ## Threshold rules
 
@@ -130,10 +133,10 @@ Threshold sounds need stateful crossing detection so they do not chatter every t
 
 Track previous vitals inside the engine or a tiny `SoundStateTracker`:
 
-- `lowHealth`: play when HP crosses below 50 percent.
-- `criticalHealth`: play when HP crosses below 25 percent.
-- `hunger.hungry`: play when hunger crosses below `hungerHungry`.
-- `hunger.fatigued`: play when hunger crosses below `hungerFatigued`.
+- `player.lowHealth`: play when HP crosses below 50 percent.
+- `player.criticalHealth`: play when HP crosses below 25 percent.
+- `hunger.hungry`: play when hunger crosses below `BALANCE.player.hungerHungry` (425).
+- `hunger.fatigued`: play when hunger crosses below `BALANCE.player.hungerFatigued` (190).
 - `hunger.starving`: play once when hunger first reaches 0.
 - `hunger.starveTick`: play at most once every N turns while starvation damage
   continues.
@@ -147,23 +150,37 @@ Reset threshold gates when the value recovers above a hysteresis boundary:
 This lets eating, healing, and Vigor make future warnings meaningful without creating
 constant beeps during ordinary turn processing.
 
+Note: the hunger tiers (Satiated/Hungry/Fatigued/Starving) are already computed by
+`hungerView` in `src/ui/format.ts` using strict `<` against `hungerFatigued`/`hungerHungry`.
+The `SoundStateTracker` should derive crossings from the same `BALANCE.player` numbers
+(or the same status string) rather than redefining thresholds, so audio and the HUD never
+disagree about when the player is "Hungry."
+
 ## Equipment detection
 
-Current equip paths are:
+Current equip paths are (verified against `src/engine.ts` / `src/player.ts`):
 
-- `GameEngine.equipGear(slot, value)` for equipment popovers
-- `GameEngine.equipInventoryItem(ref)` for inventory actions
-- `performInventoryAction(..., 'equipOffHand')` for explicit off-hand weapon equip
-- `equipValidated` in `src/player.ts` for the shared mutation rules
+- `GameEngine.equipGear(slot, value)` for equipment popovers → calls `handleEquipItem`
+- `GameEngine.equipInventoryItem(ref)` for inventory actions → returns `boolean`
+- `GameEngine.performInventoryAction(ref, 'equipOffHand')` for explicit off-hand weapon equip
+- `handleEquipItem` and `performInventoryAction` both funnel into `equipValidated` in
+  `src/player.ts`, which is the single shared validation/mutation point and returns a
+  `boolean` success flag.
 
 Do not put audio in `src/player.ts`; it should stay pure validation/mutation logic.
-Instead, capture the equipped snapshot before and after the engine command:
+Because every path funnels through `equipValidated`, do the diffing in the three
+`GameEngine` command methods rather than threading sound through the shared mutator —
+capture the equipped snapshot before and after the engine command:
 
 ```ts
+// inside e.g. GameEngine.equipInventoryItem
 const before = snapshotEquipped(this.player);
-const equipped = equipValidated(...);
+const equipped = this.equipInventoryItemInner(ref); // returns boolean from equipValidated
 emitEquipmentSounds(before, snapshotEquipped(this.player), equipped);
 ```
+
+Caveat: `equipGear` currently discards the `boolean` that `handleEquipItem` returns, so
+emitting `equipment.rejected` from that path needs that return value captured first.
 
 Rules:
 
@@ -262,15 +279,24 @@ Required controls:
 - volume slider, range `0..100`, stored as `0..1`
 - optional "test sound" button
 
-Keyboard-first requirements from `AGENTS.md`:
+Keyboard-first requirements from `AGENTS.md`. Reuse the existing `KeyboardManager`
+(`src/keyboard.ts`) rather than adding a parallel listener — it already supports
+per-context bindings (`'game'`, `'modal'`, `'global'`), `setContextActive(context,
+active)`, and `suspend()`. Follow the existing modal pattern (the `'i'`/`'m'` overlays
+in `src/main.ts` and `overlayOpen()`): when settings opens, deactivate the `'game'`
+context so movement/search/eat keys stop firing, and register settings controls under a
+dedicated context.
 
-- settings open/close shortcut, likely `,` or `?` depending on final controls map
+- settings open/close shortcut: `,` and `?` are both currently free (taken keys: WASD +
+  arrows, `e`, space, `r`, `i`, `m`, Ctrl+B). Reserve `?` for a future help screen and
+  prefer `,` (or `o` for "options") for settings — see open question below.
+- register a `'settings'`/`'modal'` context and call `setContextActive('game', false)`
+  while open, mirroring the existing overlay handling
 - Tab/Shift+Tab moves through controls predictably
 - arrow keys adjust the volume slider
 - Return/Space toggles mute and activates the test sound button
 - Escape closes settings and restores focus to the game canvas or the button that
   opened settings
-- game movement/search/eat shortcuts are inactive while the settings dialog is open
 - visible focus is preserved for every settings control
 
 The mute control should be reachable without pointer input. A small top-bar icon
@@ -359,3 +385,9 @@ engine calls.
 - Should the service randomize variants every time, or use seeded selection for
   deterministic audio? Recommendation: randomize in the audio service with
   `Math.random()`; sounds are presentation-only and should not perturb game RNG.
+- Which key opens settings? `,` and `?` are both free today. Recommendation: `,`
+  (reserve `?` for a help screen). Needs a final controls-map decision.
+- Should `player.criticalHealth` ship in the first slice, or only `player.lowHealth`?
+  The first-slice list currently includes only `lowHealth`; the taxonomy and threshold
+  rules now define both. Recommendation: ship both — the second threshold is a payload/
+  gate variant, not meaningfully more engine work.
