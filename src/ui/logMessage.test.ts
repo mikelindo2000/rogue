@@ -19,6 +19,19 @@ describe('log message enrichment', () => {
     expect(html).toContain('data-monster-id="orc"');
   });
 
+  it('renders stair glyphs as trusted inline log mentions', () => {
+    const html = enrichLogMessageHtml(
+      'Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors.'
+    );
+
+    expect(html).toContain('class="stair-mention stair-mention--up"');
+    expect(html).toContain('class="stair-mention stair-mention--down"');
+    expect(html).toContain('>&lt;</span> or <span');
+    expect(html).toContain('>&gt;</span>) to travel');
+    expect(html).not.toContain('&amp;lt;');
+    expect(html).not.toContain('&amp;gt;');
+  });
+
   it('preserves pre-styled rarity spans on looted gear instead of escaping them', () => {
     const styled =
       '<span style="color:var(--rarity-rare);font-weight:600;">Leather Shoes +2</span>';
