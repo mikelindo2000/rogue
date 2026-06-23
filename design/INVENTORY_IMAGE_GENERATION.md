@@ -93,3 +93,5 @@ glow.
 | Fire Staff | wooden staff tipped with a small fire crystal |
 | Frost Staff | wooden staff tipped with an icy blue crystal |
 | Arcane Staff | wooden staff tipped with a violet arcane crystal |
+| Scroll of Light | aged rolled parchment scroll tied with cord, a glowing golden sun rune blazing on its face radiating warm light (accent warm gold; seed 8500) |
+| Wand of Light | slender polished wooden wand tipped with a radiant glowing crystal orb casting warm light (accent pale gold; seed 8501) |

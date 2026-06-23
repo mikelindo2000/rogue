@@ -24,6 +24,10 @@
     <span class="lbl">search</span>
   </span>
   <span class="hint">
+    <KeyCap>r</KeyCap>
+    <span class="lbl">read scroll</span>
+  </span>
+  <span class="hint">
     <KeyCap>m</KeyCap>
     <span class="lbl">bestiary</span>
   </span>
