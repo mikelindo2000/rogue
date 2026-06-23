@@ -302,6 +302,24 @@ from melee/swoop (e.g. a breath cone). Add an `animCue` value in `types.ts`, an
 4. Test it directly: `applyOnHitAbilities(behavior, m, player, makeRng(1))` with
    `chance: 1` and assert the mutation + log.
 
+**Gotchas for non-trivial abilities (learned implementing `stealItem`/`leechHeal`):**
+- **`fireAbility` has no `rng`.** The `chance` roll is consumed upstream in
+  `applyOnHitAbilities`; the effect itself runs with no RNG. So any "random"
+  choice inside an ability must be **deterministic** (e.g. take `potions[0]`, not
+  a random potion) — adding a random draw here would desync seeded runs. If you
+  genuinely need randomness, thread `rng` through and account for the parity gotcha.
+- **Don't corrupt equipped state when touching inventory.** `player.inventory`
+  buckets are `{ food, weapons[], potions[] }` + per-armor-slot arrays
+  (`helm/chest/legs/gauntlets/boots`, plus `shield`), and `player.equipped` holds
+  **indices** into those arrays. Removing a weapon/armor element shifts every later
+  index and mis-points equipped gear. `potions: PotionType[]` carries no indices,
+  so it's the safe bucket to steal from. See `Inventory`/`Equipped` in `types.ts`.
+- **The harness models only damage, evasion, and telegraph cadence** — not
+  healing, stat-drain, steal, freeze, or summon. So an ability that changes the
+  *attrition* of a fight (e.g. `leechHeal`) is **not vettable by the harness**:
+  tune its direct damage to fair as usual, then set the ability's magnitude
+  conservatively by playtest, and say so in a comment.
+
 ---
 
 ## The balance harness in one screen
@@ -405,16 +423,20 @@ assignment + harness tuning; the noted gotcha is the thing to watch.
 | ~~**Eagle** (4)~~ ✅ shipped | `raptor` (new) | Telegraphed dive + light evasion — gentler bat cousin. | Fair (0.375 @ F4). | Telegraph-gated → base atk bumped 12→17 (see the §3 gotcha). |
 | ~~**Cyclops / Colossal Cyclops** (17)~~ ✅ shipped | `brute` | Heavily telegraphed slam — dodge or eat a big hit. | Fair (0.48 / 0.61). | Telegraph-gated → atk bumped 43→75 / 45→85 (see the §3 gotcha). |
 | ~~**Golem / Gary** (15)~~ ✅ shipped | `ambusher` | Stone sentinel, inert until you're close, then latches. | Fair (0.49 / 0.58). | Movement-only → **balance-neutral, no tuning** (threat unchanged vs default). |
-| **Flying Serpent** (16) | `kiter` | Spits from range; you close the gap or strafe off its line. | Fair. | Exercises the ranged path. The bolt is telegraphed → step off the target tile to dodge. The dive streak doubles as the projectile; a dedicated `'bolt'` animCue is optional polish. |
-| **Zombie / Zachary** (19) | new `leech` (hunt + `leechHeal` on hit) | Heals itself when it bites you — attrition pressure. | Fair→hard. | `leechHeal` is implemented. It lengthens fights (self-heal), which raises threat — tune `magnitude` and re-check the harness; don't let TTK balloon. |
-| **Nymph** (9) | `trickster` (ideally `stealItem`) | Steals and vanishes. | Fair. | `stealItem` is **schema-only** — implement it in `fireAbility` first, or ship with `stealGold` as a placeholder. |
+| ~~**Flying Serpent** (16)~~ ✅ shipped | `kiter` | Spits telegraphed bolts from range; strafe off its line. | Fair (0.42). | Telegraph-gated → atk 42→85; also retuned the stock `kiter` bolt (cooldown 1→0, mult 0.8→1.2) which was trivial. The dive streak doubles as the projectile. |
+| ~~**Zombie / Zachary** (19)~~ ✅ shipped | `leech` (new) | Bite heals it — attrition pressure. | Fair direct (0.54 / 0.62). | `leechHeal` magnitude is **playtest-only** — the harness has no healing term. Kept conservative (3 HP/hit); bump for more bite. |
+| ~~**Nymph** (9)~~ ✅ shipped | `nymph` (new) | Steals a potion and vanishes. | Fair (0.42). | Implemented `stealItem` in `fireAbility` (steals a potion — the equip-index-safe bucket; gold fallback; deterministic). |
 
-Shipped so far: Leprechaun (trickster), Eagle (raptor), Cyclops + Colossal
-Cyclops (brute), Golem + Gary (ambusher). The remaining candidates above —
-**Flying Serpent** (kiter, exercises the ranged path), **Zombie** (a new `leech`
-archetype), and **Nymph** (needs `stealItem` implemented in `fireAbility`) —
-each touch a bit of core (`stealItem`) or a new archetype, so land them with a
-short serialized pass rather than fully parallel.
+**Shipped so far** (all the table's suggestions): Leprechaun (trickster), Eagle
+(raptor), Cyclops + Colossal Cyclops (brute), Golem + Gary (ambusher), Flying
+Serpent (kiter), Zombie + Zachary (leech), Nymph (stealItem). Archetypes now
+live: default, skirmisher, ambusher, brute, kiter, trickster, bat, raptor,
+leech, nymph, boss-swiper. For the next wave, mine the remaining roster
+(Hobgoblin, King Cobra, Indus Worm, Pygmy, Rabid Ostrich, Minotaur, Unicorn,
+Yeti, Troll, Quinotaur, Xelhua, Apperation, Dragon, …) — most can reuse a live
+archetype (a 1-line assignment + harness check), and the still-unimplemented
+abilities (`freeze`, `drainStrength`, `summon`, `stealItem` variants) are the
+natural new-archetype candidates.
 
 ---
 
