@@ -271,6 +271,25 @@ describe('savegame validation', () => {
     expect(loadSaveGame(mem)).toBeNull();
   });
 
+  it('returns null when dark dimensions do not match the map', () => {
+    const mem = new MemoryStorage();
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.dark = snap.dark.map((row: boolean[]) => row.slice(0, -1)); // narrower rows
+    mem.setItem(KEY, JSON.stringify({ v: 1, data: snap }));
+
+    expect(loadSaveGame(mem)).toBeNull();
+  });
+
+  it('accepts a save with no dark grid (pre-dark-rooms save)', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.dark;
+    expect(validateSaveGame(snap)).not.toBeNull();
+  });
+
   it('validateSaveGame rejects non-objects and accepts a valid snapshot', () => {
     const engine = newEngine();
     engine.initGame(SEED);

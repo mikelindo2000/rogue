@@ -1,6 +1,6 @@
 import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, ARMOR_SLOTS, InventoryAction, InventoryRef } from './types';
 import { GameUI } from './ui';
-import { generateLevel } from './map';
+import { generateLevel, type RoomRect } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
 import { requiredBossNamesForFloor } from './encounters';
@@ -25,6 +25,9 @@ import {
 export interface FloorState {
   map: string[][];
   explored: boolean[][];
+  /** Per-tile darkness for this floor. Optional for backward-compat with saves
+   *  written before dark rooms existed (treated as all-lit on load). */
+  dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
 }
@@ -33,6 +36,14 @@ export class GameEngine {
   public map: string[][] = [];
   public explored: boolean[][] = [];
   public visible: boolean[][] = [];
+  /** True on the interior tiles of an unlit (dark) room — the player sees only
+   *  their immediate 3x3 there until it is lit. Persisted (cannot be recomputed:
+   *  darkness is rolled at generation). See design/VISIBILITY_AND_FOV.md. */
+  public dark: boolean[][] = [];
+  /** Real-room rects for the current floor (E1). In-memory only — never saved;
+   *  undefined after a restore until the next generated floor. Informational
+   *  today; dark lighting depends only on `dark` + the room flood. */
+  public rooms: RoomRect[] = [];
   public player: Player;
   public monsters: Monster[] = [];
   public items: Item[] = [];
@@ -132,6 +143,8 @@ export class GameEngine {
   public generateFloor() {
     const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng);
     this.map = levelData.map;
+    this.dark = levelData.dark;
+    this.rooms = levelData.rooms;
     this.player.x = levelData.playerX;
     this.player.y = levelData.playerY;
     this.monsters = levelData.monsters;
@@ -159,16 +172,39 @@ export class GameEngine {
     this.updateFOV();
   }
 
+  private blankBoolGrid(): boolean[][] {
+    return new Array(this.ROWS).fill(0).map(() => new Array(this.COLS).fill(false));
+  }
+
+  /** A tile belongs to an unlit room's interior. `dark` is only ever set on
+   *  interior floor/stair tiles, so this single lookup is the dark-room test. */
+  private isDarkInterior(x: number, y: number): boolean {
+    return this.dark[y]?.[x] === true;
+  }
+
   public updateFOV() {
-    this.visible = new Array(this.ROWS).fill(0).map(() => new Array(this.COLS).fill(false));
-    if (
-      this.player.y >= 0 &&
-      this.player.y < this.ROWS &&
-      this.player.x >= 0 &&
-      this.player.x < this.COLS
-    ) {
-      this.visible[this.player.y][this.player.x] = true;
-      this.explored[this.player.y][this.player.x] = true;
+    this.visible = this.blankBoolGrid();
+    const px = this.player.x;
+    const py = this.player.y;
+    const inBounds = py >= 0 && py < this.ROWS && px >= 0 && px < this.COLS;
+    if (inBounds) {
+      this.visible[py][px] = true;
+      this.explored[py][px] = true;
+    }
+
+    // Rule A — inside a dark room: the player sees only their immediate block
+    // (the eight surrounding tiles). No long raycast, no lit-room flood.
+    if (inBounds && this.isDarkInterior(px, py)) {
+      const dr = BALANCE.fov.darkRadius;
+      for (let yy = py - dr; yy <= py + dr; yy++) {
+        for (let xx = px - dr; xx <= px + dr; xx++) {
+          if (xx < 0 || xx >= this.COLS || yy < 0 || yy >= this.ROWS) continue;
+          this.visible[yy][xx] = true;
+          this.explored[yy][xx] = true;
+        }
+      }
+      this.recordSightings();
+      return;
     }
 
     const numRays = BALANCE.fov.rays;
@@ -176,8 +212,8 @@ export class GameEngine {
       const angle = (i * BALANCE.fov.angleStepDeg) * (Math.PI / 180);
       const dx = Math.cos(angle);
       const dy = Math.sin(angle);
-      let cx = this.player.x + 0.5;
-      let cy = this.player.y + 0.5;
+      let cx = px + 0.5;
+      let cy = py + 0.5;
 
       for (let d = 0; d < BALANCE.fov.radius; d++) {
         cx += dx;
@@ -187,6 +223,18 @@ export class GameEngine {
 
         if (mapX < 0 || mapX >= this.COLS || mapY < 0 || mapY >= this.ROWS) break;
 
+        // Rule B — peeking into a dark room from outside (a doorway/corridor):
+        // a dark interior tile reveals only itself, and only when adjacent, then
+        // stops the ray (a dark floor tile doesn't naturally block sight, so we
+        // must break explicitly or the ray would sail deeper into the dark).
+        if (this.isDarkInterior(mapX, mapY)) {
+          if (Math.max(Math.abs(mapX - px), Math.abs(mapY - py)) <= 1) {
+            this.visible[mapY][mapX] = true;
+            this.explored[mapY][mapX] = true;
+          }
+          break;
+        }
+
         this.visible[mapY][mapX] = true;
         this.explored[mapY][mapX] = true;
 
@@ -194,11 +242,12 @@ export class GameEngine {
       }
     }
 
-    // Standing in a room lights the whole room at once, walls included — the way
-    // a lit room reveals in Rogue. This also fills the gaps the raycast leaves
-    // along room walls: rays run parallel to a one-tile-thick wall and only
-    // graze a few of its cells, so the rest would stay dark.
-    this.revealRoom(this.player.x, this.player.y);
+    // Standing in a (lit) room lights the whole room at once, walls included —
+    // the way a lit room reveals in Rogue. This also fills the gaps the raycast
+    // leaves along room walls: rays run parallel to a one-tile-thick wall and
+    // only graze a few of its cells, so the rest would stay dark. No-op in a
+    // dark room (handled by Rule A above) or in corridors/doorways.
+    this.revealRoom(px, py);
 
     this.recordSightings();
   }
@@ -449,6 +498,7 @@ export class GameEngine {
     this.floorStates.set(this.dungeonFloor, {
       map: this.map.map(row => [...row]),
       explored: this.explored.map(row => [...row]),
+      dark: this.dark.map(row => [...row]),
       monsters: structuredClone(this.monsters),
       items: structuredClone(this.items),
     });
@@ -459,7 +509,10 @@ export class GameEngine {
     if (saved) {
       this.map = saved.map.map(row => [...row]);
       this.explored = saved.explored.map(row => [...row]);
-      this.visible = new Array(this.ROWS).fill(0).map(() => new Array(this.COLS).fill(false));
+      this.dark = saved.dark ? saved.dark.map(row => [...row]) : this.blankBoolGrid();
+      // Room rects aren't cached; cleared until the next generated floor.
+      this.rooms = [];
+      this.visible = this.blankBoolGrid();
       this.monsters = structuredClone(saved.monsters);
       this.items = structuredClone(saved.items);
     } else {
@@ -967,11 +1020,13 @@ export class GameEngine {
       logs: [...this.logs],
       map: this.map.map(r => [...r]),
       explored: this.explored.map(r => [...r]),
+      dark: this.dark.map(r => [...r]),
       monsters: structuredClone(this.monsters),
       items: structuredClone(this.items),
       floorStates: Array.from(this.floorStates.entries()).map(([f, s]) => [f, {
         map: s.map.map(r => [...r]),
         explored: s.explored.map(r => [...r]),
+        dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
       }]),
@@ -997,11 +1052,14 @@ export class GameEngine {
       this.logs = [...save.logs];
       this.map = save.map.map(r => [...r]);
       this.explored = save.explored.map(r => [...r]);
+      this.dark = save.dark ? save.dark.map(r => [...r]) : this.blankBoolGrid();
+      this.rooms = [];
       this.monsters = structuredClone(save.monsters);
       this.items = structuredClone(save.items);
       this.floorStates = new Map(save.floorStates.map(([f, s]) => [f, {
         map: s.map.map(r => [...r]),
         explored: s.explored.map(r => [...r]),
+        dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
       }]));

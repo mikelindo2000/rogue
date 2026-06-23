@@ -22,6 +22,9 @@ export interface SaveGameV1 {
   statusEffects: StatusEffects;
   map: string[][];
   explored: boolean[][];
+  /** Per-tile darkness. Optional: saves written before dark rooms lack it and
+   *  restore treats a missing grid as all-lit. */
+  dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
   floorStates: [number, FloorState][];
@@ -100,6 +103,16 @@ export function validateSaveGame(raw: unknown): SaveGameV1 | null {
   for (let y = 0; y < raw.explored.length; y++) {
     const row = raw.explored[y];
     if (!Array.isArray(row) || row.length !== (raw.map[y] as unknown[]).length) return null;
+  }
+
+  // `dark` is optional (older saves omit it). When present it must mirror `map`'s
+  // dimensions exactly — restore()/updateFOV() index it by the same [y][x].
+  if (raw.dark !== undefined) {
+    if (!Array.isArray(raw.dark) || raw.dark.length !== raw.map.length) return null;
+    for (let y = 0; y < raw.dark.length; y++) {
+      const row = raw.dark[y];
+      if (!Array.isArray(row) || row.length !== (raw.map[y] as unknown[]).length) return null;
+    }
   }
 
   if (!Array.isArray(raw.monsters)) return null;

@@ -6,6 +6,7 @@ import type { RNG } from './rng';
 
 const makeUi = () => ({
   renderLogs: () => {},
+  resetLog: () => {},
   updateDropdowns: () => {},
   updateStats: () => {},
   syncDiscovery: () => {},
@@ -325,5 +326,141 @@ describe('GameEngine inventory commands', () => {
 
     expect(equipped).toBe(true);
     expect(engine.player.equipped.offHand).toBe('weapon:1');
+  });
+});
+
+describe('dark-room FOV', () => {
+  // A rectangular room with walls + corners. Interior is (l+1..r-1, t+1..b-1).
+  const carveRoom = (engine: GameEngine, l: number, t: number, r: number, b: number) => {
+    for (let x = l + 1; x < r; x++) { engine.map[t][x] = TILE.WALL_H; engine.map[b][x] = TILE.WALL_H; }
+    for (let y = t + 1; y < b; y++) {
+      engine.map[y][l] = TILE.WALL_V; engine.map[y][r] = TILE.WALL_V;
+      for (let x = l + 1; x < r; x++) engine.map[y][x] = TILE.FLOOR;
+    }
+    engine.map[t][l] = TILE.CORNER_TL; engine.map[t][r] = TILE.CORNER_TR;
+    engine.map[b][l] = TILE.CORNER_BL; engine.map[b][r] = TILE.CORNER_BR;
+  };
+
+  const makeFovEngine = () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.map = makeEmptyMap(engine);
+    engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.dark = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.items = [];
+    engine.monsters = [];
+    return engine;
+  };
+
+  // Room l=1,t=1,r=9,b=7 → interior x 2..8, y 2..6.
+  const ROOM = { l: 1, t: 1, r: 9, b: 7 };
+  const markInteriorDark = (engine: GameEngine) => {
+    for (let y = ROOM.t + 1; y < ROOM.b; y++)
+      for (let x = ROOM.l + 1; x < ROOM.r; x++) engine.dark[y][x] = true;
+  };
+
+  it('lit room reveals its whole interior at once', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    engine.player.x = 5; engine.player.y = 4;
+    engine.updateFOV();
+    for (let y = ROOM.t + 1; y < ROOM.b; y++)
+      for (let x = ROOM.l + 1; x < ROOM.r; x++)
+        expect(engine.visible[y][x], `lit (${x},${y})`).toBe(true);
+  });
+
+  it('dark room reveals only the immediate 3x3', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.player.x = 5; engine.player.y = 4;
+    engine.updateFOV();
+    for (let y = ROOM.t + 1; y < ROOM.b; y++) {
+      for (let x = ROOM.l + 1; x < ROOM.r; x++) {
+        const within = Math.max(Math.abs(x - 5), Math.abs(y - 4)) <= 1;
+        expect(engine.visible[y][x], `dark (${x},${y}) within=${within}`).toBe(within);
+      }
+    }
+  });
+
+  it('moving in the dark reveals a new 3x3 but remembers (explored) the old', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.player.x = 4; engine.player.y = 4;
+    engine.updateFOV();
+    expect(engine.visible[4][3]).toBe(true);
+    // Step right; the far-left tile drops out of view but stays explored.
+    engine.player.x = 6;
+    engine.updateFOV();
+    expect(engine.visible[4][7]).toBe(true); // new frontier
+    expect(engine.visible[4][3]).toBe(false); // out of the 3x3 now
+    expect(engine.explored[4][3]).toBe(true); // but remembered
+  });
+
+  it('standing on a dark stairs tile still shows only the 3x3', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.map[4][5] = TILE.STAIRS_DOWN; // a stairs tile inside the dark room
+    engine.player.x = 5; engine.player.y = 4;
+    engine.updateFOV();
+    expect(engine.visible[4][8]).toBe(false); // far interior stays dark
+    expect(engine.visible[4][5]).toBe(true);  // the stairs tile itself
+  });
+
+  it('peeking into a dark room from a doorway reveals nothing beyond Chebyshev 1', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.map[ROOM.b][5] = TILE.DOOR;       // door in the bottom wall at (5,7)
+    engine.map[ROOM.b + 1][5] = TILE.FLOOR;  // corridor cell just outside
+    engine.player.x = 5; engine.player.y = ROOM.b; // stand on the door
+    engine.updateFOV();
+    // No dark interior tile more than 1 away from the door is visible.
+    for (let y = ROOM.t + 1; y < ROOM.b; y++)
+      for (let x = ROOM.l + 1; x < ROOM.r; x++)
+        if (Math.max(Math.abs(x - 5), Math.abs(y - ROOM.b)) > 1)
+          expect(engine.visible[y][x], `leak (${x},${y})`).toBe(false);
+  });
+
+  it('corridors still reveal up to the vision radius (regression)', () => {
+    const engine = makeFovEngine();
+    for (let x = 2; x < engine.COLS - 1; x++) engine.map[4][x] = TILE.CORRIDOR;
+    engine.player.x = 4; engine.player.y = 4;
+    engine.updateFOV();
+    expect(engine.visible[4][9]).toBe(true);  // 5 tiles away, within radius 6
+    expect(engine.visible[4][14]).toBe(false); // 10 tiles away, beyond radius
+  });
+
+  it('persists the dark grid across snapshot → restore', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    markInteriorDark(engine);
+    engine.player.x = 5; engine.player.y = 4;
+    engine.dungeonFloor = 5;
+
+    const snap = engine.snapshot();
+    expect(snap.dark?.[4][8]).toBe(true);
+
+    const restored = new GameEngine(makeUi() as any);
+    expect(restored.restore(snap)).toBe(true);
+    expect(restored.dark[4][8]).toBe(true);
+    // And the restored dark grid still drives FOV: far interior stays unseen.
+    restored.player.x = 5; restored.player.y = 4;
+    restored.updateFOV();
+    expect(restored.visible[4][8]).toBe(false);
+    expect(restored.visible[4][5]).toBe(true);
+  });
+
+  it('restores an old save with no dark grid as all-lit', () => {
+    const engine = makeFovEngine();
+    carveRoom(engine, ROOM.l, ROOM.t, ROOM.r, ROOM.b);
+    engine.player.x = 5; engine.player.y = 4;
+    const snap = engine.snapshot();
+    delete snap.dark; // simulate a pre-dark-rooms save
+    const restored = new GameEngine(makeUi() as any);
+    expect(restored.restore(snap)).toBe(true);
+    expect(restored.dark.every(row => row.every(v => v === false))).toBe(true);
   });
 });
