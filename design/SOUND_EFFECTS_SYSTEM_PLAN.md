@@ -98,12 +98,10 @@ Start with names stable enough for code, broad enough for asset iteration:
 
 | Event | First triggers |
 | --- | --- |
-| `combat.swing` | before a player or monster strike animation |
+| `combat.swing` | `playerAttack`, once before the strike(s) |
 | `combat.hit` | `executeStrike` after damage is known; monster AI when player HP drops |
-| `combat.crit` | future high-roll or special strike |
 | `combat.miss` | evasive monster dodge / monster whiff |
-| `combat.death` | normal monster death (payload carries monster identity, see below) |
-| `combat.bossDeath` | required boss death |
+| `combat.death` | monster death — payload carries monster identity AND `special`; a boss/hero resolves to the boss clip via the cascade (no separate `combat.bossDeath` event was needed) |
 | `player.levelUp` | `gainXp` returns `true` (leveled) |
 | `player.lowHealth` | HP crosses the warning threshold (50%) downward |
 | `player.criticalHealth` | HP crosses the critical threshold (25%) downward |
@@ -284,7 +282,7 @@ identity cascade to key off of — reuse it instead of inventing a parallel taxo
 
 - `monster.id` — stable discovery key carried from the template at spawn; falls back to
   a slug of `monster.name` (see `src/types.ts` and `monsterId()` in
-  `src/ai/archetypes.ts`).
+  `src/discovery.ts`).
 - archetype — `archetypeOf(template)` in `src/ai/archetypes.ts` resolves a monster to
   `default | brute | kiter | trickster | ambusher | …`. This lets a whole behavioral
   family share a cue (every trickster gets the same flee sting) for free.
