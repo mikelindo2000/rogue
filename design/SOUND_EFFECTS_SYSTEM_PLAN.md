@@ -29,7 +29,8 @@ not an engine dependency.
 - Do not block gameplay while sounds load or fail.
 - Do not persist per-run sound state in save games. Mute/volume are global settings.
 - Do not add background music in the first slice. Ambient loops can use the same
-  service later, but they need different lifecycle rules.
+  service later, but they need different lifecycle rules — see "Background music
+  (post-slice)" for that design.
 
 ## Core architecture
 
@@ -101,7 +102,7 @@ Start with names stable enough for code, broad enough for asset iteration:
 | `combat.hit` | `executeStrike` after damage is known; monster AI when player HP drops |
 | `combat.crit` | future high-roll or special strike |
 | `combat.miss` | evasive monster dodge / monster whiff |
-| `combat.death` | normal monster death |
+| `combat.death` | normal monster death (payload carries monster identity, see below) |
 | `combat.bossDeath` | required boss death |
 | `player.levelUp` | `gainXp` returns `true` (leveled) |
 | `player.lowHealth` | HP crosses the warning threshold (50%) downward |
@@ -213,8 +214,14 @@ Recommended settings shape, aligned with `PERSISTENCE_AND_SETTINGS_PLAN.md`:
 export interface AudioSettings {
   muted: boolean;
   volume: number; // 0..1, default 0.7
+  // Added with the music section, not the first slice:
+  // musicMuted?: boolean;
+  // musicVolume?: number; // 0..1, default ~0.4
 }
 ```
+
+Settings loading must merge partial/older blobs (see Testing strategy), so adding the
+music fields later is backward-compatible: absent fields fall back to defaults.
 
 Use the persisted `muted` flag as the user's intent. If browser autoplay policy blocks
 audio before the first input, do not flip `muted`; keep the service in a locked state
@@ -268,6 +275,112 @@ That doc can list prompt text, intended duration, license/provenance, generated
 filename, selected runtime filename, and replacement notes. The game only imports
 the final local asset manifest.
 
+## Monster and archetype sounds
+
+The game should be able to give individual monsters their own combat cues (a
+Leprechaun's death chuckle, a dragon's roar) without adding a per-monster `emit` call
+or a new event name for every creature. The engine model already provides a clean
+identity cascade to key off of — reuse it instead of inventing a parallel taxonomy:
+
+- `monster.id` — stable discovery key carried from the template at spawn; falls back to
+  a slug of `monster.name` (see `src/types.ts` and `monsterId()` in
+  `src/ai/archetypes.ts`).
+- archetype — `archetypeOf(template)` in `src/ai/archetypes.ts` resolves a monster to
+  `default | brute | kiter | trickster | ambusher | …`. This lets a whole behavioral
+  family share a cue (every trickster gets the same flee sting) for free.
+- `special?: 'hero' | 'boss'` on the template/monster — drives `combat.bossDeath` and
+  can gate boss-only stingers.
+
+Keep combat events generic and put identity in the **payload**, not the event name:
+
+```ts
+sound.emit({
+  type: 'combat.death',
+  monsterId: monster.id ?? slug(monster.name),
+  archetype: archetypeOf(monster),   // pure helper, safe to import into audio
+  special: monster.special,          // 'hero' | 'boss' | undefined
+});
+```
+
+The audio layer resolves the clip with a **most-specific-wins cascade**, so most
+monsters fall through to a shared default and only the ones worth authoring need an
+entry:
+
+```
+monsterId match  →  archetype match  →  special match  →  generic event clip
+'leprechaun'        'trickster'         'boss'             'combat.death'
+```
+
+Express this as a small resolution table the manifest owns, rather than overloading
+every `SoundAsset` with match keys:
+
+```ts
+export interface SoundResolution {
+  event: SoundEventType;          // e.g. 'combat.death'
+  byMonsterId?: Record<string, string>;   // monsterId   -> assetId
+  byArchetype?: Record<string, string>;   // archetypeId -> assetId
+  bySpecial?: Record<'hero' | 'boss', string>;
+  default: string;                // assetId, always present
+}
+```
+
+Rules and guardrails:
+
+- A missing override is never an error — resolution just falls to the next tier, and an
+  unknown `monsterId` is silently fine. This keeps adding monsters from breaking audio.
+- Per-monster sounds are **additive presentation only**. They must not change the event
+  taxonomy, combat math, or game RNG, and the visual/log feedback stays identical
+  (consistent with the non-goals).
+- Boss/hero cues should still go through `combat.bossDeath`/a `special` tier so they can
+  be louder, longer, and exempt from the normal death-cue cooldown.
+- Start with archetype-level coverage (a handful of clips covers every monster), then
+  add per-`monsterId` clips only for signature creatures and bosses. This is a
+  manifest+asset edit, never an engine change.
+
+## Background music (post-slice)
+
+Background music is explicitly out of the first slice (see Non-goals), but the service
+should be designed so it can host music later without a redesign. Target: **about five
+looping tracks, each roughly three minutes**, selected by context (e.g. early floors,
+deep floors, boss encounter, town/safe, game-over) and crossfaded on transition.
+
+Important: this uses a **different ElevenLabs API than the sound effects above**.
+Sound effects come from the text-to-sound-effects endpoint (max ~30s); ~3-minute music
+must be produced with the ElevenLabs **Music API** (the `music` skill / `compose`
+endpoint, which supports multi-minute durations). Like SFX, it stays an
+asset-production step — runtime code only ever loads local files.
+
+Design notes that differ from one-shot SFX:
+
+- **Separate channel and gain.** Add a `music` channel with its own gain node and its
+  own settings (`settings.audio.musicMuted`, `settings.audio.musicVolume`), independent
+  of the SFX volume, so players can silence music but keep combat cues.
+- **Single-voice lifecycle.** At most one track plays at a time. Track changes
+  crossfade (e.g. 1–2s) rather than hard-cut; never stack two music loops.
+- **Seamless looping.** Generate with looping enabled and verify the loop point; a
+  3-minute bed that clicks on repeat is worse than silence.
+- **Context selection, not per-turn churn.** Music switches on coarse state changes
+  (floor depth band, entering a boss room, run end), debounced so rapid floor changes
+  don't thrash tracks. This is the "different lifecycle rules" the non-goals allude to.
+- **Streaming/lazy load.** A ~3-minute track is large; stream or lazy-load it after
+  unlock and after the core SFX are ready, so music never delays gameplay or first SFX.
+- **Format.** Music benefits more from `opus`/`webm` than tiny SFX do; revisit the
+  SFX format question (below) jointly for music, where size matters most.
+
+Suggested asset layout and a starting track set (final prompts live in the asset doc):
+
+```
+public/audio/music/
+  explore-shallow-01.webm   ~3:00 loop  — calm dungeon exploration, floors 1–3
+  explore-deep-01.webm      ~3:00 loop  — tense deeper dungeon, floors 4+
+  boss-01.webm              ~3:00 loop  — driving boss-encounter theme
+  safe-01.webm              ~3:00 loop  — warm respite/town theme
+  gameover-01.webm          ~3:00 loop  — somber game-over / victory bed
+```
+
+These five map to the contexts above; add or split tracks by editing the manifest and
+the music-selection rule, not the engine.
+
 ## Settings UI
 
 Add sound controls to a settings surface. If the persistence/settings plan has not
@@ -278,6 +391,8 @@ Required controls:
 - global mute toggle
 - volume slider, range `0..100`, stored as `0..1`
 - optional "test sound" button
+- (added with the music section) a separate music mute toggle and music volume slider,
+  so music and SFX are independently controllable
 
 Keyboard-first requirements from `AGENTS.md`. Reuse the existing `KeyboardManager`
 (`src/keyboard.ts`) rather than adding a parallel listener — it already supports
