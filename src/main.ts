@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // never fires a harmful scroll. The modal's Read action does the deliberate
     // read via readScrollRef.
     const firstScroll = ui.inventoryItems.find(c => c.ref.kind === 'scroll');
+    ui.inventoryFilterKind = 'scroll';
     actions.setInventoryOpen(true);
     if (firstScroll) ui.selectedInventoryRef = firstScroll.ref;
   };
@@ -200,9 +201,17 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setInventoryOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
     ui.inventoryOpen = open;
+    if (!open) ui.inventoryFilterKind = 'all';
     if (open && !ui.selectedInventoryRef) {
       ui.selectedInventoryRef = ui.inventoryItems[0]?.ref ?? null;
     }
+  };
+  actions.setInventoryFilterKind = (kind) => {
+    ui.inventoryFilterKind = kind;
+    const visible = kind === 'scroll'
+      ? ui.inventoryItems.filter(c => c.ref.kind === 'scroll')
+      : ui.inventoryItems;
+    ui.selectedInventoryRef = visible[0]?.ref ?? null;
   };
   actions.setPotionMenuOpen = (open) => {
     if (open && (overlayOpen() || ui.potions.length === 0)) return;

@@ -96,6 +96,32 @@ glow.
 | Scroll of Light | aged rolled parchment scroll tied with cord, a glowing golden sun rune blazing on its face radiating warm light (accent warm gold; seed 8500) |
 | Wand of Light | slender polished wooden wand tipped with a radiant glowing crystal orb casting warm light (accent pale gold; seed 8501) |
 
+## Scroll line
+
+Generated at **8 steps** for sharper detail and consistent quality with the
+wand/staff line. See `scripts/gen-scroll-art.sh`; re-running is idempotent
+(same seed -> same image). Scroll of Light predates the script at seed 8500.
+
+| Item | Subject | Seed |
+| --- | --- | --- |
+| Scroll of Repair | aged rolled parchment scroll tied with cord, silver anvil and mending rune, tiny sparks stitching a cracked shield (accent silver blue) | 8520 |
+| Scroll of Magic Mapping | unfurled aged parchment scroll with glowing dungeon corridors and room outlines drawn in blue ink (accent blueprint blue) | 8521 |
+| Scroll of Teleportation | aged parchment scroll twisting around a violet portal spiral, edges lifting in impossible wind (accent portal violet) | 8522 |
+| Scroll of Hold Monster | aged rolled parchment scroll bound by spectral chains around a clawed shadow silhouette (accent spectral teal) | 8523 |
+| Scroll of Sleep | aged parchment scroll with a pale crescent moon rune shedding soft blue sleep mist (accent drowsy periwinkle) | 8524 |
+| Scroll of Create Monster | torn aged parchment scroll with a red summoning circle and an emerging clawed silhouette (accent summoning red) | 8525 |
+| Scroll of Aggravate Monsters | aged parchment scroll marked with a black horn rune radiating angry orange sound waves (accent alarm orange) | 8526 |
+| Scroll of Enchant Weapon | aged parchment scroll with a simple blue sword icon painted on the parchment, plain clean corners, no decorative marks (accent rune blue) | 9000 |
+| Scroll of Enchant Armor | aged parchment scroll wrapped around a faintly glowing breastplate rune, hardened green ward lines (accent warding green) | 8528 |
+| Scroll of Protect Armor | aged parchment scroll with a shield rune under a golden warding dome (accent golden ward) | 8529 |
+| Scroll of Remove Curse | aged parchment scroll with broken black chains dissolving into white sparks (accent cleansing white) | 8530 |
+| Scroll of Identify | aged parchment scroll with a bright eye rune and small revealed item silhouettes in lavender light (accent revealing lavender) | 8531 |
+| Scroll of Food Detection | aged parchment scroll with warm amber bread and herb runes pulsing outward (accent warm amber) | 8532 |
+| Scroll of Gold Detection | aged parchment scroll with coin sigils glowing through dungeon dust (accent coin gold) | 8533 |
+| Scroll of Monster Confusion | aged parchment scroll with a crimson hand rune and spiraling disorientation marks (accent dizzy crimson) | 8534 |
+| Scroll of Scare Monster | aged parchment scroll with a frightening theatrical mask rune casting long shadows, symbol only, no circular glyphs, no inscriptions or signatures (accent fearful gray) | 8535 |
+| Blank Paper | plain aged blank parchment scroll tied with cord, no markings, subdued and mundane (accent muted beige gray) | 8536 |
+
 ## Wand / Staff line
 
 Generated at **8 steps** (not the 2-step baseline) for sharper, richer art — see

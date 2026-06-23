@@ -91,6 +91,8 @@ export interface InventoryActionView {
   reason?: string;
 }
 
+export type InventoryFilterKind = 'all' | 'scroll';
+
 export interface PotionOption {
   idx: number;
   label: string;
@@ -166,6 +168,7 @@ export interface UIState {
   // overlays
   compendiumOpen: boolean;
   inventoryOpen: boolean;
+  inventoryFilterKind: InventoryFilterKind;
   selectedInventoryRef: InventoryRef | null;
   potionMenuOpen: boolean;
   /** Dev-only balance report overlay (⌘/Ctrl+B). */
@@ -227,6 +230,7 @@ export const ui = $state<UIState>({
   gameWon: false,
   compendiumOpen: false,
   inventoryOpen: false,
+  inventoryFilterKind: 'all',
   selectedInventoryRef: null,
   potionMenuOpen: false,
   balancePanelOpen: false,
@@ -256,6 +260,7 @@ export interface UIActions {
   restart(): void;
   setCompendiumOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
+  setInventoryFilterKind(kind: InventoryFilterKind): void;
   setPotionMenuOpen(open: boolean): void;
   setBalancePanelOpen(open: boolean): void;
   setSettingsOpen(open: boolean): void;
@@ -288,6 +293,7 @@ export const actions: UIActions = {
   restart: () => {},
   setCompendiumOpen: () => {},
   setInventoryOpen: () => {},
+  setInventoryFilterKind: () => {},
   setPotionMenuOpen: () => {},
   setBalancePanelOpen: () => {},
   setSettingsOpen: () => {},

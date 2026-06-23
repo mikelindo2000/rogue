@@ -255,6 +255,16 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     }
     if (!Array.isArray(fs.monsters) || !Array.isArray(fs.items)) return null;
     migrateLegacyScrollItems(fs.items as unknown[]);
+    for (const it of fs.items as unknown[]) {
+      if (!isObject(it)) return null;
+      if (typeof it.x !== 'number' || typeof it.y !== 'number' || typeof it.type !== 'string') return null;
+      if (it.type === 'scroll') {
+        if (!isObject(it.data) || !KNOWN_SCROLL_TYPES.has(it.data.scrollType as string)) return null;
+      }
+      if (it.type === 'wand') {
+        if (!isObject(it.data) || !KNOWN_WAND_TYPES.has(it.data.wandType as string)) return null;
+      }
+    }
     if (fs.traps !== undefined && !validateTrapArray(fs.traps, fs.map)) return null;
   }
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { gearArtUrl, inventoryArtName } from './inventoryArt';
-import { POTION_TYPES, POTION_VISUALS, potionVisual } from '../itemVisuals';
+import { gearArtUrl, inventoryArtName, scrollArtUrl } from './inventoryArt';
+import { POTION_TYPES, POTION_VISUALS, SCROLL_TYPES, SCROLL_VISUALS, potionVisual, scrollVisual } from '../itemVisuals';
+
+const scrollArtAssets = import.meta.glob('../../public/inventory/scroll-of-*.png', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+});
 
 describe('inventory art URLs', () => {
   it('uses base gear names when generated gear has a floor bonus suffix', () => {
@@ -24,5 +30,24 @@ describe('inventory art URLs', () => {
 
     expect(icons.size).toBe(POTION_TYPES.length);
     expect(mapColors.size).toBe(POTION_TYPES.length);
+  });
+
+  it('keeps every scroll wired to visual metadata and generated inventory art', () => {
+    const icons = new Set<string>();
+    const mapColors = new Set<string>();
+
+    for (const type of SCROLL_TYPES) {
+      const visual = scrollVisual(type);
+      icons.add(visual.icon);
+      mapColors.add(visual.mapColor);
+      expect(SCROLL_VISUALS[type]).toBe(visual);
+      expect(visual.icon).toBe(`scroll-${type}`);
+      const artUrl = scrollArtUrl(type);
+      expect(artUrl).toBe(`/inventory/scroll-of-${type.replace(/_/g, '-')}.png`);
+      expect(Object.keys(scrollArtAssets), artUrl).toContain(`../../public${artUrl}`);
+    }
+
+    expect(icons.size).toBe(SCROLL_TYPES.length);
+    expect(mapColors.size).toBe(SCROLL_TYPES.length);
   });
 });

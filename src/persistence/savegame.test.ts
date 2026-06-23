@@ -441,6 +441,20 @@ describe('savegame validation', () => {
     expect(validateSaveGame(snap)).not.toBeNull();
   });
 
+  it('rejects a cached floor-state scroll item with an unknown scrollType', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.floorStates = [[2, {
+      map: snap.map,
+      explored: snap.explored,
+      monsters: [],
+      items: [{ x: 1, y: 1, type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'bogus' } }],
+    }]];
+
+    expect(validateSaveGame(snap)).toBeNull();
+  });
+
   it('migrates a V2 save (no wands) by backfilling an empty wands bucket', () => {
     const mem = new MemoryStorage();
     const engine = newEngine();

@@ -20,10 +20,18 @@
     return `armor:${ref.slot}:${ref.index}`;
   }
 
+  const visibleItems = $derived.by<InventoryCell[]>(() => {
+    if (ui.inventoryFilterKind === 'scroll') {
+      return ui.inventoryItems.filter((cell) => cell.ref.kind === 'scroll');
+    }
+    return ui.inventoryItems;
+  });
+
   const selected = $derived.by<InventoryCell | undefined>(() => {
+    const items = visibleItems;
     const selectedRef = ui.selectedInventoryRef;
-    if (!selectedRef) return ui.inventoryItems[0];
-    return ui.inventoryItems.find((cell) => refKey(cell.ref) === refKey(selectedRef)) ?? ui.inventoryItems[0];
+    if (!selectedRef) return items[0];
+    return items.find((cell) => refKey(cell.ref) === refKey(selectedRef)) ?? items[0];
   });
 
   function close() {
@@ -40,7 +48,7 @@
 
   function selectedIndex() {
     if (!selected) return -1;
-    return ui.inventoryItems.findIndex((cell) => refKey(cell.ref) === refKey(selected.ref));
+    return visibleItems.findIndex((cell) => refKey(cell.ref) === refKey(selected.ref));
   }
 
   function rowFor(cell: InventoryCell | undefined) {
@@ -54,10 +62,10 @@
   }
 
   function moveSelection(delta: number, focusAction = false) {
-    if (ui.inventoryItems.length === 0) return;
+    if (visibleItems.length === 0) return;
     const currentIndex = selectedIndex();
     const index = currentIndex === -1 ? 0 : currentIndex;
-    const next = ui.inventoryItems[(index + delta + ui.inventoryItems.length) % ui.inventoryItems.length];
+    const next = visibleItems[(index + delta + visibleItems.length) % visibleItems.length];
     if (!next) return;
     choose(next);
     setTimeout(() => {
@@ -93,7 +101,7 @@
   }
 
   function handleKeyboard(event: KeyboardEvent) {
-    if (!ui.inventoryOpen || ui.inventoryItems.length === 0) return;
+    if (!ui.inventoryOpen || visibleItems.length === 0) return;
 
     const target = event.target as HTMLElement | null;
     if (!target || !bodyEl?.contains(target)) return;
@@ -138,7 +146,7 @@
   }
 
   $effect(() => {
-    if (!ui.inventoryOpen || ui.inventoryItems.length === 0) return;
+    if (!ui.inventoryOpen || visibleItems.length === 0) return;
     tick().then(() => {
       rowFor(selected)?.focus();
     });
@@ -147,16 +155,16 @@
 
 <svelte:window onkeydown={handleKeyboard} />
 
-<Modal open={ui.inventoryOpen} title="Inventory" onClose={close}>
+<Modal open={ui.inventoryOpen} title={ui.inventoryFilterKind === 'scroll' ? 'Scrolls' : 'Inventory'} onClose={close}>
   <div class="body" bind:this={bodyEl}>
-    {#if ui.inventoryItems.length === 0}
+    {#if visibleItems.length === 0}
       <div class="empty">
         <div class="empty-icon"><Icon name="pouch" size={28} /></div>
-        <p>Your pack is empty.</p>
+        <p>{ui.inventoryItems.length === 0 ? 'Your pack is empty.' : 'No scrolls in your pack.'}</p>
       </div>
     {:else}
       <div class="list" aria-label="Carried items" bind:this={listEl}>
-        {#each ui.inventoryItems as cell (refKey(cell.ref))}
+        {#each visibleItems as cell (refKey(cell.ref))}
           <button
             class="row"
             class:selected={selected && refKey(selected.ref) === refKey(cell.ref)}
