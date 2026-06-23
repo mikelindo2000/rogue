@@ -174,7 +174,7 @@ export const MONSTER_DATABASE: MonsterTemplate[] = [
   { symbol: 'B', name: 'Brown Bat', hp: 22, atk: 8, color: '#8b4513', minFloor: 1 },
   { symbol: 'S', name: 'Snake', hp: 25, atk: 9, color: '#ff0000', minFloor: 2 },
   { symbol: 'H', name: 'Hobgoblin', hp: 29, atk: 11, color: '#ffff00', minFloor: 3 },
-  { symbol: 'E', name: 'Eagle', hp: 33, atk: 12, color: '#d3d3d3', minFloor: 4 },
+  { symbol: 'E', name: 'Eagle', hp: 33, atk: 17, color: '#d3d3d3', minFloor: 4 }, // atk 12→17: gives the gentle `raptor` dive enough bite to land FAIR at floor 4 (an eagle hits harder than a bat)
   { symbol: 'L', name: 'Leprechaun', hp: 38, atk: 15, color: '#00ff00', minFloor: 5 },
   { symbol: 'J', name: 'Jungle Flesheater', hp: 44, atk: 17, color: '#006400', minFloor: 6 },
   { symbol: 'K', name: 'King Cobra', hp: 48, atk: 15, color: '#cd853f', minFloor: 6 },

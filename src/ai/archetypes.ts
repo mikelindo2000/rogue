@@ -36,7 +36,8 @@ export type ArchetypeId =
   | 'kiter'
   | 'trickster'
   | 'boss-swiper'
-  | 'bat';
+  | 'bat'
+  | 'raptor';
 
 export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // Stationary until the player is within aggro, then beeline + bite. Legacy.
@@ -93,6 +94,21 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: { dodgeChance: 0.25 },
     abilities: [],
   },
+  // The Eagle: a faster, less-punishing cousin of the bat. Erratic flight with a
+  // telegraphed dive you can step out of and light evasion — it teaches dodging
+  // again mid-early game without the bat's bite. Deliberately gentler than the
+  // bat on both knobs: dive damageMultiplier 3.0 (< bat's 3.5) and dodgeChance
+  // 0.15 (< bat's 0.25). It also flies a touch wider (aggroRange +2, more random
+  // hops via erraticChance 0.4) so it reads as a swift, erratic flier. Harness-
+  // tuned to the FAIR band at floor 4 (threat ~0.375); the Eagle's base atk was
+  // nudged 12 → 17 in MONSTER_DATABASE so the gentle multiplier still lands fair
+  // at floor 4 (a low-atk floor-4 monster otherwise reads "easy" — see note).
+  raptor: {
+    movement: { style: 'erratic', aggroRange: AGGRO + 2, erraticChance: 0.4 },
+    attacks: [melee({ id: 'dive', range: 2, damageMultiplier: 3.0, windupTurns: 1, cooldown: 1, animCue: 'swoop' })],
+    defense: { dodgeChance: 0.15 },
+    abilities: [],
+  },
   // Marcus the Brave: chase-and-bite, but every other swing is a double-damage
   // swipe. Reproduces the old name-special as data.
   'boss-swiper': {
@@ -110,7 +126,7 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
  */
 export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   'brown-bat': 'bat', // modern erratic flier with a telegraphed swoop + evasion
-  'eagle': 'skirmisher',
+  'eagle': 'raptor', // erratic flier with a telegraphed dive + light evasion (gentler bat cousin)
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
