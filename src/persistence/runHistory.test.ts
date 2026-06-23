@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunSummaryV1 } from '../runStats';
+import { SCROLL_TYPES } from '../itemVisuals';
 import {
   clearRunHistory,
   compareRunToRecords,
@@ -37,7 +38,7 @@ const summary = (id: string, patch: Partial<RunSummaryV1> = {}): RunSummaryV1 =>
   goldCollected: 0,
   finalDefense: 0,
   hunger: 0,
-  inventory: { food: 0, potions: { healing: 0, strength: 0, invisibility: 0, armor: 0 }, scrolls: { light: 0 }, weapons: 1, armor: 5, shields: 1 },
+  inventory: { food: 0, potions: { healing: 0, strength: 0, invisibility: 0, armor: 0 }, scrolls: Object.fromEntries(SCROLL_TYPES.map(t => [t, 0])) as RunSummaryV1['inventory']['scrolls'], weapons: 1, armor: 5, shields: 1 },
   equipped: {},
   monstersKilled: 0,
   killsByMonsterId: {},

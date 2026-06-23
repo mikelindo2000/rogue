@@ -59,9 +59,29 @@ export type WeaponType = 'dagger' | '1h_sword' | '2h_sword' | '1h_mace' | '2h_ma
 export type StaffMagic = 'fire' | 'frost' | 'arcane';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type PotionType = 'healing' | 'strength' | 'invisibility' | 'armor';
-/** Named, carried scrolls (read on demand). Distinct from the legacy opaque
- *  `scroll` floor item, which still applies a random effect on pickup. */
-export type ScrollType = 'light';
+/** Named, carried scrolls (read on demand) at original-Rogue catalog parity.
+ *  Every floor scroll now carries a `scrollType`; the legacy opaque random-effect
+ *  scroll has been retired. Effect metadata lives in the data-driven registry in
+ *  src/scrolls.ts. See design/planning/scrolls_overhaul_plan.md. */
+export type ScrollType =
+  | 'light'
+  | 'repair'
+  | 'magic_mapping'
+  | 'teleportation'
+  | 'hold_monster'
+  | 'sleep'
+  | 'create_monster'
+  | 'aggravate_monsters'
+  | 'enchant_weapon'
+  | 'enchant_armor'
+  | 'protect_armor'
+  | 'remove_curse'
+  | 'identify'
+  | 'food_detection'
+  | 'gold_detection'
+  | 'monster_confusion'
+  | 'scare_monster'
+  | 'blank_paper';
 
 /** The zappable arcane line. Distinct from the melee WeaponType 'staff': wands
  *  are carried (not equipped) and zapped in a direction. No charges — power is

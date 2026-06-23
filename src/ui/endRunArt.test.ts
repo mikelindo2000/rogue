@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunSummaryV1 } from '../runStats';
+import { SCROLL_TYPES } from '../itemVisuals';
 import { END_RUN_ART_FILES, endRunArtUrl, pickEndRunArt, selectEndRunArtScenario } from './endRunArt';
 
 function summary(overrides: Partial<RunSummaryV1> = {}): RunSummaryV1 {
@@ -25,7 +26,7 @@ function summary(overrides: Partial<RunSummaryV1> = {}): RunSummaryV1 {
     inventory: {
       food: 0,
       potions: { healing: 0, strength: 0, invisibility: 0, armor: 0 },
-      scrolls: { light: 0 },
+      scrolls: Object.fromEntries(SCROLL_TYPES.map(t => [t, 0])) as RunSummaryV1['inventory']['scrolls'],
       weapons: 0,
       armor: 0,
       shields: 0,

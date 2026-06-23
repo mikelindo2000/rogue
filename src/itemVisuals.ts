@@ -59,7 +59,12 @@ export interface ScrollVisual {
   accent: string;
 }
 
-export const SCROLL_TYPES = ['light'] as const satisfies readonly ScrollType[];
+export const SCROLL_TYPES = [
+  'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
+  'create_monster', 'aggravate_monsters', 'enchant_weapon', 'enchant_armor',
+  'protect_armor', 'remove_curse', 'identify', 'food_detection', 'gold_detection',
+  'monster_confusion', 'scare_monster', 'blank_paper',
+] as const satisfies readonly ScrollType[];
 
 /**
  * Shared visual identity for named scrolls across the floor glyph and inventory.
@@ -67,12 +72,24 @@ export const SCROLL_TYPES = ['light'] as const satisfies readonly ScrollType[];
  * and generated art in public/inventory/ per design/implemented/inventory_image_generation.md.
  */
 export const SCROLL_VISUALS: Record<ScrollType, ScrollVisual> = {
-  light: {
-    icon: 'scroll-light',
-    mapColor: '#ffd86b',
-    uiColor: 'var(--scroll-light)',
-    accent: 'warm-gold',
-  },
+  light:              { icon: 'scroll-light',              mapColor: '#ffd86b', uiColor: 'var(--scroll-light)', accent: 'warm-gold' },
+  repair:             { icon: 'scroll-repair',             mapColor: '#b9c4d0', uiColor: '#b9c4d0', accent: 'silver anvil' },
+  magic_mapping:      { icon: 'scroll-magic_mapping',      mapColor: '#6bb8ff', uiColor: '#6bb8ff', accent: 'blueprint blue' },
+  teleportation:      { icon: 'scroll-teleportation',      mapColor: '#b06bff', uiColor: '#b06bff', accent: 'portal violet' },
+  hold_monster:       { icon: 'scroll-hold_monster',       mapColor: '#8fcfd6', uiColor: '#8fcfd6', accent: 'spectral teal' },
+  sleep:              { icon: 'scroll-sleep',              mapColor: '#9fb0ff', uiColor: '#9fb0ff', accent: 'drowsy periwinkle' },
+  create_monster:     { icon: 'scroll-create_monster',     mapColor: '#ff6b6b', uiColor: '#ff6b6b', accent: 'summoning red' },
+  aggravate_monsters: { icon: 'scroll-aggravate_monsters', mapColor: '#ff944d', uiColor: '#ff944d', accent: 'alarm orange' },
+  enchant_weapon:     { icon: 'scroll-enchant_weapon',     mapColor: '#7db8ff', uiColor: '#7db8ff', accent: 'rune blue' },
+  enchant_armor:      { icon: 'scroll-enchant_armor',      mapColor: '#9fd0a0', uiColor: '#9fd0a0', accent: 'warding green' },
+  protect_armor:      { icon: 'scroll-protect_armor',      mapColor: '#ffd27a', uiColor: '#ffd27a', accent: 'golden ward' },
+  remove_curse:       { icon: 'scroll-remove_curse',       mapColor: '#d0d0d8', uiColor: '#d0d0d8', accent: 'cleansing white' },
+  identify:           { icon: 'scroll-identify',           mapColor: '#cda6ff', uiColor: '#cda6ff', accent: 'revealing lavender' },
+  food_detection:     { icon: 'scroll-food_detection',     mapColor: '#e0a062', uiColor: '#e0a062', accent: 'warm amber' },
+  gold_detection:     { icon: 'scroll-gold_detection',     mapColor: '#ffe066', uiColor: '#ffe066', accent: 'coin gold' },
+  monster_confusion:  { icon: 'scroll-monster_confusion',  mapColor: '#ff7ab0', uiColor: '#ff7ab0', accent: 'dizzy crimson' },
+  scare_monster:      { icon: 'scroll-scare_monster',      mapColor: '#c0c6cf', uiColor: '#c0c6cf', accent: 'fearful gray' },
+  blank_paper:        { icon: 'scroll-blank_paper',        mapColor: '#cbb89a', uiColor: '#cbb89a', accent: 'muted beige' },
 };
 
 export function scrollVisual(type: ScrollType): ScrollVisual {

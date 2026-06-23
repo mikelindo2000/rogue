@@ -1,5 +1,6 @@
 import type { GearItem, Monster, Player, PotionType, Rarity, ScrollType } from './types';
 import { monsterId } from './discovery';
+import { SCROLL_TYPES } from './itemVisuals';
 
 export type RunOutcome = 'won' | 'died';
 export type DeathCause = 'starvation' | 'monster' | 'trap_scroll' | 'unknown';
@@ -138,7 +139,6 @@ export interface BuildRunSummaryParams {
 }
 
 const POTION_TYPES = ['healing', 'strength', 'invisibility', 'armor'] as const satisfies readonly PotionType[];
-const SCROLL_TYPES = ['light'] as const satisfies readonly ScrollType[];
 const GEAR_SLOTS = ['helm', 'chest', 'legs', 'gauntlets', 'boots'] as const;
 
 function emptyPotionCounts(): Record<PotionType, number> {
@@ -146,7 +146,7 @@ function emptyPotionCounts(): Record<PotionType, number> {
 }
 
 function emptyScrollCounts(): Record<ScrollType, number> {
-  return { light: 0 };
+  return Object.fromEntries(SCROLL_TYPES.map(t => [t, 0])) as Record<ScrollType, number>;
 }
 
 function emptyRarityCounts(): Record<Rarity | 'unknown', number> {
