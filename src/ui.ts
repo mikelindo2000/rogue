@@ -190,8 +190,7 @@ export class GameUI {
     this.fx = this.fx.filter(f => t - f.start < f.life);
 
     const style = getDungeonStyle(s.dungeonFloor);
-    this.ctx.fillStyle = style.background;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';

@@ -2,9 +2,44 @@
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
   import KeyCap from './primitives/KeyCap.svelte';
+  import { getDungeonStyle } from '../../theme';
+  import { pickRandomBg, backgroundUrl } from '../backgrounds';
+
+  const dungeonStyle = $derived(getDungeonStyle(ui.floor));
+  const floorBg = $derived(dungeonStyle.background);
+
+  let currentBg = $state(pickRandomBg());
+  let previousBg = $state<string | null>(null);
+  let isTransitioning = $state(false);
+
+  let wasEnded = false;
+
+  $effect(() => {
+    const isEnded = ui.gameOver || ui.gameWon;
+    let cleanup: (() => void) | undefined = undefined;
+    if (wasEnded && !isEnded) {
+      previousBg = currentBg;
+      currentBg = pickRandomBg();
+      isTransitioning = true;
+      const timer = setTimeout(() => {
+        previousBg = null;
+        isTransitioning = false;
+      }, 1000);
+      cleanup = () => clearTimeout(timer);
+    }
+    wasEnded = isEnded;
+    return cleanup;
+  });
 </script>
 
-<div class="stage">
+<div class="stage" style="background-color: {floorBg};">
+  <div class="bg-image-container" aria-hidden="true">
+    {#if previousBg}
+      <img src={backgroundUrl(previousBg)} class="bg-image fade-out" alt="" />
+    {/if}
+    <img src={backgroundUrl(currentBg)} class="bg-image" class:fade-in={isTransitioning} alt="" />
+  </div>
+
   <canvas id="gameCanvas" width="920" height="580"></canvas>
 
   <div class="vignette" aria-hidden="true"></div>
@@ -43,6 +78,37 @@
     min-width: 0;
     overflow: hidden;
     background: var(--surface-map);
+  }
+  .bg-image-container {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.5;
+    transition: opacity 1000ms ease-in-out;
+  }
+  .bg-image.fade-out {
+    opacity: 0;
+  }
+  .bg-image.fade-in {
+    animation: fadeIn 1000ms ease-in-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 0.5;
+    }
   }
   canvas {
     display: block;
