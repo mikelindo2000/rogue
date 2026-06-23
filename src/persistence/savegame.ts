@@ -34,8 +34,9 @@ function normalizeWands(player: Player): void {
   }
 }
 
-/** Backfill the scroll inventory for saves written before it existed, and drop a
- *  malformed entry rather than corrupt the pack. Parallel to normalizeWands. */
+/** Backfill the scroll inventory for saves written before it existed. Unknown
+ *  carried types are already rejected in validateSaveGame; the filter here is
+ *  defence-in-depth for the post-clone player. Parallel to normalizeWands. */
 function normalizeScrolls(player: Player): void {
   const inv = player.inventory;
   if (!Array.isArray(inv.scrolls)) {
@@ -57,7 +58,7 @@ function migrateLegacyScrollItems(items: unknown[]): void {
       it.type = 'scroll';
       it.data = { scrollType: 'repair' };
       if (typeof it.symbol !== 'string') it.symbol = '?';
-    } else if (it.type === 'scroll' && it.data === undefined) {
+    } else if (it.type === 'scroll' && it.data == null) {
       it.data = { scrollType: 'light' };
     }
   }

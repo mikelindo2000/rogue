@@ -14,7 +14,7 @@ import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equi
 import { VitalsSoundTracker } from './audio/vitals';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
-import { damageEquippedGear, normalizeAllGearHealth, repairAllDefensiveGear } from './gearHealth';
+import { damageEquippedGear, normalizeAllGearHealth, normalizeGearHealth, repairAllDefensiveGear } from './gearHealth';
 import {
   bearTrapTurns,
   maxDartDrainStacks,
@@ -1193,12 +1193,16 @@ export class GameEngine {
           return false;
         }
         const bonus = BALANCE.scrolls.enchantArmorBonus;
-        armor.def = (armor.def ?? 0) + bonus;
-        armor.maxDef = Math.max(armor.maxDef ?? 0, armor.def);
-        if (armor.health) {
-          armor.health.max += bonus;
-          armor.health.current = armor.health.max; // an enchant also restores it
-        }
+        // gearHealth is the source of truth (effectiveDefense reads health.current),
+        // so bump both ends by the bonus and keep def/maxDef in sync. We add to
+        // current rather than topping it up, so an enchant is exactly +bonus and
+        // does NOT silently repair damage — that is the Repair scroll's job.
+        normalizeGearHealth(armor);
+        const max = (armor.health?.max ?? 0) + bonus;
+        const current = (armor.health?.current ?? 0) + bonus;
+        armor.health = { current, max };
+        armor.def = current;
+        armor.maxDef = max;
         this.addLog(`You read the Scroll of Enchant Armor. Your ${armor.name} hardens! (+${bonus} DEF)`);
         return true;
       }

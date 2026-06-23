@@ -163,17 +163,34 @@ describe('scroll Phase 1 effects', () => {
     expect(engine.player.inventory.scrolls).not.toContain('enchant_weapon');
   });
 
-  it('Enchant Armor: adds defense to the equipped armor and consumes', () => {
+  it('Enchant Armor (undamaged): adds exactly +bonus to def and maxDef', () => {
     const engine = makeRunner(7);
     carve(engine, 2, 1, 4);
-    engine.player.inventory.chest = [{ name: 'Plate', def: 4, maxDef: 4, health: { current: 2, max: 4 } }];
+    engine.player.inventory.chest = [{ name: 'Plate', def: 4, maxDef: 4, health: { current: 4, max: 4 } }];
     engine.player.equipped.chest = 0;
     engine.player.inventory.scrolls = ['enchant_armor'];
     engine.useScroll(0);
+    const b = BALANCE.scrolls.enchantArmorBonus;
     const armor = engine.player.inventory.chest[0];
-    expect(armor.def).toBe(4 + BALANCE.scrolls.enchantArmorBonus);
-    expect(armor.maxDef).toBe(4 + BALANCE.scrolls.enchantArmorBonus);
-    expect(armor.health).toEqual({ current: 4 + BALANCE.scrolls.enchantArmorBonus, max: 4 + BALANCE.scrolls.enchantArmorBonus });
+    expect(armor.health).toEqual({ current: 4 + b, max: 4 + b });
+    expect(armor.def).toBe(4 + b);
+    expect(armor.maxDef).toBe(4 + b);
+    expect(engine.player.inventory.scrolls).not.toContain('enchant_armor');
+  });
+
+  it('Enchant Armor (damaged): adds +bonus without repairing the damage gap', () => {
+    const engine = makeRunner(7);
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.chest = [{ name: 'Plate', def: 2, maxDef: 4, health: { current: 2, max: 4 } }];
+    engine.player.equipped.chest = 0;
+    engine.player.inventory.scrolls = ['enchant_armor'];
+    engine.useScroll(0);
+    const b = BALANCE.scrolls.enchantArmorBonus;
+    const armor = engine.player.inventory.chest[0];
+    // Effective defense (current) rises by exactly +bonus; the 2-point damage gap
+    // is preserved — enchant does not double as a free repair.
+    expect(armor.health).toEqual({ current: 2 + b, max: 4 + b });
+    expect((armor.health!.max) - (armor.health!.current)).toBe(2);
     expect(engine.player.inventory.scrolls).not.toContain('enchant_armor');
   });
 
