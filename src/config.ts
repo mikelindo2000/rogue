@@ -90,6 +90,12 @@ export const BALANCE = {
   monster: {
     wanderSkipChance: 0.4,
     aggroRange: 6,
+    // Rogue-style depth-gated spawning: a monster is in the random pool from the
+    // floor it first appears (minFloor) until `spawnDepthBand` floors deeper, so
+    // shallow monsters phase out as you descend and each depth feels distinct.
+    // Variety tracks DUNGEON DEPTH, not player level. Larger = monsters linger
+    // longer (more variety per floor); smaller = tighter, faster-rotating pools.
+    spawnDepthBand: 5,
   },
   status: {
     vigorTurns: 100,

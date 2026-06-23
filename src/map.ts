@@ -1,4 +1,4 @@
-import { Item, ItemSpawn, Monster } from './types';
+import { Item, ItemSpawn, Monster, MonsterTemplate } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
@@ -286,9 +286,37 @@ function roomForEncounter(encounter: EncounterDefinition, endRoom: Room): Room {
   }
 }
 
+/**
+ * Pick a random regular monster appropriate for `floor`, original-Rogue style:
+ * depth-banded (a monster is eligible from its `minFloor` to `spawnDepthBand`
+ * floors deeper, so shallow monsters phase out) and weighted toward the current
+ * depth (a floor-native monster is the most common; the oldest still-eligible
+ * one is the rarest). Bosses and `hero` elites are excluded — the encounter
+ * system places those, not the random pool. Returns null only if the pool is
+ * empty (never happens in practice: floor 1 always has Orc/Bat).
+ */
+function pickDepthMonster(floor: number, rng: RNG): MonsterTemplate | null {
+  const floorFrom = floor - BALANCE.monster.spawnDepthBand;
+  const pool = MONSTER_DATABASE.filter(
+    (m) => m.special === undefined && m.minFloor <= floor && m.minFloor >= floorFrom,
+  );
+  if (pool.length === 0) return null;
+
+  const weightOf = (m: MonsterTemplate) => m.minFloor - floorFrom + 1; // 1..band+1
+  const total = pool.reduce((s, m) => s + weightOf(m), 0);
+  let r = rng.next() * total;
+  for (const m of pool) {
+    r -= weightOf(m);
+    if (r < 0) return m;
+  }
+  return pool[pool.length - 1];
+}
+
 export function generateLevel(
   dungeonFloor: number,
-  playerLevel: number,
+  // Kept for signature stability; monster variety is now gated on dungeon depth
+  // (see pickDepthMonster), not player level.
+  _playerLevel: number,
   cols: number,
   rows: number,
   rng: RNG
@@ -516,15 +544,13 @@ export function generateLevel(
         }
       }
 
-      // Spawn monsters
+      // Spawn monsters. Variety is gated on dungeon DEPTH, not player level —
+      // a monster joins the pool at its `minFloor` and ages out `spawnDepthBand`
+      // floors later, weighted toward the current depth so floor-appropriate
+      // monsters dominate and each floor feels distinct (original-Rogue style).
       if (rng.chance(spawn.monsterChance)) {
-        const validMobs = MONSTER_DATABASE.filter(m =>
-          dungeonFloor >= m.minFloor &&
-          playerLevel >= m.minFloor &&
-          m.special === undefined
-        );
-        if (validMobs.length > 0) {
-          const tmpl = rng.pick(validMobs);
+        const tmpl = pickDepthMonster(dungeonFloor, rng);
+        if (tmpl) {
           const mx = room.l + 1;
           const my = room.t + 1;
           // Avoid spawning directly on top of another monster
