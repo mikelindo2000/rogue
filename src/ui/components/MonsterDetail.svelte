@@ -3,6 +3,7 @@
   import { ui } from '../store.svelte';
   import Modal from './primitives/Modal.svelte';
   import MonsterStage from './MonsterStage.svelte';
+  import MonsterMention from './MonsterMention.svelte';
   import { monsterArtUrl } from '../monsterArt';
 
   let {
@@ -44,12 +45,9 @@
         {/key}
 
         <div class="meta">
-          <div class="glyph-chip" style:color={monster.color}>
-            <span class="glyph">{monster.symbol}</span>
-          </div>
           <div class="headline">
             <div class="title-row">
-              <span class="name">{monster.name}</span>
+              <span class="name"><MonsterMention {monster} /></span>
               {#if isBoss}<span class="boss-tag">BOSS</span>{/if}
             </div>
             <p class="lore">{lore}</p>
@@ -127,22 +125,6 @@
     gap: 14px;
     align-items: flex-start;
   }
-  .glyph-chip {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    height: 52px;
-    background: var(--surface-inset-2);
-    border: 1px solid var(--border-slot);
-    border-radius: var(--r-md);
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-  }
-  .glyph {
-    font: 800 24px var(--font-display);
-    line-height: 1;
-  }
   .headline {
     flex: 1;
     min-width: 0;
@@ -159,6 +141,14 @@
     font: 700 var(--fs-title) var(--font-display);
     letter-spacing: var(--tracking-tight);
     color: var(--text-bright);
+  }
+  .name :global(.monster-mention__glyph) {
+    width: 2.15em;
+    height: 2.15em;
+    margin-inline-end: 0.6em;
+    font-size: 1.05em;
+    border-radius: var(--r-md);
+    vertical-align: -0.7em;
   }
   .boss-tag {
     padding: 1px 6px;

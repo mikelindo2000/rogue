@@ -50,6 +50,9 @@ export interface MonsterCombat {
    * paths treat cadence identically.
    */
   hitsPerTurn: number;
+  /** Evasion: chance the monster dodges a player strike entirely, lowering the
+   *  player's effective DPS (and so lengthening the fight). 0 by default. */
+  dodgeChance?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +107,8 @@ export interface DuelAnalysis {
  * `ttk` is used directly; the −1 is the first-mover advantage.
  */
 export function analyzeDuel(p: PlayerCombat, m: MonsterCombat): DuelAnalysis {
-  const playerDps = expectedPlayerDamage(p) * p.attacksPerTurn;
+  // Evasion drops the player's effective DPS by the dodge rate.
+  const playerDps = expectedPlayerDamage(p) * p.attacksPerTurn * (1 - (m.dodgeChance ?? 0));
   const monsterDps = expectedMonsterDamage(m, p.def) * m.hitsPerTurn;
   const ttk = m.hp / Math.max(1e-9, playerDps);
   const monsterTurns = Math.max(0, ttk - 1);
@@ -152,6 +156,8 @@ export function simulateDuel(p: PlayerCombat, m: MonsterCombat, rng: RNG): DuelR
 
     // Player strikes first.
     for (let a = 0; a < p.attacksPerTurn && monsterHp > 0; a++) {
+      // Evasive monsters may flit aside, negating the strike.
+      if (m.dodgeChance && rng.chance(m.dodgeChance)) continue;
       const { damage } = computeStrike({
         baseAtk: p.baseAtk,
         weapon,

@@ -1,15 +1,24 @@
 <script lang="ts">
   import { ui } from '../store.svelte';
+  import MonsterMention from './MonsterMention.svelte';
 
   const m = $derived(ui.nearbyMonster);
   const pct = $derived(m ? Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100)) : 0);
+  const mention = $derived(m ? {
+    id: m.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+    name: m.name,
+    glyph: m.glyph,
+    color: m.color,
+    boss: false,
+  } : null);
 </script>
 
 {#if m}
   <div class="tooltip" role="img" aria-label="{m.name}, {m.hp} of {m.maxHp} health">
     <div class="head">
-      <span class="glyph" style="color:{m.color}" aria-hidden="true">{m.glyph}</span>
-      <span class="name">{m.name}</span>
+      {#if mention}
+        <span class="name"><MonsterMention {mention} /></span>
+      {/if}
       {#if m.hostile}
         <span class="state">hostile</span>
       {/if}
@@ -52,24 +61,20 @@
     align-items: center;
     gap: 8px;
   }
-  .glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 26px;
-    height: 26px;
-    border-radius: var(--r-sm);
-    background: color-mix(in srgb, var(--danger) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-    font: 700 14px var(--font-display);
-  }
   .name {
     font: 600 13px var(--font-ui);
     color: var(--text-bright);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .name :global(.monster-mention__glyph) {
+    width: 26px;
+    height: 26px;
+    margin-inline-end: 8px;
+    font: 700 14px / 1 var(--font-display);
+    border-radius: var(--r-sm);
+    vertical-align: -8px;
   }
   .state {
     font: 500 10.5px var(--font-ui);

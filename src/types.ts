@@ -32,7 +32,7 @@ export interface MonsterTemplate {
   atk: number;
   color: string;
   minFloor: number;
-  special?: 'boss';
+  special?: 'hero' | 'boss';
   /** Flavor text shown on the compendium detail view once defeated. */
   lore?: string;
 }
@@ -116,7 +116,7 @@ export interface Monster {
   atk: number;
   color: string;
   minFloor: number;
-  special?: 'boss';
+  special?: 'hero' | 'boss';
   frozenTurns: number;
   swipeTurn?: boolean;
   /** Per-monster AI runtime (FSM state + cooldowns), attached lazily by the
@@ -126,6 +126,12 @@ export interface Monster {
     state: 'asleep' | 'hunting' | 'fleeing';
     cooldowns: Record<string, number>;
     swipeToggle: boolean;
+    pendingAttack?: {
+      attackId: string;
+      resolveTurn: number;
+      targetX: number;
+      targetY: number;
+    };
   };
 }
 

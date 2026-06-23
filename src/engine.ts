@@ -3,7 +3,9 @@ import { GameUI } from './ui';
 import { generateLevel } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP } from './config';
+import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
+import { resolveBehavior } from './ai/archetypes';
 import { computeStrike } from './combat';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
@@ -466,6 +468,17 @@ export class GameEngine {
   }
 
   private executeStrike(monster: Monster, weapon: GearItem) {
+    // Evasive monsters (e.g. the bat) may flit aside. Only rolls when the
+    // monster actually has a dodge chance, so non-evasive monsters draw no extra
+    // RNG and their seeded combat is unchanged.
+    const evade = resolveBehavior(monster).defense.dodgeChance ?? 0;
+    if (evade > 0 && this.rng.chance(evade)) {
+      this.addLog(`${monster.name} flits aside!`);
+      this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
+      this.ui.fxMonsterDodge(monster, this.player.x, this.player.y);
+      return;
+    }
+
     const outcome = computeStrike({
       baseAtk: this.player.baseAtk,
       weapon,
@@ -539,10 +552,14 @@ export class GameEngine {
         this.addLog(`No experience gained (Level delta too high).`);
       }
 
+      if (monster.special === 'hero') {
+        this.addLog(`${monster.name} is defeated!`);
+      }
       if (monster.special === 'boss') {
         this.addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
-        const anyBossesLeft = this.monsters.some(m => m.special === 'boss' && m !== monster);
-        if (this.dungeonFloor === 20 && !anyBossesLeft) {
+        const requiredBosses = requiredBossNamesForFloor(this.dungeonFloor);
+        const anyRequiredBossesLeft = this.monsters.some(m => m !== monster && requiredBosses.has(m.name));
+        if (requiredBosses.has(monster.name) && !anyRequiredBossesLeft) {
           this.gameWon = true;
           this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
         }
@@ -809,7 +826,11 @@ export class GameEngine {
       totalDef,
       (msg) => this.addLog(msg),
       this.rng,
-      this.turn
+      this.turn,
+      {
+        dive: (fx, fy, tx, ty, color) => this.ui.fxDive(fx, fy, tx, ty, color),
+        whiff: (x, y) => this.ui.fxWhiff(x, y),
+      }
     );
     if (this.player.hp < hpBeforeMonsters) this.ui.fxPlayerHit();
 

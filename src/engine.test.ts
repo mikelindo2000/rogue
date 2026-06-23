@@ -128,6 +128,16 @@ describe('GameEngine boss victory conditions', () => {
     engine.playerAttack(marcus);
     expect(engine.gameWon).toBe(true);
   });
+
+  it('does not let an unrelated floor-20 boss tag satisfy the finale', () => {
+    const engine = makeBossKiller(20);
+    const impostor = makeBoss('Training Boss');
+    engine.monsters = [impostor];
+
+    engine.playerAttack(impostor);
+
+    expect(engine.gameWon).toBe(false);
+  });
 });
 
 describe('GameEngine stair travel', () => {

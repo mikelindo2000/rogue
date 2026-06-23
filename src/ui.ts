@@ -39,7 +39,7 @@ interface TileMetrics {
  *  coords (and, for deaths, their own glyph) so they outlive the entity that
  *  spawned them. All durations are in milliseconds. */
 interface Fx {
-  kind: 'strike' | 'hit' | 'dmg' | 'death' | 'freeze' | 'phit';
+  kind: 'strike' | 'hit' | 'dmg' | 'death' | 'freeze' | 'phit' | 'dive' | 'whiff' | 'float';
   start: number;
   life: number;
   x?: number;
@@ -62,7 +62,25 @@ const FX_LIFE = {
   death: 460,
   freeze: 560,
   phit: 300,
+  dive: 240, // swoop streak from attacker to target
+  whiff: 360, // dust puff where a dodged attack lands
+  float: 720, // generic floating label ("dodge", "miss")
 } as const;
+
+/** How long a monster takes to glide one tile. Short enough to keep up with
+ *  fast turns, long enough to read as motion rather than a snap. */
+const MOVE_DUR = 130;
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+/** A monster's in-flight tile→tile glide. `from` is the tile it left; the
+ *  monster's current x/y is the destination. */
+interface MoveAnim {
+  fromX: number;
+  fromY: number;
+  start: number;
+}
 
 /** Snapshot of the board for a single frame — lets the animation loop repaint
  *  between turns without the turn-based engine driving every frame. */
@@ -131,6 +149,17 @@ export class GameUI {
   private fx: Fx[] = [];
   private rafId: number | null = null;
 
+  /** Per-monster glide animations and the last tile each was rendered on, so a
+   *  position change between turns animates instead of snapping. Keyed by object
+   *  identity (monsters persist within a floor; WeakMap self-cleans on death). */
+  private moveAnim: WeakMap<Monster, MoveAnim> = new WeakMap();
+  private lastTile: WeakMap<Monster, { x: number; y: number }> = new WeakMap();
+  /** Quick perpendicular "flit aside" wobble when a monster evades a strike. */
+  private dodgeAnim: WeakMap<Monster, { start: number; dx: number; dy: number }> = new WeakMap();
+  /** Timestamp (ms) until which at least one glide is still in flight, so the
+   *  loop keeps painting without iterating the WeakMaps. */
+  private animUntil = 0;
+
   /** Which avatar the player draws as. Settable in code today; a character-
    *  select UI will drive it later via setPlayerSprite(). */
   private playerSprite: PlayerSprite = DEFAULT_PLAYER_SPRITE;
@@ -165,6 +194,7 @@ export class GameUI {
     // Overlay store state only needs refreshing on real turns, not per frame.
     this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
 
+    this.trackMovement(monsters);
     this.paint();
     this.ensureLoop();
   }
@@ -226,15 +256,26 @@ export class GameUI {
       if (f.kind === 'freeze') this.drawFrostBurst(f, t, s.tileSize);
     }
 
+    // Telegraphs: a pulsing danger marker on the target tile of any monster
+    // mid-windup. State-driven (not a fading Fx) so it persists for the whole
+    // wind-up, however long the player takes to react.
+    for (const m of s.monsters) {
+      const pend = m.ai?.pendingAttack;
+      if (pend && s.visible[pend.targetY]?.[pend.targetX]) {
+        this.drawTelegraph(pend.targetX, pend.targetY, t, s.tileSize, m.color);
+      }
+    }
+
     // Draw Monsters — bold, optically centered on the tile dot, with the
     // hit shake/flash applied to whichever monster is being struck.
     s.monsters.forEach(m => {
       if (!s.visible[m.y]?.[m.x]) return;
+      const { gx, gy } = this.monsterPos(m, t);
       const h = this.hitAt(t, m.x, m.y);
       let color = m.frozenTurns > 0 ? '#00ffff' : m.color;
       if (h.flash > 0) color = this.blend(color, '#ffffff', h.flash);
       this.ctx.fillStyle = color;
-      this.drawGlyph(m.symbol, m.x, m.y, s.tileSize, 0.95, { weight: 800, sizeRatio: 0.98, dx: h.shakeX, embolden: 0.08 });
+      this.drawGlyph(m.symbol, gx, gy, s.tileSize, 0.95, { weight: 800, sizeRatio: 0.98, dx: h.shakeX, embolden: 0.08 });
     });
 
     // Dying monsters fade + shrink in place. The monster is already gone from
@@ -275,17 +316,173 @@ export class GameUI {
       this.ctx.fillText(f.text!, m.cx + (f.jx ?? 0) * s.tileSize, m.cy - s.tileSize * 0.2 - p * s.tileSize * 1.4);
       this.ctx.restore();
     }
+
+    // Swoop streaks, whiff puffs, and floating labels (dodge/miss).
+    for (const f of this.fx) {
+      if (f.kind === 'dive') this.drawDive(f, t, s.tileSize);
+      else if (f.kind === 'whiff') this.drawWhiff(f, t, s.tileSize);
+      else if (f.kind === 'float') this.drawFloatLabel(f, t, s.tileSize);
+    }
     this.ctx.globalAlpha = 1;
   }
 
-  /** Spin a requestAnimationFrame loop while effects are alive; it stops itself
-   *  on the first frame with no remaining effects. */
+  /** Pulsing brackets on a telegraphed attack's target tile. */
+  private drawTelegraph(gx: number, gy: number, t: number, tileSize: number, color: string) {
+    const m = this.tileMetrics(gx, gy, tileSize);
+    const pulse = 0.5 + 0.5 * Math.sin(t / 130);
+    const r = tileSize * (0.34 + pulse * 0.1);
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.35 + pulse * 0.4;
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = Math.max(1.5, tileSize * 0.07);
+    this.ctx.lineCap = 'round';
+    // Four corner brackets — reads as a "target lock" without filling the tile.
+    const corners = [
+      [-1, -1], [1, -1], [1, 1], [-1, 1],
+    ] as const;
+    for (const [sx, sy] of corners) {
+      const cx0 = m.cx + sx * r;
+      const cy0 = m.cy + sy * r;
+      const len = tileSize * 0.16;
+      this.ctx.beginPath();
+      this.ctx.moveTo(cx0, cy0);
+      this.ctx.lineTo(cx0 - sx * len, cy0);
+      this.ctx.moveTo(cx0, cy0);
+      this.ctx.lineTo(cx0, cy0 - sy * len);
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** A fading motion streak from attacker to target as a swoop lands. */
+  private drawDive(f: Fx, t: number, tileSize: number) {
+    const p = Math.min(1, (t - f.start) / f.life);
+    const a = this.tileMetrics(f.fromX!, f.fromY!, tileSize);
+    const b = this.tileMetrics(f.toX!, f.toY!, tileSize);
+    // Streak head races from attacker to target, tail trailing behind.
+    const headT = easeOutCubic(p);
+    const tailT = Math.max(0, headT - 0.4);
+    const hx = lerp(a.cx, b.cx, headT), hy = lerp(a.cy, b.cy, headT);
+    const tx = lerp(a.cx, b.cx, tailT), ty = lerp(a.cy, b.cy, tailT);
+    this.ctx.save();
+    this.ctx.globalAlpha = (1 - p) * 0.9;
+    this.ctx.strokeStyle = f.color ?? '#ffffff';
+    this.ctx.lineWidth = Math.max(2, tileSize * 0.12);
+    this.ctx.lineCap = 'round';
+    this.ctx.beginPath();
+    this.ctx.moveTo(tx, ty);
+    this.ctx.lineTo(hx, hy);
+    this.ctx.stroke();
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** A small dust burst where a dodged attack lands on empty ground. */
+  private drawWhiff(f: Fx, t: number, tileSize: number) {
+    const p = Math.min(1, (t - f.start) / f.life);
+    const m = this.tileMetrics(f.x!, f.y!, tileSize);
+    this.ctx.save();
+    this.ctx.globalAlpha = (1 - p) * 0.5;
+    this.ctx.strokeStyle = '#b8a98c';
+    this.ctx.lineWidth = Math.max(1, tileSize * 0.05);
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2 + 0.4;
+      const r0 = tileSize * 0.1;
+      const r1 = tileSize * (0.18 + p * 0.3);
+      this.ctx.beginPath();
+      this.ctx.moveTo(m.cx + Math.cos(ang) * r0, m.cy + Math.sin(ang) * r0);
+      this.ctx.lineTo(m.cx + Math.cos(ang) * r1, m.cy + Math.sin(ang) * r1);
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** A short label rising and fading off a tile. */
+  private drawFloatLabel(f: Fx, t: number, tileSize: number) {
+    const p = Math.min(1, (t - f.start) / f.life);
+    const m = this.tileMetrics(f.x!, f.y!, tileSize);
+    this.ctx.save();
+    this.ctx.globalAlpha = Math.max(0, 1 - p);
+    this.ctx.fillStyle = f.color ?? '#9fb4c8';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'alphabetic';
+    const fs = Math.round(tileSize * 0.5);
+    this.ctx.font = `700 ${fs}px "Fira Code", monospace`;
+    this.ctx.fillText(f.text!, m.cx + (f.jx ?? 0) * tileSize, m.cy - tileSize * 0.2 - p * tileSize * 1.2);
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** Detect which monsters changed tiles since the last render and start a glide
+   *  for each. Called once per turn from render(). */
+  private trackMovement(monsters: Monster[]) {
+    const now = this.nowMs();
+    for (const m of monsters) {
+      const last = this.lastTile.get(m);
+      if (last && (last.x !== m.x || last.y !== m.y)) {
+        // Glide in from the tile the monster just left. (At input speeds one
+        // glide finishes before the next move; only rapid run-movement can clip
+        // one, which reads fine.)
+        this.moveAnim.set(m, { fromX: last.x, fromY: last.y, start: now });
+        this.animUntil = Math.max(this.animUntil, now + MOVE_DUR);
+      }
+      this.lastTile.set(m, { x: m.x, y: m.y });
+    }
+  }
+
+  /** The interpolated tile position a monster should be drawn at for frame t,
+   *  combining its tile glide and any evade wobble. */
+  private monsterPos(m: Monster, t: number): { gx: number; gy: number } {
+    let gx = m.x;
+    let gy = m.y;
+
+    const anim = this.moveAnim.get(m);
+    if (anim) {
+      const p = (t - anim.start) / MOVE_DUR;
+      if (p >= 1) {
+        this.moveAnim.delete(m);
+      } else {
+        const e = easeOutCubic(Math.max(0, p));
+        gx = lerp(anim.fromX, m.x, e);
+        gy = lerp(anim.fromY, m.y, e);
+      }
+    }
+
+    const dodge = this.dodgeAnim.get(m);
+    if (dodge) {
+      // Quick out-and-back over ~252ms — matches the animUntil keepalive set in
+      // fxMonsterDodge so the wobble fully completes before the loop sleeps.
+      const p = (t - dodge.start) / (FX_LIFE.float * 0.35);
+      if (p >= 1) {
+        this.dodgeAnim.delete(m);
+      } else {
+        const wobble = Math.sin(Math.max(0, p) * Math.PI) * 0.45;
+        gx += dodge.dx * wobble;
+        gy += dodge.dy * wobble;
+      }
+    }
+
+    return { gx, gy };
+  }
+
+  private isAnimating(): boolean {
+    if (this.fx.length > 0 || this.nowMs() < this.animUntil) return true;
+    // A live telegraph keeps pulsing until its attack resolves.
+    const ms = this.scene?.monsters;
+    if (ms) for (const m of ms) if (m.ai?.pendingAttack) return true;
+    return false;
+  }
+
+  /** Spin a requestAnimationFrame loop while effects or glides are alive; it
+   *  stops itself on the first frame with nothing left to animate. */
   private ensureLoop() {
-    if (this.rafId != null || this.fx.length === 0) return;
+    if (this.rafId != null || !this.isAnimating()) return;
     if (typeof requestAnimationFrame === 'undefined') return;
     const step = (ts: number) => {
       this.paint(ts);
-      this.rafId = this.fx.length > 0 ? requestAnimationFrame(step) : null;
+      this.rafId = this.isAnimating() ? requestAnimationFrame(step) : null;
     };
     this.rafId = requestAnimationFrame(step);
   }
@@ -382,6 +579,38 @@ export class GameUI {
 
   public fxPlayerHit() {
     this.fx.push({ kind: 'phit', start: this.nowMs(), life: FX_LIFE.phit });
+    this.ensureLoop();
+  }
+
+  /** A swoop streak from (fromX,fromY) to (toX,toY) as a telegraphed dive lands. */
+  public fxDive(fromX: number, fromY: number, toX: number, toY: number, color: string) {
+    this.fx.push({ kind: 'dive', start: this.nowMs(), life: FX_LIFE.dive, fromX, fromY, toX, toY, color });
+    this.ensureLoop();
+  }
+
+  /** A dust puff at (x,y) where a dodged attack harmlessly lands. */
+  public fxWhiff(x: number, y: number) {
+    this.fx.push({ kind: 'whiff', start: this.nowMs(), life: FX_LIFE.whiff, x, y });
+    this.ensureLoop();
+  }
+
+  /** A floating label (e.g. "dodge", "miss") rising off (x,y). */
+  public fxFloat(x: number, y: number, text: string, color = '#9fb4c8') {
+    this.fx.push({ kind: 'float', start: this.nowMs(), life: FX_LIFE.float, x, y, text, color, jx: Math.random() * 0.4 - 0.2 });
+    this.ensureLoop();
+  }
+
+  /** Make a monster flit aside (evade) — a quick perpendicular wobble away from
+   *  the attacker at (fromX,fromY). */
+  public fxMonsterDodge(m: Monster, fromX: number, fromY: number) {
+    // Flit perpendicular to the incoming strike: if the blow came along the X
+    // axis the monster slips vertically, and vice versa.
+    const ax = m.x - fromX;
+    const ay = m.y - fromY;
+    const dir = Math.abs(ax) >= Math.abs(ay) ? { dx: 0, dy: 1 } : { dx: 1, dy: 0 };
+    this.dodgeAnim.set(m, { start: this.nowMs(), dx: dir.dx, dy: dir.dy });
+    this.animUntil = Math.max(this.animUntil, this.nowMs() + FX_LIFE.float * 0.35);
+    this.fxFloat(m.x, m.y, 'dodge', '#8fe9ff');
     this.ensureLoop();
   }
 

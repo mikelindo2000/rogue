@@ -1,5 +1,6 @@
 import { Item, ItemSpawn, Monster, PotionType } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
+import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
 import { TILE, isWalkable } from './tiles';
 import { RNG } from './rng';
@@ -240,6 +241,50 @@ function tryPlaceSecretDoors(
   }
 }
 
+function encounterSpawnTiles(room: Room): Array<{ x: number; y: number }> {
+  const cx = room.cx;
+  const cy = room.cy;
+  return [
+    { x: Math.min(room.r - 1, cx + 1), y: cy },
+    { x: Math.max(room.l + 1, cx - 1), y: cy },
+    { x: cx, y: Math.min(room.b - 1, cy + 1) },
+    { x: cx, y: Math.max(room.t + 1, cy - 1) },
+    { x: cx, y: cy },
+  ];
+}
+
+function spawnEncounter(
+  encounter: EncounterDefinition,
+  room: Room,
+  monsters: Monster[],
+  map: string[][]
+) {
+  const template = MONSTER_DATABASE.find(m => m.name === encounter.monsterName);
+  if (!template) return;
+
+  const tile = encounterSpawnTiles(room).find(candidate =>
+    isWalkable(map[candidate.y]?.[candidate.x]) &&
+    !monsters.some(m => m.x === candidate.x && m.y === candidate.y)
+  );
+  if (!tile) return;
+
+  monsters.push({
+    ...template,
+    special: encounter.role,
+    x: tile.x,
+    y: tile.y,
+    frozenTurns: 0,
+  });
+}
+
+function roomForEncounter(encounter: EncounterDefinition, endRoom: Room): Room {
+  switch (encounter.placement) {
+    case 'endRoom':
+    case 'finalRoom':
+      return endRoom;
+  }
+}
+
 export function generateLevel(
   dungeonFloor: number,
   playerLevel: number,
@@ -414,24 +459,12 @@ export function generateLevel(
     rows
   );
 
-  // Spawn Marcus the Brave on floor 1 for testing, but majorly nerfed so he is
-  // beatable at the start of the game.
-  if (dungeonFloor === 1) {
-    const marcus = MONSTER_DATABASE.find(m => m.name === 'Marcus the Brave');
-    if (marcus) {
-      const mx = Math.min(startRoom.r - 1, playerX + 2);
-      monsters.push({ ...marcus, hp: 15, atk: 1, x: mx, y: playerY, frozenTurns: 0 });
-    }
+  for (const encounter of encountersForFloor(dungeonFloor)) {
+    const encounterRoom = roomForEncounter(encounter, endRoom);
+    spawnEncounter(encounter, encounterRoom, monsters, map);
   }
 
-  // Boss rooms setup on floor 20.
-  if (dungeonFloor === 20) {
-    const bosses = MONSTER_DATABASE.filter(m => m.special === 'boss');
-    bosses.forEach((boss, index) => {
-      const bx = Math.min(endRoom.r - 1, endRoom.cx + index);
-      monsters.push({ ...boss, x: bx, y: endRoom.cy, frozenTurns: 0 });
-    });
-  } else {
+  if (dungeonFloor !== 20) {
     // Normal floor item and monster spawns. Every real room except the player's
     // start is fair game; spawns land on interior floor only.
     const spawn = BALANCE.map.spawn;
@@ -483,7 +516,7 @@ export function generateLevel(
         const validMobs = MONSTER_DATABASE.filter(m =>
           dungeonFloor >= m.minFloor &&
           playerLevel >= m.minFloor &&
-          m.special !== 'boss'
+          m.special === undefined
         );
         if (validMobs.length > 0) {
           const tmpl = rng.pick(validMobs);

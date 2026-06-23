@@ -53,6 +53,9 @@ export interface AttackSpec {
   weight: number;
   /** Doubles damage on alternating uses (Marcus the Brave's signature swipe). */
   swipeAlternates?: boolean;
+  /** Visual cue the renderer plays when this attack resolves. 'swoop' = a dive
+   *  streak; default melee uses the existing hit Fx. */
+  animCue?: 'melee' | 'swoop';
 }
 
 /** Generalized "special" effects — the Rogue specials, parameterized. Only a
@@ -103,6 +106,18 @@ export interface MonsterAIRuntime {
   cooldowns: Record<string, number>;
   /** Toggle for swipeAlternates attacks. */
   swipeToggle: boolean;
+  /** A telegraphed attack mid-windup. While set, the monster is committed: it
+   *  shows a telegraph on the target tile and resolves on `resolveTurn`, dealing
+   *  damage only if the player is still on (targetX,targetY) — else it whiffs
+   *  (positional dodge). */
+  pendingAttack?: PendingAttack;
+}
+
+export interface PendingAttack {
+  attackId: string;
+  resolveTurn: number;
+  targetX: number;
+  targetY: number;
 }
 
 /** The decision the interpreter returns. Pure data — the engine resolves it.
@@ -111,7 +126,9 @@ export interface MonsterAIRuntime {
 export type AIAction =
   | { type: 'wait' }
   | { type: 'move'; dx: number; dy: number }
-  | { type: 'attack'; attackId: string };
+  | { type: 'attack'; attackId: string }
+  /** Begin a telegraphed attack: commit to a target tile now, resolve later. */
+  | { type: 'windup'; attackId: string; targetX: number; targetY: number };
 
 /** Everything the interpreter needs to decide one monster's action. Read-only
  *  except `rng`, which it may draw from (deterministically). */

@@ -86,28 +86,30 @@ export function expectedPlayerAtFloor(floor: number, curve: ReferenceCurve = DEF
 export interface AttackShape {
   damageMultiplier: number;
   hitsPerTurn: number;
+  /** Monster evasion (chance to dodge a player strike). */
+  dodgeChance?: number;
 }
 
-export const PLAIN_MELEE: AttackShape = { damageMultiplier: 1, hitsPerTurn: 1 };
+export const PLAIN_MELEE: AttackShape = { damageMultiplier: 1, hitsPerTurn: 1, dodgeChance: 0 };
 
 /** Build a monster's combat profile from its template, applying the live HP/ATK
  *  tunables so the report reflects the player's actual experience.
  *
- *  Note: the engine scales as `getScaledMonsterAtk(round(rawAtk·mult))` while
- *  this applies the multiplier after scaling. The two differ only by a rounding
- *  step, and only when the atk tunable is off 100% AND a non-unit multiplier is
- *  in play — neither true for any live monster today. Align the order here
- *  before enabling combat-affecting archetypes (brute/kiter) if you want the
- *  harness's prediction to be bit-exact. */
+ *  The attack's damage multiplier is folded into the scaled attack in the SAME
+ *  order the engine uses — `getScaledMonsterAtk(round(rawAtk·mult))` — so the
+ *  report is bit-exact for combat-affecting archetypes, not just plain melee.
+ *  (The resulting profile carries damageMultiplier 1; the multiplier is already
+ *  baked into `atk`.) */
 export function monsterCombatFromTemplate(
   t: MonsterTemplate,
   shape: AttackShape = PLAIN_MELEE,
 ): MonsterCombat {
   return {
     hp: getScaledMonsterHP(t.hp, t.name),
-    atk: getScaledMonsterAtk(t.atk),
-    damageMultiplier: shape.damageMultiplier,
+    atk: getScaledMonsterAtk(Math.max(1, Math.round(t.atk * shape.damageMultiplier))),
+    damageMultiplier: 1,
     hitsPerTurn: shape.hitsPerTurn,
+    dodgeChance: shape.dodgeChance ?? 0,
   };
 }
 

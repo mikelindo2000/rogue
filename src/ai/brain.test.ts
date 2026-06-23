@@ -4,7 +4,7 @@ import { TILE } from '../tiles';
 import { BALANCE } from '../config';
 import type { Monster, Player, StatusEffects } from '../types';
 import { decideMonsterAction } from './brain';
-import { ARCHETYPES, resolveBehavior, primaryAttackShape } from './archetypes';
+import { ARCHETYPES, resolveBehavior, primaryAttackShape, MONSTER_ARCHETYPE } from './archetypes';
 import type { AIAction, MonsterBehavior } from './types';
 import { processMonsterAI, applyOnHitAbilities } from '../monster';
 
@@ -101,22 +101,38 @@ describe('default archetype reproduces legacy behavior', () => {
 });
 
 describe('primaryAttackShape (behavior → balance bridge)', () => {
-  it('a plain melee archetype is 1× damage, every turn', () => {
+  it('a plain melee archetype is 1× damage, every turn, no evasion', () => {
     expect(primaryAttackShape({ id: 'default', ...ARCHETYPES.default })).toEqual({
       damageMultiplier: 1,
       hitsPerTurn: 1,
+      dodgeChance: 0,
     });
   });
 
-  it('a windup attack lands less often (brute: 1 windup → every other turn)', () => {
+  it('a windup attack lands less often: windup downtime × telegraph dodge', () => {
     const s = primaryAttackShape({ id: 'brute', ...ARCHETYPES.brute });
     expect(s.damageMultiplier).toBe(1.6);
-    expect(s.hitsPerTurn).toBeCloseTo(0.5, 10);
+    // 1/(1+1+0) windup cadence × 0.6 telegraph-connect = 0.3
+    expect(s.hitsPerTurn).toBeCloseTo(0.3, 10);
   });
 
   it('a swipe-alternating attack averages 1.5× effective damage', () => {
     const s = primaryAttackShape({ id: 'boss-swiper', ...ARCHETYPES['boss-swiper'] });
     expect(s.damageMultiplier).toBeCloseTo(1.5, 10);
+  });
+});
+
+describe('modern Brown Bat archetype', () => {
+  it('resolves to an erratic flier with a telegraphed swoop and evasion', () => {
+    const bat = { name: 'Brown Bat' };
+    const b = resolveBehavior(bat);
+    expect(b.id).toBe('bat');
+    expect(b.movement.style).toBe('erratic');
+    expect(b.defense.dodgeChance).toBeGreaterThan(0);
+    const swoop = b.attacks[0];
+    expect(swoop.windupTurns).toBeGreaterThan(0); // telegraphed
+    expect(swoop.range).toBeGreaterThan(1); // dives from a short distance
+    expect(swoop.damageMultiplier).toBeGreaterThan(1); // hits hard if it lands
   });
 });
 
@@ -161,9 +177,15 @@ describe('kiter (spacing over a free shot)', () => {
     expect(decide(m, { x: 6, y: 6 }, kite)).toEqual({ type: 'move', dx: 0, dy: 1 });
   });
 
-  it('fires its ranged attack at the preferred distance', () => {
+  it('telegraphs its ranged attack at the preferred distance', () => {
     const m = mob({ x: 6, y: 10 }); // distance 4 == keepDistance, within bolt range
-    expect(decide(m, { x: 6, y: 6 }, kite)).toEqual({ type: 'attack', attackId: 'bolt' });
+    // The bolt has a windup, so it commits to the player's tile (telegraph).
+    expect(decide(m, { x: 6, y: 6 }, kite)).toEqual({
+      type: 'windup',
+      attackId: 'bolt',
+      targetX: 6,
+      targetY: 6,
+    });
   });
 
   it('closes the gap when out of range', () => {
@@ -214,6 +236,48 @@ describe('engine application via processMonsterAI', () => {
     processMonsterAI([m], player, noStatus(), map, 13, 13, 0, l.add, makeRng(5), 2);
     expect(l.lines[0]).not.toMatch(/Swipe/);
     expect(l.lines[1]).toMatch(/Swipe/); // every other swing
+  });
+});
+
+describe('telegraphed attacks (engine resolution)', () => {
+  // A monster whose archetype (kiter) has a 1-windup ranged attack 'bolt'.
+  MONSTER_ARCHETYPE['test-swooper'] = 'kiter';
+  const swooper = () => mob({ name: 'Test Swooper', x: 6, y: 10, atk: 20 });
+  const log = () => {
+    const lines: string[] = [];
+    return { lines, add: (s: string) => lines.push(s) };
+  };
+  const run = (m: Monster, player: { x: number; y: number; hp: number }, turn: number, l: { add: (s: string) => void }) =>
+    processMonsterAI([m], player as Player, noStatus(), floorMap(15), 15, 15, 0, l.add, makeRng(3), turn);
+
+  it('commits to a telegraph (pendingAttack) instead of hitting instantly', () => {
+    const m = swooper();
+    const l = log();
+    run(m, { x: 6, y: 6, hp: 100 }, 5, l);
+    expect(m.ai?.pendingAttack).toEqual({ attackId: 'bolt', resolveTurn: 6, targetX: 6, targetY: 6 });
+    expect(l.lines.some((s) => /dives at you/.test(s))).toBe(true);
+  });
+
+  it('lands when the player is still on the target tile', () => {
+    const m = swooper();
+    m.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false, pendingAttack: { attackId: 'bolt', resolveTurn: 5, targetX: 6, targetY: 6 } };
+    const player = { x: 6, y: 6, hp: 100 };
+    const l = log();
+    run(m, player, 5, l);
+    expect(player.hp).toBeLessThan(100);
+    expect(l.lines.some((s) => /swoop hits/.test(s))).toBe(true);
+    expect(m.ai?.pendingAttack).toBeUndefined();
+  });
+
+  it('whiffs (positional dodge) when the player has stepped off the target tile', () => {
+    const m = swooper();
+    m.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false, pendingAttack: { attackId: 'bolt', resolveTurn: 5, targetX: 6, targetY: 6 } };
+    const player = { x: 7, y: 6, hp: 100 }; // moved one tile away
+    const l = log();
+    run(m, player, 5, l);
+    expect(player.hp).toBe(100);
+    expect(l.lines.some((s) => /You dodge/.test(s))).toBe(true);
+    expect(m.ai?.pendingAttack).toBeUndefined();
   });
 });
 

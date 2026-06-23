@@ -133,9 +133,13 @@ export function decideMonsterAction(ctx: BrainContext): AIAction {
     }
   }
 
-  // Attack if anything is in range.
+  // Attack if anything is in range. A windup attack commits to the player's
+  // current tile and resolves later (telegraphed, dodgeable by moving).
   const attack = chooseAttack(ctx, dist);
   if (attack && dist <= attack.range && dist >= 1) {
+    if (attack.windupTurns > 0) {
+      return { type: 'windup', attackId: attack.id, targetX: player.x, targetY: player.y };
+    }
     return { type: 'attack', attackId: attack.id };
   }
 
@@ -165,8 +169,17 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
       return stepToward(ctx, player.x, player.y);
     }
 
-    case 'erratic':
+    case 'erratic': {
       if (dist >= mv.aggroRange) return { type: 'wait' };
+      // Hit-and-run: if the primary attack just fired (still on cooldown) and the
+      // player is close, peel away rather than camp — the flighty bat retreats
+      // between dives.
+      const primary = behavior.attacks[0];
+      const onCooldown = primary && (rt.cooldowns[primary.id] ?? -Infinity) > ctx.turn;
+      if (onCooldown && dist <= 2) {
+        const away = stepAway(ctx, player.x, player.y);
+        if (away.type === 'move') return away;
+      }
       // Wobble: sometimes a random hop instead of a perfect chase step.
       if (ctx.rng.chance(mv.erraticChance ?? 0.5)) {
         const d = ctx.rng.pick(CARDINALS);
@@ -175,6 +188,7 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
           : stepToward(ctx, player.x, player.y);
       }
       return stepToward(ctx, player.x, player.y);
+    }
 
     case 'kite': {
       if (dist >= mv.aggroRange) return { type: 'wait' };

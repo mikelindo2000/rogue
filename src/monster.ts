@@ -4,7 +4,16 @@ import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
 import { decideMonsterAction, ensureRuntime } from './ai/brain';
 import { resolveBehavior } from './ai/archetypes';
-import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior } from './ai/types';
+import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior, MonsterAIRuntime } from './ai/types';
+
+/** Visual hooks the AI fires for telegraphed attacks. Defaulted to no-ops so
+ *  headless callers (tests, the balance sim) need not supply them. */
+export interface AIFx {
+  dive(fromX: number, fromY: number, toX: number, toY: number, color: string): void;
+  whiff(x: number, y: number): void;
+}
+
+const NO_FX: AIFx = { dive() {}, whiff() {} };
 
 /**
  * Advance every monster one turn.
@@ -25,7 +34,8 @@ export function processMonsterAI(
   totalDef: number,
   addLog: (msg: string) => void,
   rng: RNG,
-  turn = 0
+  turn = 0,
+  fx: AIFx = NO_FX
 ) {
   for (const m of monsters) {
     if (m.frozenTurns > 0) {
@@ -33,7 +43,19 @@ export function processMonsterAI(
       continue;
     }
 
+    const rt = ensureRuntime(m);
     const behavior = resolveBehavior(m);
+
+    // A committed telegraphed attack overrides everything: the monster either
+    // resolves it (if due) or keeps charging. Either way it takes no other
+    // action this turn.
+    if (rt.pendingAttack) {
+      if (turn >= rt.pendingAttack.resolveTurn) {
+        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx);
+      }
+      continue;
+    }
+
     const action = decideMonsterAction({
       monster: m,
       behavior,
@@ -48,6 +70,40 @@ export function processMonsterAI(
     });
 
     applyAction(action, m, behavior, player, totalDef, addLog, rng, turn);
+  }
+}
+
+/** Resolve a telegraphed attack whose windup has elapsed: it lands only if the
+ *  player is still on the committed target tile (else it whiffs — the player
+ *  dodged by stepping away). */
+function resolvePendingAttack(
+  m: Monster,
+  rt: MonsterAIRuntime,
+  behavior: MonsterBehavior,
+  player: Player,
+  totalDef: number,
+  addLog: (msg: string) => void,
+  rng: RNG,
+  turn: number,
+  fx: AIFx
+) {
+  const pend = rt.pendingAttack!;
+  rt.pendingAttack = undefined;
+  const attack: AttackSpec = behavior.attacks.find((a) => a.id === pend.attackId) ?? behavior.attacks[0];
+  rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;
+
+  fx.dive(m.x, m.y, pend.targetX, pend.targetY, m.color);
+
+  const landed = player.x === pend.targetX && player.y === pend.targetY;
+  if (landed) {
+    const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
+    const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: false, rng });
+    player.hp -= dmg;
+    addLog(`${m.name}'s swoop hits for ${dmg}!`);
+    applyOnHitAbilities(behavior, m, player, rng).forEach(addLog);
+  } else {
+    fx.whiff(pend.targetX, pend.targetY);
+    addLog(`You dodge ${m.name}'s swoop!`);
   }
 }
 
@@ -73,6 +129,20 @@ function applyAction(
     case 'attack':
       applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn);
       return;
+    case 'windup': {
+      // Commit to a telegraphed strike: record the target tile + resolve turn.
+      // The renderer draws the telegraph from this pending state.
+      const attack = behavior.attacks.find((a) => a.id === action.attackId) ?? behavior.attacks[0];
+      const rt = ensureRuntime(m);
+      rt.pendingAttack = {
+        attackId: action.attackId,
+        resolveTurn: turn + Math.max(1, attack.windupTurns),
+        targetX: action.targetX,
+        targetY: action.targetY,
+      };
+      addLog(`${m.name} dives at you!`);
+      return;
+    }
   }
 }
 

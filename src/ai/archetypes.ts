@@ -35,7 +35,8 @@ export type ArchetypeId =
   | 'brute'
   | 'kiter'
   | 'trickster'
-  | 'boss-swiper';
+  | 'boss-swiper'
+  | 'bat';
 
 export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // Stationary until the player is within aggro, then beeline + bite. Legacy.
@@ -82,6 +83,16 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: { fleeBelowHpPct: 0.5 },
     abilities: [{ id: 'stealGold', chance: 0.7, magnitude: 50, cooldown: 0, trigger: 'onHit', thenFlee: true }],
   },
+  // The modern Brown Bat: erratic flier that telegraphs a heavy dive you can
+  // step out of, and flits aside from your own blows. Its danger is the swoop
+  // landing when you DON'T dodge — so the dive hits hard but is fully avoidable.
+  // (damageMultiplier tuned via the harness to keep it floor-1 fair.)
+  bat: {
+    movement: { style: 'erratic', aggroRange: AGGRO + 1, erraticChance: 0.5 },
+    attacks: [melee({ id: 'swoop', range: 2, damageMultiplier: 3.5, windupTurns: 1, cooldown: 1, animCue: 'swoop' })],
+    defense: { dodgeChance: 0.25 },
+    abilities: [],
+  },
   // Marcus the Brave: chase-and-bite, but every other swing is a double-damage
   // swipe. Reproduces the old name-special as data.
   'boss-swiper': {
@@ -98,7 +109,7 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
  * combat-affecting ones after checking the balance report.
  */
 export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
-  'brown-bat': 'skirmisher',
+  'brown-bat': 'bat', // modern erratic flier with a telegraphed swoop + evasion
   'eagle': 'skirmisher',
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
@@ -130,16 +141,24 @@ export function archetypeOf(template: { id?: string; name: string }): ArchetypeI
  * windup + cooldown. This is the bridge that lets the balancer see a brute as
  * hard-hitting-but-slow and a kiter as chip damage.
  */
+/** Assumed fraction of telegraphed swoops that connect — i.e. the player
+ *  positionally dodges ~40%. A modeling assumption; tune against playtests. */
+const TELEGRAPH_CONNECT = 0.6;
+
 export function primaryAttackShape(behavior: MonsterBehavior): AttackShape {
   const a = behavior.attacks[0];
-  if (!a) return { damageMultiplier: 1, hitsPerTurn: 1 };
+  if (!a) return { damageMultiplier: 1, hitsPerTurn: 1, dodgeChance: behavior.defense.dodgeChance ?? 0 };
   // A swipe-alternating attack averages a normal hit and a 2× hit, so its
   // effective per-swing damage is 1.5× — otherwise the harness would undercount
   // a swiper's DPS by ~33% (matters only when bosses are included in a report).
   const swipeFactor = a.swipeAlternates ? 1.5 : 1;
+  // Telegraphed attacks both fire less often (windup downtime) and get dodged
+  // out of position part of the time.
+  const telegraphFactor = a.windupTurns > 0 ? TELEGRAPH_CONNECT : 1;
   return {
     damageMultiplier: a.damageMultiplier * swipeFactor,
-    hitsPerTurn: 1 / (1 + a.windupTurns + a.cooldown),
+    hitsPerTurn: (1 / (1 + a.windupTurns + a.cooldown)) * telegraphFactor,
+    dodgeChance: behavior.defense.dodgeChance ?? 0,
   };
 }
 

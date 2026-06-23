@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
 import { generateLevel } from './map';
 import { makeRng } from './rng';
 import { TILE, isWalkable } from './tiles';
@@ -100,13 +101,10 @@ describe('generateLevel', () => {
     }
   });
 
-  it('spawns Marcus the Brave on floor 1 with nerfed stats', () => {
+  it('does not spawn the final Marcus encounter on floor 1', () => {
     const lvl = gen(1, 7);
-    expect(lvl.monsters.length).toBeGreaterThanOrEqual(1);
     const marcus = lvl.monsters.find(m => m.name === 'Marcus the Brave');
-    expect(marcus).toBeDefined();
-    expect(marcus?.hp).toBe(15);
-    expect(marcus?.atk).toBe(1);
+    expect(marcus).toBeUndefined();
   });
 
   it('spawns Marcus the Brave on floor 20 as a boss with original stats', () => {
@@ -115,6 +113,39 @@ describe('generateLevel', () => {
     expect(marcus).toBeDefined();
     expect(marcus?.hp).toBe(900);
     expect(marcus?.atk).toBe(25);
+  });
+
+  it('spawns every configured final boss on floor 20', () => {
+    const lvl = gen(20, 7);
+    for (const encounter of FINAL_BOSS_ENCOUNTERS) {
+      const boss = lvl.monsters.find(m => m.name === encounter.monsterName);
+      expect(boss, `missing final boss ${encounter.monsterName}`).toBeDefined();
+      expect(boss?.special).toBe('boss');
+    }
+  });
+
+  it('places hero encounters near the down stairs instead of in the start room', () => {
+    for (const encounter of HERO_ENCOUNTERS) {
+      const lvl = gen(encounter.floor, 7, 20);
+      const hero = lvl.monsters.find(m => m.name === encounter.monsterName);
+      expect(hero, `floor ${encounter.floor}: missing ${encounter.monsterName}`).toBeDefined();
+      expect(hero?.special).toBe('hero');
+      expect(`${hero?.x},${hero?.y}`).not.toBe(`${lvl.playerX},${lvl.playerY}`);
+      const distanceToExit = Math.abs((hero?.x ?? 0) - lvl.stairsDownX) + Math.abs((hero?.y ?? 0) - lvl.stairsDownY);
+      expect(distanceToExit).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps hero and boss templates out of normal random spawns, including hero floors', () => {
+    const specialNames = new Set([...FINAL_BOSS_ENCOUNTERS.map(e => e.monsterName), ...HERO_ENCOUNTERS.map(e => e.monsterName)]);
+    for (let floor = 1; floor < 20; floor++) {
+      const expectedHero = HERO_ENCOUNTERS.find(e => e.floor === floor)?.monsterName;
+      for (let seed = 1; seed <= 30; seed++) {
+        const lvl = gen(floor, seed, 20);
+        const specialSpawns = lvl.monsters.filter(m => specialNames.has(m.name)).map(m => m.name);
+        expect(specialSpawns).toEqual(expectedHero ? [expectedHero] : []);
+      }
+    }
   });
 
   it('encloses rooms: no floor tile is orthogonally adjacent to raw void (seeds 1..30)', () => {

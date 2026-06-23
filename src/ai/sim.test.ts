@@ -75,6 +75,26 @@ describe('analyzeDuel', () => {
       analyzeDuel(player({ weaponDmg: 4 }), monster()).ttk,
     );
   });
+
+  it('evasion lengthens the fight and raises threat', () => {
+    const plain = analyzeDuel(player(), monster({ dodgeChance: 0 }));
+    const evasive = analyzeDuel(player(), monster({ dodgeChance: 0.25 }));
+    expect(evasive.playerDps).toBeCloseTo(plain.playerDps * 0.75, 10);
+    expect(evasive.threat).toBeGreaterThan(plain.threat);
+  });
+});
+
+describe('evasion in Monte-Carlo', () => {
+  it('an evasive monster wins more often than an identical non-evasive one', () => {
+    const p = player({ maxHp: 40 });
+    const tanky = monster({ hp: 60, atk: 14 });
+    const plain = estimateWinRate(p, { ...tanky, dodgeChance: 0 }, 500);
+    const evasive = estimateWinRate(p, { ...tanky, dodgeChance: 0.4 }, 500);
+    // Evasion negates player strikes, so the monster survives longer and the
+    // player's win-rate drops (or at worst ties).
+    expect(evasive.winRate.point).toBeLessThanOrEqual(plain.winRate.point);
+    expect(evasive.meanTtk).toBeGreaterThan(plain.meanTtk);
+  });
 });
 
 describe('simulateDuel', () => {
