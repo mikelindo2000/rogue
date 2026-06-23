@@ -103,6 +103,7 @@ export interface PotionOption {
 export interface LogLineView {
   n: number; // gutter sequence number
   html: string; // pre-styled message markup (from getStyledItemName etc.)
+  count?: number; // consecutive duplicate count
   highlight?: boolean; // loot / notable lines get the accent treatment
 }
 

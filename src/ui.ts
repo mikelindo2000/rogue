@@ -34,7 +34,9 @@ import {
   type PlayerPalette,
 } from './render/avatar';
 import { snapshotDiscovery, type DiscoveryState } from './discovery';
-import { enrichMonsterMentionsHtml, escapeHtml } from './ui/monsterMention';
+import { escapeHtml } from './ui/monsterMention';
+import { enrichLogMessageHtml } from './ui/logMessage';
+import { appendLogLine } from './ui/logHistory';
 
 type DoorOrientation = 'horizontal' | 'vertical';
 
@@ -1358,13 +1360,14 @@ export class GameUI {
    *  history. Each engine `addLog` calls this with exactly one new tail line. */
   public renderLogs(logs: string[]) {
     if (logs.length === 0) return;
-    this.logSeq++;
 
-    const msg = enrichMonsterMentionsHtml(logs[logs.length - 1]);
-    const line: LogLineView = { n: this.logSeq, html: msg, highlight: /loot/i.test(msg) };
-    const next = [...ui.logs, line];
-    while (next.length > 60) next.shift();
-    ui.logs = next;
+    const raw = logs[logs.length - 1];
+    const msg = enrichLogMessageHtml(raw);
+    const nextSeq = this.logSeq + 1;
+    const line: LogLineView = { n: nextSeq, html: msg, highlight: /loot/i.test(msg) };
+    const result = appendLogLine(ui.logs, line);
+    ui.logs = result.lines;
+    if (result.appended) this.logSeq = nextSeq;
   }
 
   public getStyledItemName(name: string, rarity: string): string {
