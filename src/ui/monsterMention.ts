@@ -43,16 +43,26 @@ export function monsterMentionHtml(
 }
 
 export function enrichMonsterMentionsHtml(message: string): string {
+  return enrichOutsideSpans(message, enrichTextSegment);
+}
+
+// Apply `enrichSegment` to the plain-text portions of `message`, passing any
+// existing (trusted) `<span>` markup through verbatim so already-styled markup
+// — e.g. rarity-colored item names from getStyledItemName — is not re-escaped.
+export function enrichOutsideSpans(
+  message: string,
+  enrichSegment: (segment: string) => string
+): string {
   const trustedSpan = /<span\b[^>]*>.*?<\/span>/gis;
   let cursor = 0;
   let out = '';
   for (const match of message.matchAll(trustedSpan)) {
     const index = match.index ?? 0;
-    out += enrichTextSegment(message.slice(cursor, index));
+    out += enrichSegment(message.slice(cursor, index));
     out += match[0];
     cursor = index + match[0].length;
   }
-  out += enrichTextSegment(message.slice(cursor));
+  out += enrichSegment(message.slice(cursor));
   return out;
 }
 

@@ -3,7 +3,7 @@ import { scrollDisplayName } from '../scrolls';
 import type { PotionType, ScrollType, WandType } from '../types';
 import { titleCase } from './format';
 import { ICONS, type IconName } from './icons';
-import { escapeHtml } from './monsterMention';
+import { enrichOutsideSpans, escapeHtml } from './monsterMention';
 
 interface ItemMentionView {
   id: string;
@@ -59,9 +59,13 @@ const itemNamePattern = new RegExp(
 const mentionByName = new Map(itemMentions.map((m) => [m.label.toLowerCase(), m]));
 
 export function enrichItemMentionsHtml(message: string): string {
+  return enrichOutsideSpans(message, enrichItemTextSegment);
+}
+
+function enrichItemTextSegment(segment: string): string {
   let cursor = 0;
   let out = '';
-  for (const match of message.matchAll(itemNamePattern)) {
+  for (const match of segment.matchAll(itemNamePattern)) {
     const prefix = match[1] ?? '';
     const matchedName = match[2] ?? '';
     const matchStart = match.index ?? 0;
@@ -69,11 +73,11 @@ export function enrichItemMentionsHtml(message: string): string {
     const mention = mentionByName.get(matchedName.toLowerCase());
     if (!mention) continue;
 
-    out += escapeHtml(message.slice(cursor, nameStart));
+    out += escapeHtml(segment.slice(cursor, nameStart));
     out += itemMentionHtml(mention, labelForMatch(mention.label, matchedName));
     cursor = nameStart + matchedName.length;
   }
-  out += escapeHtml(message.slice(cursor));
+  out += escapeHtml(segment.slice(cursor));
   return out;
 }
 

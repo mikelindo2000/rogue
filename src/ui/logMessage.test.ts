@@ -18,4 +18,17 @@ describe('log message enrichment', () => {
     expect(html).toContain('data-item-id="potion-strength"');
     expect(html).toContain('data-monster-id="orc"');
   });
+
+  it('preserves pre-styled rarity spans on looted gear instead of escaping them', () => {
+    const styled =
+      '<span style="color:var(--rarity-rare);font-weight:600;">Leather Shoes +2</span>';
+    const html = enrichLogMessageHtml(`Looted: ${styled} (5 DEF).`);
+
+    expect(html).toContain(styled);
+    expect(html).not.toContain('&lt;span');
+    expect(html).not.toContain('&gt;');
+    // Surrounding plain text is still escaped/handled normally.
+    expect(html).toContain('Looted: ');
+    expect(html).toContain(' (5 DEF).');
+  });
 });
