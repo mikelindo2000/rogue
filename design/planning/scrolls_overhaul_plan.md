@@ -1,5 +1,55 @@
 # Scrolls Overhaul Plan
 
+## Implementation Status (2026-06-23)
+
+The core of this plan has shipped on `v2` across five commits. Status by area:
+
+**Done & tested (501 tests green, independently reviewed):**
+
+- Full original-Rogue `ScrollType` catalog (18 types) with a data-driven registry
+  (`src/scrolls.ts`: `ScrollDefinition`, weighted floor-gated spawn pool,
+  `pickScrollForFloor`, `scrollDisplayName`).
+- Per-type compact icons (`src/ui/icons.ts`) and visual identities
+  (`SCROLL_VISUALS`).
+- No scroll applies its effect on pickup — all are carried and read on demand.
+- The legacy anonymous random-effect scroll and the separate `repair_scroll` item
+  are retired; spawning uses the typed catalog picker.
+- Phase 1 effects (live): Light, Repair, Magic Mapping, Teleportation, Sleep,
+  Hold Monster, Create Monster, Aggravate Monsters, Food/Gold Detection, Blank
+  Paper — with the registry's no-op-keeps-scroll rules.
+- Phase 2 (partial): Enchant Weapon and Enchant Armor (act on the equipped item;
+  no picker yet).
+- Save migration v3→v4: legacy `repair_scroll`/anonymous scroll floor items
+  migrate on load (top-level and per-floor); carried-scroll inventory is validated
+  and backfilled.
+- `r` (and the mobile footer Read button) open a scroll-focused chooser instead of
+  blindly reading scroll #0; scrolls are readable in-modal via `r`/Enter; footer
+  Read button shows an icon + count. `item.consume` carries an optional
+  `scrollType` audio discriminator.
+- Run-stats scroll counts derive from the registry.
+
+**Deferred (clearly scoped follow-ups):**
+
+- **Inventory filter strip** (segmented type buttons, search, tier/floor-band
+  filters). The chooser currently opens the existing modal pre-selected to the
+  first scroll; the full shared filter system is still to build (and should be
+  shared with rings/wands/dipping per the README cross-cutting notes).
+- **Phase 2 remainder** — Protect Armor (needs a gear-protection flag + save
+  normalization), Identify and Remove Curse (need the shared identification and
+  curse systems; explicitly a shared prerequisite in the README).
+- **Phase 3** — Monster Confusion (needs `pendingConfuseHit` + confused-movement
+  AI) and Scare Monster (needs a fear timer / drop-and-stand semantics + a drop
+  command). Both flagged here as "new player/AI state".
+- **Generated full inventory PNG art** under `public/inventory/scroll-of-*.png`
+  (produced offline per the asset recipe; only `scroll-of-light.png` exists today,
+  others fall back to the compact icon).
+- **Per-effect audio assets** — the event discriminator is wired; the clips are
+  not yet authored.
+
+Unimplemented effects are gated out of the spawn pool (`IMPLEMENTED_SCROLLS` in
+`src/scrolls.ts`), so the player never finds a scroll that does nothing; flip a
+type on there as its effect lands.
+
 ## Purpose
 
 Make scrolls behave like real Rogue scrolls: objects found in the dungeon, carried

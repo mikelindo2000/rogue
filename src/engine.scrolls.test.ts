@@ -69,12 +69,15 @@ describe('scroll Phase 1 effects', () => {
 
   it('Teleportation: relocates the player and consumes the scroll', () => {
     const engine = makeRunner();
-    carve(engine, 2, 1, 4);
+    // Only the far row is FLOOR: the player's start tile (2,2) stays VOID so it is
+    // not a teleport candidate, making the relocation deterministic (the
+    // destination picker would otherwise be free to re-pick the current tile).
     carve(engine, 10, 6, 12);
     engine.player.inventory.scrolls = ['teleportation'];
     const before = { x: engine.player.x, y: engine.player.y };
     engine.useScroll(0);
     expect(engine.player.inventory.scrolls).not.toContain('teleportation');
+    expect(engine.player.y).toBe(10);
     expect({ x: engine.player.x, y: engine.player.y }).not.toEqual(before);
   });
 
