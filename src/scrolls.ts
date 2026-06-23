@@ -170,13 +170,15 @@ export interface ScrollSpawnEntry {
  *  display, and save parity); flip them on here as each phase lands.
  *
  *  Phase 1 (live): no-target effects using existing systems.
- *  Phase 2 (pending): enchant_weapon, enchant_armor, protect_armor, identify,
- *    remove_curse — need the shared item-target picker.
+ *  Phase 2 (partial): enchant_weapon + enchant_armor act on the equipped item
+ *    (Rogue-authentic, no picker yet). protect_armor / identify / remove_curse
+ *    stay pending — they need the gear-protection flag, identification, and curse
+ *    systems respectively.
  *  Phase 3 (pending): monster_confusion, scare_monster — need new player/AI state. */
 export const IMPLEMENTED_SCROLLS: ReadonlySet<ScrollType> = new Set<ScrollType>([
   'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
   'create_monster', 'aggravate_monsters', 'food_detection', 'gold_detection',
-  'blank_paper',
+  'blank_paper', 'enchant_weapon', 'enchant_armor',
 ]);
 
 export function isScrollImplemented(type: ScrollType): boolean {

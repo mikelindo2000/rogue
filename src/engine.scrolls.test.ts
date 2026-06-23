@@ -149,6 +149,42 @@ describe('scroll Phase 1 effects', () => {
     expect(engine.turn).toBe(turn + 1);
   });
 
+  it('Enchant Weapon: adds damage to the equipped weapon and consumes', () => {
+    const engine = makeRunner(7);
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.weapons = [{ name: 'Dagger', dmg: 3, type: 'dagger' }];
+    engine.player.equipped.mainHand = 0;
+    engine.player.inventory.scrolls = ['enchant_weapon'];
+    engine.useScroll(0);
+    expect(engine.player.inventory.weapons[0].dmg).toBe(3 + BALANCE.scrolls.enchantWeaponBonus);
+    expect(engine.player.inventory.scrolls).not.toContain('enchant_weapon');
+  });
+
+  it('Enchant Armor: adds defense to the equipped armor and consumes', () => {
+    const engine = makeRunner(7);
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.chest = [{ name: 'Plate', def: 4, maxDef: 4, health: { current: 2, max: 4 } }];
+    engine.player.equipped.chest = 0;
+    engine.player.inventory.scrolls = ['enchant_armor'];
+    engine.useScroll(0);
+    const armor = engine.player.inventory.chest[0];
+    expect(armor.def).toBe(4 + BALANCE.scrolls.enchantArmorBonus);
+    expect(armor.maxDef).toBe(4 + BALANCE.scrolls.enchantArmorBonus);
+    expect(armor.health).toEqual({ current: 4 + BALANCE.scrolls.enchantArmorBonus, max: 4 + BALANCE.scrolls.enchantArmorBonus });
+    expect(engine.player.inventory.scrolls).not.toContain('enchant_armor');
+  });
+
+  it('Enchant Weapon with no weapon at all is kept and spends no turn', () => {
+    const engine = makeRunner(7);
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.weapons = [];
+    engine.player.inventory.scrolls = ['enchant_weapon'];
+    const turn = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toContain('enchant_weapon');
+    expect(engine.turn).toBe(turn);
+  });
+
   it('Unimplemented catalog scrolls are kept and spend no turn', () => {
     const engine = makeRunner();
     carve(engine, 2, 1, 4);

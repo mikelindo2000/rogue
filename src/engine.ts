@@ -1,4 +1,4 @@
-import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem } from './types';
+import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
@@ -1176,11 +1176,75 @@ export class GameEngine {
         this.addLog("You read the scroll, but the parchment is blank. Nothing happens.");
         return true;
       }
+      case 'enchant_weapon': {
+        const weapon = this.enchantableWeapon();
+        if (!weapon) {
+          this.addLog("You read the Scroll of Enchant Weapon, but you have no weapon to enchant.");
+          return false;
+        }
+        weapon.dmg = (weapon.dmg ?? 0) + BALANCE.scrolls.enchantWeaponBonus;
+        this.addLog(`You read the Scroll of Enchant Weapon. Your ${weapon.name} glows with power! (+${BALANCE.scrolls.enchantWeaponBonus} ATK)`);
+        return true;
+      }
+      case 'enchant_armor': {
+        const armor = this.enchantableArmor();
+        if (!armor) {
+          this.addLog("You read the Scroll of Enchant Armor, but you have no armor to enchant.");
+          return false;
+        }
+        const bonus = BALANCE.scrolls.enchantArmorBonus;
+        armor.def = (armor.def ?? 0) + bonus;
+        armor.maxDef = Math.max(armor.maxDef ?? 0, armor.def);
+        if (armor.health) {
+          armor.health.max += bonus;
+          armor.health.current = armor.health.max; // an enchant also restores it
+        }
+        this.addLog(`You read the Scroll of Enchant Armor. Your ${armor.name} hardens! (+${bonus} DEF)`);
+        return true;
+      }
       default:
         // Unimplemented catalog types are filtered out before reaching here.
         this.addLog("You cannot puzzle out this scroll yet.");
         return false;
     }
+  }
+
+  /** Enchant Weapon target: the equipped main-hand weapon, else the first
+   *  carried weapon, else none. (Rogue enchants what's wielded; the future
+   *  item-target picker will let the player choose another.) */
+  private enchantableWeapon(): GearItem | undefined {
+    return this.player.inventory.weapons[this.player.equipped.mainHand]
+      ?? this.player.inventory.weapons[0];
+  }
+
+  /** Enchant Armor target: the best *real* defensive piece (highest maxDef),
+   *  preferring equipped gear and skipping the "None" (def 0) slot placeholders.
+   *  Falls back to the best carried piece, else none. */
+  private enchantableArmor(): GearItem | undefined {
+    const best = (items: Array<GearItem | undefined>): GearItem | undefined => {
+      let pick: GearItem | undefined;
+      for (const g of items) {
+        if (!g || (g.maxDef ?? g.def ?? 0) <= 0) continue;
+        if (!pick || (g.maxDef ?? 0) > (pick.maxDef ?? 0)) pick = g;
+      }
+      return pick;
+    };
+
+    const equipped: Array<GearItem | undefined> = ARMOR_SLOTS.map(
+      slot => this.player.inventory[slot][this.player.equipped[slot]]
+    );
+    if (this.player.equipped.offHand.startsWith('shield:')) {
+      const idx = parseInt(this.player.equipped.offHand.split(':')[1] ?? '', 10);
+      equipped.push(this.player.inventory.shield[idx]);
+    }
+    const equippedPick = best(equipped);
+    if (equippedPick) return equippedPick;
+
+    const carried: Array<GearItem | undefined> = [
+      ...ARMOR_SLOTS.flatMap(slot => this.player.inventory[slot]),
+      ...this.player.inventory.shield,
+    ];
+    return best(carried);
   }
 
   /** Magic Mapping: reveal the whole floor's layout (rooms, corridors, doors,

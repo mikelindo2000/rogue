@@ -164,8 +164,10 @@ export const BALANCE = {
   },
   // Read-on-demand scroll effects (see design/planning/scrolls_overhaul_plan.md).
   scrolls: {
-    sleepTurns: 4,        // Scroll of Sleep: turns the player is out
-    holdMonsterTurns: 8,  // Scroll of Hold Monster: turns held in place
+    sleepTurns: 4,          // Scroll of Sleep: turns the player is out
+    holdMonsterTurns: 8,    // Scroll of Hold Monster: turns held in place
+    enchantWeaponBonus: 1,  // Scroll of Enchant Weapon: +dmg to the target weapon
+    enchantArmorBonus: 1,   // Scroll of Enchant Armor: +def/+maxDef to target armor
   },
   gold: {
     variance: 0.1, // +/- 10%
