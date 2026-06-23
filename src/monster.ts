@@ -217,8 +217,32 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       }
       break;
     }
-    // stealItem / freeze / drainStrength / summon are schema-only for now —
-    // safely ignored until the engine grows hooks for them.
+    case 'stealItem': {
+      // The canonical Rogue nymph: snatch an item and vanish. We steal a random
+      // POTION, which is the only inventory bucket safe to mutate blindly —
+      // `inventory.potions` is a plain PotionType[] with no equip indices, unlike
+      // weapons/armor where `player.equipped` holds INDICES into the arrays
+      // (removing an element would shift those indices and corrupt equipped gear).
+      // If the player carries no potions, fall back to stealing gold so the nymph
+      // always does something thematic (and the steal magnitude reads as gold).
+      const potions = player.inventory?.potions;
+      if (potions && potions.length > 0) {
+        // Take the first potion. Deterministic (no extra rng draw — `fireAbility`
+        // isn't passed the seeded rng, and adding a per-hit random draw to this
+        // shared path would desync seeded runs; see the RNG-parity gotcha).
+        const stolen = potions.shift()!;
+        logs.push(`${m.name} snatches your ${stolen} potion and vanishes!`);
+      } else {
+        const amount = Math.min(player.gold, ab.magnitude ?? 0);
+        if (amount > 0) {
+          player.gold -= amount;
+          logs.push(`${m.name} snatches ${amount} gold and vanishes!`);
+        }
+      }
+      break;
+    }
+    // freeze / drainStrength / summon are schema-only for now — safely ignored
+    // until the engine grows hooks for them.
     default:
       break;
   }

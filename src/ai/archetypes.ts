@@ -38,7 +38,8 @@ export type ArchetypeId =
   | 'boss-swiper'
   | 'bat'
   | 'raptor'
-  | 'leech';
+  | 'leech'
+  | 'nymph';
 
 export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // Stationary until the player is within aggro, then beeline + bite. Legacy.
@@ -139,6 +140,19 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     defense: {},
     abilities: [{ id: 'leechHeal', chance: 1, magnitude: 3, cooldown: 0, trigger: 'onHit' }],
   },
+  // The Nymph: a trickster that steals an ITEM and vanishes — the canonical Rogue
+  // nymph. Mirrors `trickster` (hunt movement + plain melee + fleeBelowHpPct) but
+  // swaps the on-hit ability from stealGold to `stealItem` (steals a potion, or
+  // falls back to gold if you carry none — see fireAbility). Like stealGold, the
+  // steal doesn't change the HP-damage race, so the DIRECT melee stays balance-
+  // neutral and reads FAIR at floor 9 with NO base-atk change (harness-confirmed).
+  // The `magnitude` only matters for the gold fallback amount.
+  nymph: {
+    movement: { style: 'hunt', aggroRange: AGGRO },
+    attacks: [melee()],
+    defense: { fleeBelowHpPct: 0.5 },
+    abilities: [{ id: 'stealItem', chance: 0.7, magnitude: 50, cooldown: 0, trigger: 'onHit', thenFlee: true }],
+  },
   // Marcus the Brave: chase-and-bite, but every other swing is a double-damage
   // swipe. Reproduces the old name-special as data.
   'boss-swiper': {
@@ -195,6 +209,11 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   'zombie': 'leech',
   'zachary-the-zombie': 'leech',
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
+  // Nymph: steals an ITEM (a potion, or gold if you carry none) on a hit, then
+  // vanishes (stealItem on-hit + thenFlee). DIRECT melee mirrors the trickster
+  // (plain melee, multiplier 1, no windup), so the steal doesn't move the HP-damage
+  // race — balance-neutral, FAIR at floor 9 with NO base-atk change (harness-confirmed).
+  'nymph': 'nymph',
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
 };
