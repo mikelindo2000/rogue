@@ -127,6 +127,16 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
 export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   'brown-bat': 'bat', // modern erratic flier with a telegraphed swoop + evasion
   'eagle': 'raptor', // erratic flier with a telegraphed dive + light evasion (gentler bat cousin)
+  // Cyclops & elite: slow, heavily telegraphed slam — dodge it or eat a big hit.
+  // The brute slam is windupTurns:1 (telegraphed) so it only connects ~0.3×/turn
+  // in the harness; the base atk had to be raised well above the plain-melee
+  // value to reach the FAIR band at floor 17. Tuned via the harness: Cyclops atk
+  // 43 → 75 (threat ~0.48, mid-fair); Colossal Cyclops atk 45 → 85 (threat ~0.61,
+  // upper-fair, fitting for an elite). The displayed atk isn't comparable to a
+  // plain-melee monster's — a telegraphed slammer needs more base atk to land the
+  // same threat. See MONSTER_DATABASE for the bumped rows.
+  'cyclops': 'brute',
+  'colossal-cyclops': 'brute',
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
