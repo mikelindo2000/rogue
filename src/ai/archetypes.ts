@@ -137,6 +137,13 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   // same threat. See MONSTER_DATABASE for the bumped rows.
   'cyclops': 'brute',
   'colossal-cyclops': 'brute',
+  // Golem & elite: a stone sentinel — inert until you stumble within wakeRange,
+  // then it latches and chases permanently (ambush FSM). Movement-only: once
+  // engaged it bites with plain melee every turn, identical to default, so this
+  // is balance-neutral — no base-atk change needed (confirmed fair at floor 15
+  // via the harness: threat unchanged vs default).
+  'golem': 'ambusher',
+  'gary-the-golem': 'ambusher',
   'leprechaun': 'trickster', // steals gold on a hit, then flees (canonical Rogue)
   // Preserve Marcus the Brave's signature swipe (was a name-special in the engine).
   'marcus-the-brave': 'boss-swiper',
