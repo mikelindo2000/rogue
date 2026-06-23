@@ -4,6 +4,9 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${DEPLOY_ENV_FILE:-$ROOT_DIR/deploy/.env}"
 BUILD_ROOT="$ROOT_DIR"
+BUILD_REF=""
+BUILD_COMMIT=""
+BUILD_DIRTY=0
 
 log() {
   printf '==> %s\n' "$*"
@@ -135,31 +138,40 @@ wait_for_dns() {
 }
 
 prepare_build_root() {
-  local ref="${DEPLOY_BUILD_REF:-working-tree}"
+  local ref="${DEPLOY_BUILD_REF:-HEAD}"
   if [[ -z "$ref" || "$ref" == "working-tree" ]]; then
     BUILD_ROOT="$ROOT_DIR"
+    BUILD_REF="working-tree"
+    BUILD_COMMIT="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+    if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=no)" ]]; then
+      BUILD_DIRTY=1
+    fi
+    log "Preparing working tree build at $BUILD_COMMIT"
     return
   fi
 
   require_command git
+
+  local commit
+  commit="$(git -C "$ROOT_DIR" rev-parse "$ref^{commit}")"
 
   local build_dir="${DEPLOY_BUILD_DIR:-deploy/.build-worktree}"
   if [[ "$build_dir" != /* ]]; then
     build_dir="$ROOT_DIR/$build_dir"
   fi
 
-  log "Preparing clean build worktree at $ref"
+  log "Preparing clean build worktree at $ref ($commit)"
   mkdir -p "$(dirname "$build_dir")"
 
   if [[ -e "$build_dir/.git" ]]; then
     git -C "$build_dir" reset --hard >/dev/null
     git -C "$build_dir" clean -fd -e node_modules -e dist >/dev/null
-    git -C "$build_dir" checkout --detach "$ref" >/dev/null
-    git -C "$build_dir" reset --hard "$ref" >/dev/null
+    git -C "$build_dir" checkout --detach "$commit" >/dev/null
+    git -C "$build_dir" reset --hard "$commit" >/dev/null
   else
     rm -rf "$build_dir"
     git worktree prune
-    git worktree add --detach "$build_dir" "$ref" >/dev/null
+    git worktree add --detach "$build_dir" "$commit" >/dev/null
   fi
 
   local hash_file="$build_dir/node_modules/.rogue-package-lock.sha256"
@@ -173,6 +185,9 @@ prepare_build_root() {
   fi
 
   BUILD_ROOT="$build_dir"
+  BUILD_REF="$ref"
+  BUILD_COMMIT="$commit"
+  BUILD_DIRTY=0
 }
 
 write_nginx_config() {
@@ -433,15 +448,31 @@ deploy_static_files() {
 
   log "Building"
   (cd "$BUILD_ROOT" && npm run build)
+  write_deploy_version
 
   log "Syncing dist to $DEPLOY_SERVER:$DEPLOY_APP_DIR"
   ssh "$DEPLOY_SERVER" "mkdir -p $DEPLOY_APP_DIR/dist"
   rsync -az --delete --stats "$BUILD_ROOT/dist/" "$DEPLOY_SERVER:$DEPLOY_APP_DIR/dist/"
 }
 
+write_deploy_version() {
+  local output="$BUILD_ROOT/dist/deploy-version.json"
+  BUILD_REF="$BUILD_REF" BUILD_COMMIT="$BUILD_COMMIT" BUILD_DIRTY="$BUILD_DIRTY" node --input-type=module -e "
+    import { writeFileSync } from 'node:fs';
+    const data = {
+      ref: process.env.BUILD_REF,
+      commit: process.env.BUILD_COMMIT,
+      dirty: process.env.BUILD_DIRTY === '1',
+      builtAt: new Date().toISOString(),
+    };
+    writeFileSync(process.argv[1], JSON.stringify(data, null, 2) + '\n');
+  " "$output"
+}
+
 verify_deploy() {
   log "Verifying https://$DEPLOY_DOMAIN"
   local resolve_arg=""
+  local version_json
   if ! dig +short "$DEPLOY_DOMAIN" | grep -Fxq "$DEPLOY_DNS_TARGET"; then
     resolve_arg="$DEPLOY_DOMAIN:443:$DEPLOY_DNS_TARGET"
   fi
@@ -449,11 +480,32 @@ verify_deploy() {
   if [[ -n "$resolve_arg" ]]; then
     curl -fsSI --resolve "$resolve_arg" "https://$DEPLOY_DOMAIN" >/dev/null
     curl -fsS --resolve "$resolve_arg" "https://$DEPLOY_DOMAIN" | grep -Eq '<div id="app"></div>|<script[^>]+type="module"'
+    version_json="$(curl -fsS --resolve "$resolve_arg" "https://$DEPLOY_DOMAIN/deploy-version.json")"
+    verify_deploy_version "$version_json"
     return
   fi
 
   curl -fsSI "https://$DEPLOY_DOMAIN" >/dev/null
   curl -fsS "https://$DEPLOY_DOMAIN" | grep -Eq '<div id="app"></div>|<script[^>]+type="module"'
+  version_json="$(curl -fsS "https://$DEPLOY_DOMAIN/deploy-version.json")"
+  verify_deploy_version "$version_json"
+}
+
+verify_deploy_version() {
+  local version_json="$1"
+  EXPECTED_COMMIT="$BUILD_COMMIT" node --input-type=module -e "
+    const input = await new Promise((resolve) => {
+      let data = '';
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', chunk => data += chunk);
+      process.stdin.on('end', () => resolve(data));
+    });
+    const version = JSON.parse(input);
+    if (version.commit !== process.env.EXPECTED_COMMIT) {
+      throw new Error('deployed commit ' + version.commit + ' did not match expected ' + process.env.EXPECTED_COMMIT);
+    }
+  " <<<"$version_json"
+  log "Verified deployed commit $BUILD_COMMIT"
 }
 
 main() {
@@ -474,6 +526,7 @@ main() {
   require_var DEPLOY_CERTBOT_EMAIL
 
   require_command curl
+  require_command git
   require_command node
   require_command npm
   require_command rsync
