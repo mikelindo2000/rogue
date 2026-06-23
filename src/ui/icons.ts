@@ -17,7 +17,10 @@ export type IconName =
   | 'leaf' // food / eat
   | 'book' // scroll
   | 'key'
-  | 'pouch';
+  | 'pouch'
+  | 'sliders' // settings
+  | 'volume' // sound on
+  | 'mute'; // sound off
 
 export const ICONS: Record<IconName, string> = {
   coin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.8 10h3.4a1.6 1.6 0 010 3.2H10"/>',
@@ -35,6 +38,10 @@ export const ICONS: Record<IconName, string> = {
   book: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M8 9.5h8M8 13h8M8 16.5h5"/>',
   key: '<circle cx="8.5" cy="8.5" r="3.5"/><path d="M11 11l8.5 8.5M16 16l2-2M18 18l2-2"/>',
   pouch: '<path d="M5 13a4 4 0 014-7h6a4 4 0 014 7l-1 6H6z"/>',
+  sliders:
+    '<path d="M4 7h9"/><circle cx="16" cy="7" r="2"/><path d="M18 7h2"/><path d="M4 12h2"/><circle cx="8" cy="12" r="2"/><path d="M10 12h10"/><path d="M4 17h11"/><circle cx="17" cy="17" r="2"/><path d="M19 17h1"/>',
+  volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5a4 4 0 010 5"/><path d="M18.5 7a7 7 0 010 10"/>',
+  mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
 };
 
 /** Icon used for each equipment slot when filled or empty. */

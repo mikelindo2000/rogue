@@ -6,6 +6,8 @@ import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
 import { loadSaveGame, saveSaveGame } from './persistence/savegame';
+import { loadSettings, updateSettings } from './persistence/settings';
+import { createAudioService } from './audio/service';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first.
@@ -17,8 +19,21 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) throw new Error('Missing #app mount point');
   mount(App, { target: root });
 
+  // Audio: build the browser sound service from persisted settings and inject
+  // it into the engine. Mirror the muted/volume into the UI store so the
+  // settings modal reflects the saved state. The service stays locked until the
+  // first user gesture (autoplay policy), unlocked below.
+  const settings = loadSettings();
+  const audio = createAudioService(settings.audio);
+  ui.audioMuted = settings.audio.muted;
+  ui.audioVolume = settings.audio.volume;
+
   const ui_ = new GameUI('gameCanvas');
-  const engine = new GameEngine(ui_);
+  const engine = new GameEngine(ui_, audio);
+
+  const unlockAudio = () => audio.unlock();
+  window.addEventListener('keydown', unlockAudio, { once: true });
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
 
   // Autosave: trailing debounce around normal writes, plus an immediate flush
   // on tab close/hide. Wired before the initial load/restore so the fresh-run
@@ -81,6 +96,23 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   actions.setBalancePanelOpen = (open) => {
     ui.balancePanelOpen = open;
+  };
+  actions.setSettingsOpen = (open) => {
+    ui.settingsOpen = open;
+  };
+  actions.setAudioMuted = (muted) => {
+    ui.audioMuted = muted;
+    audio.setMuted(muted);
+    updateSettings({ audio: { muted, volume: ui.audioVolume } });
+  };
+  actions.setAudioVolume = (volume) => {
+    ui.audioVolume = volume;
+    audio.setVolume(volume);
+    updateSettings({ audio: { muted: ui.audioMuted, volume } });
+  };
+  actions.testSound = () => {
+    audio.unlock();
+    audio.test();
   };
   actions.selectInventoryItem = (ref) => {
     ui.selectedInventoryRef = ref;
@@ -163,6 +195,18 @@ document.addEventListener('DOMContentLoaded', () => {
     callback: () => {
       if (ui.balancePanelOpen || !overlayOpen()) {
         ui.balancePanelOpen = !ui.balancePanelOpen;
+      }
+    },
+  });
+
+  keyboard.register({
+    keys: [','],
+    description: 'Toggle settings',
+    context: 'game',
+    callback: () => {
+      // Allow closing settings from the key; only block opening it over another overlay.
+      if (ui.settingsOpen || !overlayOpen()) {
+        actions.setSettingsOpen(!ui.settingsOpen);
       }
     },
   });

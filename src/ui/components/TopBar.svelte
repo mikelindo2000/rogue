@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { ui } from '../store.svelte';
+  import { ui, actions } from '../store.svelte';
   import StatChip from './primitives/StatChip.svelte';
+  import Icon from './primitives/Icon.svelte';
 </script>
 
 <header class="bar">
@@ -15,6 +16,14 @@
     <StatChip icon="coin" iconStroke="var(--accent-strong)" value={ui.gold} unit="gold" />
     <StatChip icon="shield" iconStroke="var(--text-muted)" value={ui.def} unit="def" />
     <StatChip label="Turn" value={ui.turn} />
+    <button
+      class="settings-btn"
+      onclick={() => actions.setSettingsOpen(true)}
+      aria-label="Settings"
+      title="Settings ( , )"
+    >
+      <Icon name="sliders" size={16} />
+    </button>
   </div>
 </header>
 
@@ -65,5 +74,27 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .settings-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-left: 2px;
+    border-radius: var(--r-md);
+    background: var(--surface-inset-2);
+    border: 1px solid var(--border-slot);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      color var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease),
+      background var(--dur-fast) var(--ease);
+  }
+  .settings-btn:hover {
+    color: var(--accent);
+    border-color: var(--border-strong);
+    background: var(--surface-card);
   }
 </style>

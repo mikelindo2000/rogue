@@ -11,6 +11,7 @@
   import Compendium from './components/Compendium.svelte';
   import InventoryModal from './components/InventoryModal.svelte';
   import BalancePanel from './components/BalancePanel.svelte';
+  import SettingsModal from './components/SettingsModal.svelte';
 </script>
 
 <div class="frame">
@@ -34,6 +35,7 @@
 <Compendium />
 <InventoryModal />
 <BalancePanel />
+<SettingsModal />
 
 <style>
   .frame {

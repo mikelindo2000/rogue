@@ -148,6 +148,10 @@ export interface UIState {
   selectedInventoryRef: InventoryRef | null;
   /** Dev-only balance report overlay (⌘/Ctrl+B). */
   balancePanelOpen: boolean;
+  settingsOpen: boolean;
+  // audio settings (mirrors persisted settings.audio; bound by the settings modal)
+  audioMuted: boolean;
+  audioVolume: number; // 0..1
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
 }
@@ -189,6 +193,9 @@ export const ui = $state<UIState>({
   inventoryOpen: false,
   selectedInventoryRef: null,
   balancePanelOpen: false,
+  settingsOpen: false,
+  audioMuted: false,
+  audioVolume: 1,
   discovery: emptyDiscovery(),
 });
 
@@ -201,6 +208,10 @@ export interface UIActions {
   setCompendiumOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
   setBalancePanelOpen(open: boolean): void;
+  setSettingsOpen(open: boolean): void;
+  setAudioMuted(muted: boolean): void;
+  setAudioVolume(volume: number): void;
+  testSound(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
 }
@@ -213,6 +224,10 @@ export const actions: UIActions = {
   setCompendiumOpen: () => {},
   setInventoryOpen: () => {},
   setBalancePanelOpen: () => {},
+  setSettingsOpen: () => {},
+  setAudioMuted: () => {},
+  setAudioVolume: () => {},
+  testSound: () => {},
   selectInventoryItem: () => {},
   inventoryAction: () => {},
 };
