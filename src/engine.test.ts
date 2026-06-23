@@ -44,6 +44,18 @@ const makeBossKiller = (floor: number) => {
   return engine;
 };
 
+describe('GameEngine startup logs', () => {
+  it('uses the actual stair glyphs in the welcome message', () => {
+    const engine = new GameEngine(makeUi() as any);
+
+    engine.initGame(123);
+
+    expect(engine.logs[0]).toBe(
+      `Welcome to the Dungeon! Move onto stairs (${TILE.STAIRS_UP} or ${TILE.STAIRS_DOWN}) to travel between floors.`
+    );
+  });
+});
+
 const makeEmptyMap = (engine: GameEngine) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
 

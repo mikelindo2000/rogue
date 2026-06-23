@@ -6,7 +6,7 @@
 
 <header class="bar">
   <div class="left">
-    <div class="logo" aria-hidden="true">&gt;</div>
+    <div class="logo" aria-hidden="true">></div>
     <div class="floor">
       <div class="floor-meta">Floor {ui.floor} / {ui.floorMax}</div>
       <div class="floor-name">{ui.floorName}</div>
