@@ -290,6 +290,22 @@ describe('savegame validation', () => {
     expect(validateSaveGame(snap)).not.toBeNull();
   });
 
+  it('rejects a typed scroll item with an unknown scrollType', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.items = [{ x: 1, y: 1, type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'bogus' } }];
+    expect(validateSaveGame(snap)).toBeNull();
+  });
+
+  it('accepts a typed scroll item with a known scrollType', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.items = [{ x: 1, y: 1, type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'light' } }];
+    expect(validateSaveGame(snap)).not.toBeNull();
+  });
+
   it('validateSaveGame rejects non-objects and accepts a valid snapshot', () => {
     const engine = newEngine();
     engine.initGame(SEED);

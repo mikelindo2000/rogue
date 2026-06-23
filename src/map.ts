@@ -2,7 +2,7 @@ import { Item, ItemSpawn, Monster, MonsterTemplate } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
-import { POTION_TYPES, potionVisual } from './itemVisuals';
+import { POTION_TYPES, potionVisual, scrollVisual } from './itemVisuals';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
 import { assert, devAssert } from './assert';
@@ -581,7 +581,18 @@ export function generateLevel(
             data: { potionType: chosenP },
           });
         } else if (rand < spawn.scrollCut) {
-          spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
+          // From floor 3 (where dark rooms begin), a share of scrolls are a
+          // Scroll of Light; the rest stay the opaque random-effect scroll.
+          if (dungeonFloor >= 3 && rng.chance(spawn.lightScrollCut)) {
+            spawnAt(room, {
+              type: 'scroll',
+              symbol: '?',
+              color: scrollVisual('light').mapColor,
+              data: { scrollType: 'light' },
+            });
+          } else {
+            spawnAt(room, { type: 'scroll', symbol: '?', color: '#cc66ff' });
+          }
         } else {
           spawnAt(room, { type: 'repair_scroll', symbol: '?', color: '#ff00ff' });
         }

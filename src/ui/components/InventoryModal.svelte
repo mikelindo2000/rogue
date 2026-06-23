@@ -13,6 +13,7 @@
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
     if (ref.kind === 'potion') return `potion:${ref.potionType}`;
+    if (ref.kind === 'scroll') return `scroll:${ref.scrollType}`;
     if (ref.kind === 'weapon') return `weapon:${ref.index}`;
     if (ref.kind === 'shield') return `shield:${ref.index}`;
     return `armor:${ref.slot}:${ref.index}`;

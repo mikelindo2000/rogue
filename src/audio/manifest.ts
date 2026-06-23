@@ -123,7 +123,9 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'equipment.unequipArmor': return 'equip-unequip';
     case 'equipment.rejected': return 'equip-rejected';
     case 'item.pickup': return event.kind === 'gold' ? 'item-gold' : 'item-pickup';
-    case 'item.consume': return event.kind === 'potion' ? 'consume-potion' : 'consume-food';
+    // 'scroll' reuses the potion consume cue as a stand-in until a dedicated
+    // parchment/read clip is authored (see design/SOUND_EFFECT_ASSET_PROMPTS.md).
+    case 'item.consume': return event.kind === 'food' ? 'consume-food' : 'consume-potion';
     case 'map.stairs': return event.dir === 'down' ? 'stairs-down' : 'stairs-up';
     case 'map.secretReveal': return 'secret-reveal';
     default: return null;

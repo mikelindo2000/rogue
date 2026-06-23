@@ -464,3 +464,76 @@ describe('dark-room FOV', () => {
     expect(restored.dark.every(row => row.every(v => v === false))).toBe(true);
   });
 });
+
+describe('scroll system', () => {
+  // Small room l=3,t=3,r=7,b=7 → interior x 4..6, y 4..6.
+  const setup = (dark = false) => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.map = makeEmptyMap(engine);
+    engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.dark = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
+    engine.items = [];
+    engine.monsters = [];
+    engine.player.hunger = 100;
+    // carve the room
+    for (let x = 4; x <= 6; x++) { engine.map[3][x] = TILE.WALL_H; engine.map[7][x] = TILE.WALL_H; }
+    for (let y = 4; y <= 6; y++) {
+      engine.map[y][3] = TILE.WALL_V; engine.map[y][7] = TILE.WALL_V;
+      for (let x = 4; x <= 6; x++) engine.map[y][x] = TILE.FLOOR;
+    }
+    if (dark) for (let y = 4; y <= 6; y++) for (let x = 4; x <= 6; x++) engine.dark[y][x] = true;
+    engine.player.x = 5; engine.player.y = 5;
+    return engine;
+  };
+
+  it('picks a typed Scroll of Light up into inventory (not consumed on pickup)', () => {
+    const engine = setup();
+    engine.items = [{ type: 'scroll', x: 5, y: 5, symbol: '?', color: '#ffd86b', data: { scrollType: 'light' } }];
+    engine.checkItems();
+    expect(engine.player.inventory.scrolls).toEqual(['light']);
+    expect(engine.items.length).toBe(0);
+  });
+
+  it('still applies an opaque scroll’s random effect on pickup (backward compat)', () => {
+    const engine = setup();
+    engine.items = [{ type: 'scroll', x: 5, y: 5, symbol: '?', color: '#cc66ff' }];
+    engine.checkItems();
+    expect(engine.player.inventory.scrolls.length).toBe(0); // not carried
+    expect(engine.items.length).toBe(0);                    // consumed on pickup
+  });
+
+  it('reading Scroll of Light in a dark room lights it, consumes, and costs a turn', () => {
+    const engine = setup(true);
+    engine.player.inventory.scrolls = ['light'];
+    const turnBefore = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls.length).toBe(0);
+    expect(engine.dark[5][5]).toBe(false);
+    expect(engine.dark[4][4]).toBe(false); // whole room cleared, not just the tile
+    expect(engine.turn).toBe(turnBefore + 1);
+  });
+
+  it('reading in an already-lit room is a no-op: scroll kept, no turn spent', () => {
+    const engine = setup(false);
+    engine.player.inventory.scrolls = ['light'];
+    const turnBefore = engine.turn;
+    engine.useScroll(0);
+    expect(engine.player.inventory.scrolls).toEqual(['light']);
+    expect(engine.turn).toBe(turnBefore);
+  });
+
+  it('readScroll() reads the first carried scroll, and reports none when empty', () => {
+    const engine = setup(true);
+    expect(engine.readScroll()).toBe(false); // none yet
+    engine.player.inventory.scrolls = ['light'];
+    expect(engine.readScroll()).toBe(true);
+    expect(engine.player.inventory.scrolls.length).toBe(0);
+  });
+
+  it('refuses to equip a scroll', () => {
+    const engine = setup();
+    engine.player.inventory.scrolls = ['light'];
+    expect(engine.equipInventoryItem({ kind: 'scroll', scrollType: 'light' })).toBe(false);
+  });
+});

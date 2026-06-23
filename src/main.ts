@@ -203,9 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   keyboard.register({
     keys: ['r'],
-    description: 'Restart (when the run has ended)',
+    description: 'Read a scroll (Restart when the run has ended)',
     context: 'game',
-    callback: () => actions.restart(),
+    callback: () => {
+      // Context-gated: restart only matters once the run is over, so during
+      // active play 'r' reads a carried scroll (the Rogue "read" verb).
+      if (engine.gameOver || engine.gameWon) {
+        actions.restart();
+      } else if (!overlayOpen()) {
+        engine.readScroll();
+      }
+    },
   });
 
   keyboard.register({

@@ -7,7 +7,7 @@
    than appended into one long object. When adding a potion, update
    src/itemVisuals.ts first, then add the paired bottle + cue icon here. */
 
-import type { PotionIconName } from '../itemVisuals';
+import type { PotionIconName, ScrollIconName } from '../itemVisuals';
 
 export type CoreIconName =
   | 'coin'
@@ -57,11 +57,21 @@ const POTION_ICONS: Record<PotionIconName, string> = {
   'potion-armor': `${bottle}<path d="M12 10l3 1.2v2.1c0 1.8-1.2 3.1-3 3.9-1.8-.8-3-2.1-3-3.9v-2.1z"/>`,
 };
 
-export type IconName = CoreIconName | PotionIconName;
+// Named scrolls share a rolled-parchment body with a per-type emblem. The
+// `light` scroll carries a small sun/rune burst. Add new scrolls here when you
+// add a ScrollType + its SCROLL_VISUALS entry.
+const scroll = '<path d="M7 4h8a2 2 0 012 2v12a2 2 0 01-2 2H7"/><path d="M7 4a2 2 0 00-2 2v0a2 2 0 002 2M7 20a2 2 0 002-2V6"/>';
+
+const SCROLL_ICONS: Record<ScrollIconName, string> = {
+  'scroll-light': `${scroll}<circle cx="13" cy="12" r="2"/><path d="M13 7.5v1.5M13 15v1.5M8.8 12h1.4M16 12h1.4M10.2 9.2l1 1M14.8 13.8l1 1M15.8 9.2l-1 1M10.2 14.8l1-1"/>`,
+};
+
+export type IconName = CoreIconName | PotionIconName | ScrollIconName;
 
 export const ICONS: Record<IconName, string> = {
   ...CORE_ICONS,
   ...POTION_ICONS,
+  ...SCROLL_ICONS,
 };
 
 /** Icon used for each equipment slot when filled or empty. */

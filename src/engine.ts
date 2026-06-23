@@ -698,6 +698,11 @@ export class GameEngine {
         const pType = item.data.potionType;
         this.player.inventory.potions.push(pType);
         this.addLog(`Picked up a Potion of ${pType.charAt(0).toUpperCase() + pType.slice(1)}.`);
+      } else if (item.type === 'scroll' && item.data?.scrollType) {
+        // Named, carryable scroll — picked up into inventory, read on demand.
+        const sType = item.data.scrollType;
+        this.player.inventory.scrolls.push(sType);
+        this.addLog(`Picked up a Scroll of ${sType.charAt(0).toUpperCase() + sType.slice(1)}.`);
       } else if (item.type === 'scroll') {
         const { scroll, status } = BALANCE;
         const r = this.rng.next();
@@ -785,6 +790,90 @@ export class GameEngine {
     return true;
   }
 
+  /**
+   * Read the scroll at `index`. A successful read consumes the scroll and costs a
+   * turn (like a potion). A read with no effect (e.g. Light in an already-lit
+   * room or a corridor) is a no-op: the scroll is kept and no turn passes, so a
+   * misclick never silently burns a monster move.
+   */
+  public useScroll(index: number) {
+    const scrolls = this.player.inventory.scrolls;
+    if (index < 0 || index >= scrolls.length) return;
+    const type = scrolls[index];
+
+    if (type === 'light') {
+      const lit = this.lightCurrentRoom();
+      if (!lit) {
+        this.addLog("You read the scroll, but the light reveals nothing new.");
+        return;
+      }
+      this.addLog("You read the Scroll of Light. The room floods with light!");
+    }
+
+    scrolls.splice(index, 1);
+    this.sound.emit({ type: 'item.consume', kind: 'scroll' });
+    this.ui.updateDropdowns(this.player);
+    this.processTurn();
+  }
+
+  private useScrollType(ref: InventoryRef & { kind: 'scroll' }): boolean {
+    const idx = this.player.inventory.scrolls.findIndex(s => s === ref.scrollType);
+    if (idx === -1) {
+      this.addLog("You no longer have that scroll.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+    this.useScroll(idx);
+    return true;
+  }
+
+  /** Keyboard entry point ('r' during play): read the first carried scroll. */
+  public readScroll(): boolean {
+    if (this.player.inventory.scrolls.length === 0) {
+      this.addLog("You have no scrolls to read.");
+      return false;
+    }
+    this.useScroll(0);
+    return true;
+  }
+
+  /**
+   * Light the contiguous room the player stands on: clear its `dark` bits and
+   * re-run FOV so the now-lit room reveals at once. Reuses the same interior
+   * flood as revealRoom (no second lighting implementation). Returns true only
+   * if at least one dark tile was cleared (so the caller can decide whether to
+   * consume a scroll / spend a turn). No-op in corridors or already-lit rooms.
+   */
+  private lightCurrentRoom(): boolean {
+    const px = this.player.x;
+    const py = this.player.y;
+    const isInterior = (ch: string | undefined) =>
+      ch === TILE.FLOOR || (ch !== undefined && STAIR_TILES.has(ch));
+    if (!isInterior(this.map[py]?.[px])) return false;
+
+    let cleared = false;
+    const seen = new Set<number>([py * this.COLS + px]);
+    const stack: [number, number][] = [[px, py]];
+    while (stack.length) {
+      const [x, y] = stack.pop()!;
+      if (this.dark[y]?.[x]) {
+        this.dark[y][x] = false;
+        cleared = true;
+      }
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dc;
+        const ny = y + dr;
+        if (nx < 0 || nx >= this.COLS || ny < 0 || ny >= this.ROWS) continue;
+        const key = ny * this.COLS + nx;
+        if (seen.has(key) || !isInterior(this.map[ny][nx])) continue;
+        seen.add(key);
+        stack.push([nx, ny]);
+      }
+    }
+    if (cleared) this.updateFOV();
+    return cleared;
+  }
+
   public consumeFood(): boolean {
     if (this.player.inventory.food > 0) {
       this.player.inventory.food--;
@@ -826,7 +915,7 @@ export class GameEngine {
   }
 
   public equipInventoryItem(ref: InventoryRef): boolean {
-    if (ref.kind === 'food' || ref.kind === 'potion') {
+    if (ref.kind === 'food' || ref.kind === 'potion' || ref.kind === 'scroll') {
       this.addLog("That item cannot be equipped.");
       this.ui.updateDropdowns(this.player);
       this.sound.emit({ type: 'equipment.rejected' });
@@ -856,6 +945,9 @@ export class GameEngine {
     }
     if (ref.kind === 'potion') {
       return this.usePotionType(ref);
+    }
+    if (ref.kind === 'scroll') {
+      return this.useScrollType(ref);
     }
     this.addLog("That item cannot be used.");
     this.ui.updateDropdowns(this.player);
@@ -1045,6 +1137,8 @@ export class GameEngine {
       this.seed = save.seed;
       this.rng = makeRng(save.seed, save.rngState);
       this.player = structuredClone(save.player);
+      // Backfill the scrolls bucket for saves written before scrolls existed.
+      if (!Array.isArray(this.player.inventory.scrolls)) this.player.inventory.scrolls = [];
       this.statusEffects = { ...save.statusEffects };
       this.dungeonFloor = save.dungeonFloor;
       this.turn = save.turn;

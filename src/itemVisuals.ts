@@ -1,6 +1,7 @@
-import type { PotionType } from './types';
+import type { PotionType, ScrollType } from './types';
 
 export type PotionIconName = `potion-${PotionType}`;
+export type ScrollIconName = `scroll-${ScrollType}`;
 
 export interface PotionVisual {
   icon: PotionIconName;
@@ -46,4 +47,33 @@ export const POTION_VISUALS: Record<PotionType, PotionVisual> = {
 
 export function potionVisual(type: PotionType): PotionVisual {
   return POTION_VISUALS[type];
+}
+
+export interface ScrollVisual {
+  icon: ScrollIconName;
+  /** Floor-glyph color — distinct from the generic scroll (#cc66ff) and the
+   *  repair scroll (#ff00ff). */
+  mapColor: string;
+  uiColor: string;
+  accent: string;
+}
+
+export const SCROLL_TYPES = ['light'] as const satisfies readonly ScrollType[];
+
+/**
+ * Shared visual identity for named scrolls across the floor glyph and inventory.
+ * Add a new scroll type here first, then add the paired icon in src/ui/icons.ts
+ * and generated art in public/inventory/ per design/INVENTORY_IMAGE_GENERATION.md.
+ */
+export const SCROLL_VISUALS: Record<ScrollType, ScrollVisual> = {
+  light: {
+    icon: 'scroll-light',
+    mapColor: '#ffd86b',
+    uiColor: 'var(--scroll-light)',
+    accent: 'warm-gold',
+  },
+};
+
+export function scrollVisual(type: ScrollType): ScrollVisual {
+  return SCROLL_VISUALS[type];
 }

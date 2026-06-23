@@ -59,6 +59,9 @@ export type WeaponType = 'dagger' | '1h_sword' | '2h_sword' | '1h_mace' | '2h_ma
 export type StaffMagic = 'fire' | 'frost' | 'arcane';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type PotionType = 'healing' | 'strength' | 'invisibility' | 'armor';
+/** Named, carried scrolls (read on demand). Distinct from the legacy opaque
+ *  `scroll` floor item, which still applies a random effect on pickup. */
+export type ScrollType = 'light';
 
 export interface GearItem {
   name: string;
@@ -88,7 +91,9 @@ interface ItemBase {
 export type Item =
   | (ItemBase & { type: 'gold' })
   | (ItemBase & { type: 'food' })
-  | (ItemBase & { type: 'scroll' })
+  // A scroll with `data.scrollType` is a named, carryable scroll (picked up into
+  // inventory). Without it, the legacy opaque random-effect scroll (used on pickup).
+  | (ItemBase & { type: 'scroll'; data?: { scrollType: ScrollType } })
   | (ItemBase & { type: 'repair_scroll' })
   | (ItemBase & { type: 'potion'; data: { potionType: PotionType } })
   | (ItemBase & { type: 'gear'; data: FloorGear });
@@ -147,12 +152,14 @@ export type Inventory = {
   food: number;
   weapons: GearItem[];
   potions: PotionType[];
+  scrolls: ScrollType[];
 } & Record<GearSlot, GearItem[]>;
 
 /** Stable reference the UI can send back to engine inventory commands. */
 export type InventoryRef =
   | { kind: 'food' }
   | { kind: 'potion'; potionType: PotionType }
+  | { kind: 'scroll'; scrollType: ScrollType }
   | { kind: 'weapon'; index: number }
   | { kind: 'armor'; slot: ArmorSlot; index: number }
   | { kind: 'shield'; index: number };

@@ -8,7 +8,10 @@
 
 import type { Player, Monster, Item, StatusEffects } from '../types';
 import type { FloorState } from '../engine';
+import { SCROLL_TYPES } from '../itemVisuals';
 import { defineStore, resolveBackend, type Store } from './store';
+
+const KNOWN_SCROLL_TYPES = new Set<string>(SCROLL_TYPES);
 
 export interface SaveGameV1 {
   seed: number;
@@ -127,6 +130,11 @@ export function validateSaveGame(raw: unknown): SaveGameV1 | null {
   for (const it of raw.items) {
     if (!isObject(it)) return null;
     if (typeof it.x !== 'number' || typeof it.y !== 'number' || typeof it.type !== 'string') return null;
+    // A typed scroll must carry a known scrollType — guard against a corrupt or
+    // future-version blob splicing an undefined type into the scroll inventory.
+    if (it.type === 'scroll' && it.data !== undefined) {
+      if (!isObject(it.data) || !KNOWN_SCROLL_TYPES.has(it.data.scrollType as string)) return null;
+    }
   }
 
   if (!Array.isArray(raw.floorStates)) return null;

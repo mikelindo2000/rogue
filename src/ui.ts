@@ -1,4 +1,4 @@
-import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType } from './types';
+import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, PotionType, ScrollType } from './types';
 import { BALANCE, getScaledXpRequirements, getConfig } from './config';
 import { canEquip } from './player';
 import { TILE, STAIR_TILES, isCorner, isWalkable } from './tiles';
@@ -18,9 +18,9 @@ import {
   weaponTypeLabel,
 } from './ui/inventoryStats';
 import { SLOT_ICON } from './ui/icons';
-import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
+import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl } from './ui/inventoryArt';
 import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
-import { potionVisual } from './itemVisuals';
+import { potionVisual, scrollVisual } from './itemVisuals';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import {
   drawAvatar,
@@ -1143,6 +1143,25 @@ export class GameUI {
       });
     }
 
+    const scrollCounts = new Map<ScrollType, number>();
+    player.inventory.scrolls.forEach(s => scrollCounts.set(s, (scrollCounts.get(s) ?? 0) + 1));
+    for (const [type, n] of scrollCounts) {
+      const ref: InventoryRef = { kind: 'scroll', scrollType: type };
+      const visual = scrollVisual(type);
+      cells.push({
+        icon: visual.icon,
+        artUrl: scrollArtUrl(type),
+        rarityColor: visual.uiColor,
+        count: n > 1 ? n : undefined,
+        label: n > 1 ? `Scroll of ${titleCase(type)} ×${n}` : `Scroll of ${titleCase(type)}`,
+        detail: type === 'light'
+          ? 'Reading it floods your current dark room with permanent light.'
+          : 'A mysterious scroll.',
+        ref,
+        actions: this.inventoryActions(player, ref),
+      });
+    }
+
     player.inventory.weapons.forEach((w, i) => {
       if (i !== player.equipped.mainHand && player.equipped.offHand !== 'weapon:' + i) {
         const ref: InventoryRef = { kind: 'weapon', index: i };
@@ -1214,6 +1233,9 @@ export class GameUI {
     }
     if (ref.kind === 'potion') {
       return [{ action: 'use', label: 'Drink' }];
+    }
+    if (ref.kind === 'scroll') {
+      return [{ action: 'use', label: 'Read' }];
     }
 
     if (ref.kind === 'weapon') {

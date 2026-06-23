@@ -32,7 +32,7 @@ export type SoundEvent =
   | { type: 'equipment.rejected' }
   // items
   | { type: 'item.pickup'; kind: 'gold' | 'food' | 'potion' | 'scroll' | 'gear' }
-  | { type: 'item.consume'; kind: 'food' | 'potion' }
+  | { type: 'item.consume'; kind: 'food' | 'potion' | 'scroll' }
   // map / navigation
   | { type: 'map.stairs'; dir: 'up' | 'down' }
   | { type: 'map.secretReveal' };

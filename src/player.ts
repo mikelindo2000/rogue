@@ -25,7 +25,8 @@ export function createPlayer(): Player {
       legs: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
       gauntlets: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
       boots: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
-      potions: []
+      potions: [],
+      scrolls: []
     },
     equipped: {
       mainHand: 0,
