@@ -19,16 +19,22 @@ export interface RNG {
   pick<T>(arr: readonly T[]): T;
   /** The raw seed this generator was created from. */
   readonly seed: number;
+  /**
+   * The current internal 32-bit position (unsigned), as it stands BEFORE the
+   * next `next()` call. Capture this to snapshot a run, then pass it back as
+   * the `state` argument to `makeRng` to resume the exact same stream.
+   */
+  getState(): number;
 }
 
 /** mulberry32 — a compact, fast, well-distributed 32-bit PRNG. */
-export function makeRng(seed: number): RNG {
-  let state = seed >>> 0;
+export function makeRng(seed: number, state?: number): RNG {
+  let internalState = state === undefined ? seed >>> 0 : state >>> 0;
 
   const next = (): number => {
-    state |= 0;
-    state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    internalState |= 0;
+    internalState = (internalState + 0x6d2b79f5) | 0;
+    let t = Math.imul(internalState ^ (internalState >>> 15), 1 | internalState);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
@@ -42,6 +48,7 @@ export function makeRng(seed: number): RNG {
     range: (min, maxInclusive) => min + int(maxInclusive - min + 1),
     chance: (p) => next() < p,
     pick: (arr) => arr[int(arr.length)],
+    getState: () => internalState >>> 0,
   };
 }
 

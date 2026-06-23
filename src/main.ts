@@ -5,6 +5,7 @@ import { GameUI } from './ui';
 import { GameEngine } from './engine';
 import { loadConfig } from './config';
 import { KeyboardManager } from './keyboard';
+import { loadSaveGame, saveSaveGame } from './persistence/savegame';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first.
@@ -18,8 +19,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const ui_ = new GameUI('gameCanvas');
   const engine = new GameEngine(ui_);
-  engine.initGame();
+
+  // Autosave: trailing debounce around normal writes, plus an immediate flush
+  // on tab close/hide. Wired before the initial load/restore so the fresh-run
+  // autosave from initGame() (or restore path) is captured.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushSave = () => {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+    // snapshot() only clones plain data, but guard the unload-path flush so a
+    // stray throw can never block tab close.
+    try {
+      saveSaveGame(engine.snapshot());
+    } catch (e) {
+      console.error('Autosave snapshot failed', e);
+    }
+  };
+  const scheduleSave = () => {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 500);
+  };
+  engine.onRunChanged = scheduleSave;
+
+  const save = loadSaveGame();
+  if (!save || !engine.restore(save)) {
+    engine.initGame();
+    // Persist the fresh run immediately so a stale prior save can't be restored
+    // if the tab is killed within the autosave debounce window.
+    flushSave();
+  }
   engine.draw();
+
+  window.addEventListener('beforeunload', flushSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSave();
+  });
 
   // Movement is suspended while any popover menu or modal dialog is open.
   const overlayOpen = () => !!document.querySelector('[role="menu"], [role="dialog"]');

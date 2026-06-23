@@ -100,6 +100,7 @@ const setChanceRoll = (engine: GameEngine, roll: number) => {
     range: (min, max) => Math.min(max, min + Math.floor(roll * (max - min + 1))),
     chance: p => roll < p,
     pick: arr => arr[0],
+    getState: () => 0,
   };
   (engine as any).rng = rng;
 };

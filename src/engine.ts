@@ -9,6 +9,7 @@ import { resolveBehavior } from './ai/archetypes';
 import { computeStrike } from './combat';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
+import type { SaveGameV1 } from './persistence/savegame';
 import {
   loadDiscovery,
   saveDiscovery,
@@ -18,7 +19,7 @@ import {
   type DiscoveryState,
 } from './discovery';
 
-interface FloorState {
+export interface FloorState {
   map: string[][];
   explored: boolean[][];
   monsters: Monster[];
@@ -65,6 +66,14 @@ export class GameEngine {
    *  persisted on change — it intentionally survives initGame/restart. */
   public discovery: DiscoveryState;
 
+  /** Notified after complete run-state mutations so the host can autosave.
+   *  Wired in main.ts; never called mid-command (see autosave call sites). */
+  public onRunChanged?: () => void;
+
+  private autosave() {
+    this.onRunChanged?.();
+  }
+
   constructor(ui: GameUI) {
     this.ui = ui;
     this.player = createPlayer();
@@ -98,6 +107,7 @@ export class GameEngine {
     this.updateUI();
     this.ui.resetLog();
     this.ui.renderLogs(this.logs);
+    this.autosave();
   }
 
   public addLog(msg: string) {
@@ -419,6 +429,7 @@ export class GameEngine {
     this.loadFloorForTravel(delta);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    this.autosave();
   }
 
   private saveCurrentFloor() {
@@ -714,6 +725,7 @@ export class GameEngine {
     handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    this.autosave();
   }
 
   public equipInventoryItem(ref: InventoryRef): boolean {
@@ -733,6 +745,7 @@ export class GameEngine {
     const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    if (equipped) this.autosave();
     return equipped;
   }
 
@@ -754,6 +767,7 @@ export class GameEngine {
       const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
       this.ui.updateDropdowns(this.player);
       this.updateUI();
+      if (equipped) this.autosave();
       return equipped;
     }
     if (action === 'use') return this.useInventoryItem(ref);
@@ -809,6 +823,7 @@ export class GameEngine {
       this.updateUI();
       this.updateFOV();
       this.draw();
+      this.autosave();
       return;
     }
 
@@ -842,6 +857,7 @@ export class GameEngine {
     this.updateUI();
     this.updateFOV();
     this.draw();
+    this.autosave();
   }
 
   public updateUI() {
@@ -867,6 +883,78 @@ export class GameEngine {
   }
 
   /**
+   * Deep, JSON-serializable snapshot of the full run state. `visible` is
+   * omitted (recomputed on restore via updateFOV) and `discovery` is excluded
+   * (persisted independently in discovery.ts).
+   */
+  public snapshot(): SaveGameV1 {
+    return {
+      seed: this.seed,
+      rngState: this.rng.getState(),
+      player: structuredClone(this.player),
+      statusEffects: { ...this.statusEffects },
+      dungeonFloor: this.dungeonFloor,
+      turn: this.turn,
+      gameOver: this.gameOver,
+      gameWon: this.gameWon,
+      logs: [...this.logs],
+      map: this.map.map(r => [...r]),
+      explored: this.explored.map(r => [...r]),
+      monsters: structuredClone(this.monsters),
+      items: structuredClone(this.items),
+      floorStates: Array.from(this.floorStates.entries()).map(([f, s]) => [f, {
+        map: s.map.map(r => [...r]),
+        explored: s.explored.map(r => [...r]),
+        monsters: structuredClone(s.monsters),
+        items: structuredClone(s.items),
+      }]),
+      searchHintShown: this.searchHintShown,
+      secretsFoundThisRun: this.secretsFoundThisRun,
+    };
+  }
+
+  /**
+   * Rebuild the run from an ALREADY-VALIDATED save (savegame.ts owns
+   * validation). Returns false and leaves prior state if the rebuild throws.
+   */
+  public restore(save: SaveGameV1): boolean {
+    try {
+      this.seed = save.seed;
+      this.rng = makeRng(save.seed, save.rngState);
+      this.player = structuredClone(save.player);
+      this.statusEffects = { ...save.statusEffects };
+      this.dungeonFloor = save.dungeonFloor;
+      this.turn = save.turn;
+      this.gameOver = save.gameOver;
+      this.gameWon = save.gameWon;
+      this.logs = [...save.logs];
+      this.map = save.map.map(r => [...r]);
+      this.explored = save.explored.map(r => [...r]);
+      this.monsters = structuredClone(save.monsters);
+      this.items = structuredClone(save.items);
+      this.floorStates = new Map(save.floorStates.map(([f, s]) => [f, {
+        map: s.map.map(r => [...r]),
+        explored: s.explored.map(r => [...r]),
+        monsters: structuredClone(s.monsters),
+        items: structuredClone(s.items),
+      }]));
+      this.searchHintShown = save.searchHintShown;
+      this.secretsFoundThisRun = save.secretsFoundThisRun;
+
+      this.updateFOV();
+      this.ui.updateDropdowns(this.player);
+      this.updateUI();
+      this.ui.resetLog();
+      this.ui.renderLogs(this.logs);
+      this.ui.syncDiscovery(this.discovery);
+      return true;
+    } catch (e) {
+      console.error('Failed to restore save game', e);
+      return false;
+    }
+  }
+
+  /**
    * Refreshes stats, scales player hp if balance variables change.
    */
   public handleBalanceUpdate() {
@@ -885,5 +973,6 @@ export class GameEngine {
     this.updateUI();
     this.ui.updateDropdowns(this.player);
     this.draw();
+    this.autosave();
   }
 }

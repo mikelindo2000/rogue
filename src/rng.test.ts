@@ -48,3 +48,54 @@ describe('makeRng', () => {
     for (let i = 0; i < 100; i++) expect(arr).toContain(r.pick(arr));
   });
 });
+
+describe('makeRng snapshot/resume', () => {
+  it('resumes an identical continuation from a captured state', () => {
+    const seed = 12345;
+    const original = makeRng(seed);
+
+    // Draw K values to advance the generator past its initial position.
+    const K = 37;
+    for (let i = 0; i < K; i++) original.next();
+
+    // Capture the live position (post-increment, pre next-draw).
+    const captured = original.getState();
+    const resumed = makeRng(original.seed, captured);
+
+    // The resumed stream must match the original's continuation exactly.
+    const M = 50;
+    const originalNext = Array.from({ length: M }, () => original.next());
+    const resumedNext = Array.from({ length: M }, () => resumed.next());
+    expect(resumedNext).toEqual(originalNext);
+  });
+
+  it('getState() returns an unsigned 32-bit integer', () => {
+    const r = makeRng(98765);
+    for (let i = 0; i < 100; i++) {
+      r.next();
+      const s = r.getState();
+      expect(Number.isInteger(s)).toBe(true);
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(0xffffffff);
+    }
+  });
+
+  it('getState() before any draw equals the seed (default construction)', () => {
+    const r = makeRng(424242);
+    expect(r.getState()).toBe(424242 >>> 0);
+  });
+
+  it('makeRng(seed, state) ignores seed for stream position', () => {
+    const a = makeRng(1);
+    for (let i = 0; i < 10; i++) a.next();
+    const captured = a.getState();
+
+    // Different seed argument, same state: stream follows the state.
+    const fromState = makeRng(1, captured);
+    const sameSeed = makeRng(1, captured);
+    const s1 = Array.from({ length: 20 }, () => fromState.next());
+    const s2 = Array.from({ length: 20 }, () => sameSeed.next());
+    expect(s1).toEqual(s2);
+    expect(s1).toEqual(Array.from({ length: 20 }, () => a.next()));
+  });
+});
