@@ -60,9 +60,11 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'player-death': { id: 'player-death', variants: [sfx('player-death-01.mp3')], channel: 'status', volume: 1, priority: 10 },
   // hunger / survival
   'hunger-hungry': { id: 'hunger-hungry', variants: [sfx('hunger-hungry-01.mp3')], channel: 'status', volume: 0.7, cooldownMs: 1500 },
+  'hunger-nearstarved': { id: 'hunger-nearstarved', variants: [sfx('hunger-nearstarved-01.mp3')], channel: 'status', volume: 0.78, cooldownMs: 1500, priority: 5 },
   'hunger-fatigued': { id: 'hunger-fatigued', variants: [sfx('hunger-fatigued-01.mp3')], channel: 'status', volume: 0.75, cooldownMs: 1500 },
   'hunger-starving': { id: 'hunger-starving', variants: [sfx('hunger-starving-01.mp3')], channel: 'status', volume: 0.85, cooldownMs: 1500 },
   'hunger-starvetick': { id: 'hunger-starvetick', variants: [sfx('hunger-starvetick-01.mp3')], channel: 'status', volume: 0.55, cooldownMs: 1200 },
+  'survival-dualwarning': { id: 'survival-dualwarning', variants: [sfx('survival-dualwarning-01.mp3')], channel: 'status', volume: 0.88, cooldownMs: 2200, priority: 7 },
   // equipment
   'equip-weapon': { id: 'equip-weapon', variants: [sfx('equip-weapon-01.mp3')], channel: 'equipment', volume: 0.8, cooldownMs: 120 },
   'equip-armor': { id: 'equip-armor', variants: [sfx('equip-armor-01.mp3')], channel: 'equipment', volume: 0.8, cooldownMs: 120 },
@@ -115,9 +117,11 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'player.criticalHealth': return 'player-criticalhealth';
     case 'player.death': return 'player-death';
     case 'hunger.hungry': return 'hunger-hungry';
+    case 'hunger.nearStarved': return 'hunger-nearstarved';
     case 'hunger.fatigued': return 'hunger-fatigued';
     case 'hunger.starving': return 'hunger-starving';
     case 'hunger.starveTick': return 'hunger-starvetick';
+    case 'survival.dualWarning': return 'survival-dualwarning';
     case 'equipment.equipWeapon': return 'equip-weapon';
     case 'equipment.equipArmor': return 'equip-armor';
     case 'equipment.unequipArmor': return 'equip-unequip';

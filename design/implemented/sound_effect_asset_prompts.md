@@ -160,9 +160,11 @@ influence is `prompt_influence`.
 | File | Event | Dur | Infl | Prompt (before suffix) |
 | --- | --- | --- | --- | --- |
 | `hunger-hungry-01.mp3` | `hunger.hungry` | 0.7 | 0.5 | A soft low stomach growl with a faint warning tone, getting hungry |
+| `hunger-nearstarved-01.mp3` | `hunger.nearStarved` | 0.8 | 0.55 | A dry hollow stomach pang with a faint wavering warning pulse, almost fatigued |
 | `hunger-fatigued-01.mp3` | `hunger.fatigued` | 0.8 | 0.5 | A weary heavier stomach growl and tired exhale, fatigued and weakening |
 | `hunger-starving-01.mp3` | `hunger.starving` | 0.9 | 0.5 | A hollow desperate stomach pang with an ominous low tone, starving |
 | `hunger-starvetick-01.mp3` | `hunger.starveTick` | 0.6 | 0.5 | A short weak pained wince of starvation damage, faint |
+| `survival-dualwarning-01.mp3` | `survival.dualWarning` | 1.0 | 0.58 | An urgent muffled heartbeat under a hollow starvation pang, two danger pulses merging, tense but not shrill |
 
 ### Equipment
 

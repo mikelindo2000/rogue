@@ -54,7 +54,8 @@ describe('manifest integrity', () => {
     const ids = [
       'combat-swing', 'combat-hit', 'player-hit', 'combat-miss', 'death-default', 'death-boss',
       'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death',
-      'hunger-hungry', 'hunger-fatigued', 'hunger-starving', 'hunger-starvetick',
+      'hunger-hungry', 'hunger-nearstarved', 'hunger-fatigued', 'hunger-starving', 'hunger-starvetick',
+      'survival-dualwarning',
       'equip-weapon', 'equip-armor', 'equip-unequip', 'equip-rejected',
       'item-pickup', 'item-gold', 'consume-potion', 'consume-food',
       'stairs-down', 'stairs-up', 'secret-reveal',

@@ -45,12 +45,18 @@ describe('VitalsSoundTracker — hunger thresholds', () => {
     expect(types(t.update({ hp: 30, hunger: 500, ...FULL }))).toEqual([]);
     expect(types(t.update({ hp: 30, hunger: 400, ...FULL }))).toEqual(['hunger.hungry']);
     expect(types(t.update({ hp: 30, hunger: 300, ...FULL }))).toEqual([]); // still hungry band
+    expect(types(t.update({ hp: 30, hunger: 220, ...FULL }))).toEqual(['hunger.nearStarved']);
     expect(types(t.update({ hp: 30, hunger: 150, ...FULL }))).toEqual(['hunger.fatigued']);
   });
 
   it('fatigued suppresses hungry on a shared crossing', () => {
     const t = tracker();
     expect(types(t.update({ hp: 30, hunger: 100, ...FULL }))).toEqual(['hunger.fatigued']);
+  });
+
+  it('near-starved suppresses hungry on a shared crossing before fatigued', () => {
+    const t = tracker();
+    expect(types(t.update({ hp: 30, hunger: 220, ...FULL }))).toEqual(['hunger.nearStarved']);
   });
 
   it('fires starving once, then starveTick while at zero', () => {
@@ -63,9 +69,18 @@ describe('VitalsSoundTracker — hunger thresholds', () => {
 
   it('re-arms hunger cues after eating back above the thresholds', () => {
     const t = tracker();
-    t.update({ hp: 30, hunger: 400, ...FULL }); // hungry
+    t.update({ hp: 30, hunger: 220, ...FULL }); // near starved
     t.update({ hp: 30, hunger: 500, ...FULL }); // recovered (eat) — re-arm
-    expect(types(t.update({ hp: 30, hunger: 400, ...FULL }))).toEqual(['hunger.hungry']);
+    expect(types(t.update({ hp: 30, hunger: 220, ...FULL }))).toEqual(['hunger.nearStarved']);
+  });
+
+  it('does not chatter when hunger wobbles around the near-starved boundary', () => {
+    const t = tracker();
+    expect(types(t.update({ hp: 30, hunger: 239, ...FULL }))).toEqual(['hunger.nearStarved']);
+    expect(types(t.update({ hp: 30, hunger: 240, ...FULL }))).toEqual([]);
+    expect(types(t.update({ hp: 30, hunger: 239, ...FULL }))).toEqual([]);
+    t.update({ hp: 30, hunger: 265, ...FULL }); // threshold + hysteresis buffer
+    expect(types(t.update({ hp: 30, hunger: 239, ...FULL }))).toEqual(['hunger.nearStarved']);
   });
 
   it('reset() re-arms every gate', () => {
@@ -75,5 +90,24 @@ describe('VitalsSoundTracker — hunger thresholds', () => {
     expect(types(t.update({ hp: 14, hunger: 400, ...FULL }))).toEqual(
       expect.arrayContaining(['player.lowHealth', 'hunger.hungry']),
     );
+  });
+});
+
+describe('VitalsSoundTracker — combined survival warning', () => {
+  it('fires the dual warning once when critical HP and near-starved hunger are both active', () => {
+    const t = tracker();
+    expect(types(t.update({ hp: 7, hunger: 220, ...FULL }))).toEqual([
+      'survival.dualWarning',
+      'player.criticalHealth',
+      'hunger.nearStarved',
+    ]);
+    expect(types(t.update({ hp: 6, hunger: 210, ...FULL }))).toEqual([]);
+  });
+
+  it('re-arms the dual warning after either condition recovers', () => {
+    const t = tracker();
+    t.update({ hp: 7, hunger: 220, ...FULL });
+    t.update({ hp: 12, hunger: 220, ...FULL }); // HP above critical recovery boundary
+    expect(types(t.update({ hp: 7, hunger: 210, ...FULL }))).toContain('survival.dualWarning');
   });
 });

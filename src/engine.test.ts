@@ -3,6 +3,7 @@ import { GameEngine } from './engine';
 import { Monster } from './types';
 import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
+import { RecordingSink } from './audio/events';
 
 const makeUi = () => ({
   renderLogs: () => {},
@@ -59,8 +60,8 @@ describe('GameEngine startup logs', () => {
 const makeEmptyMap = (engine: GameEngine) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
 
-const makeRunner = () => {
-  const engine = new GameEngine(makeUi() as any);
+const makeRunner = (sound?: RecordingSink) => {
+  const engine = new GameEngine(makeUi() as any, sound);
   engine.map = makeEmptyMap(engine);
   engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
@@ -198,6 +199,25 @@ describe('GameEngine terminal run summaries', () => {
     expect(engine.finalRunSummary).toBe(summary);
   });
 
+});
+
+describe('GameEngine vital warning sounds', () => {
+  it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
+    const sink = new RecordingSink();
+    const engine = makeRunner(sink);
+    engine.player.maxHp = 30;
+    engine.player.hp = 15;
+    engine.player.hunger = 220;
+    engine.statusEffects.vigorTurns = 2;
+
+    engine.processTurn();
+
+    expect(sink.types()).toEqual(expect.arrayContaining([
+      'survival.dualWarning',
+      'player.criticalHealth',
+      'hunger.nearStarved',
+    ]));
+  });
 });
 
 describe('GameEngine stair travel', () => {

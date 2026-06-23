@@ -22,6 +22,7 @@ export function rarityVar(rarity: string | undefined): string {
 }
 
 export type HungerTone = 'ok' | 'warn' | 'low' | 'crit';
+export type SurvivalWarningTone = 'none' | 'hunger' | 'health' | 'both';
 
 export interface HungerView {
   status: string;
@@ -41,6 +42,48 @@ export function hungerView(
   if (hunger < fatigued) return { status: 'Fatigued', pct, tone: 'low' };
   if (hunger < hungry) return { status: 'Hungry', pct, tone: 'warn' };
   return { status: 'Satiated', pct, tone: 'ok' };
+}
+
+export interface SurvivalWarningInput {
+  hp: number;
+  maxHp: number;
+  hunger: number;
+  hungerFatigued: number;
+}
+
+export interface SurvivalWarningView {
+  tone: SurvivalWarningTone;
+  intensity: number;
+}
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+/** Derive the ambient survival warning state for the app shell. */
+export function survivalWarningView({
+  hp,
+  maxHp,
+  hunger,
+  hungerFatigued,
+}: SurvivalWarningInput): SurvivalWarningView {
+  const hungerStart = hungerFatigued + 50;
+  const hpPct = maxHp > 0 ? hp / maxHp : 1;
+  const healthActive = hp > 0 && hpPct <= 0.25;
+  const hungerActive = hunger < hungerStart;
+
+  if (!healthActive && !hungerActive) return { tone: 'none', intensity: 0 };
+
+  const healthIntensity = healthActive
+    ? 0.45 + clamp01((0.25 - hpPct) / 0.1) * 0.55
+    : 0;
+  const hungerIntensity = hungerActive
+    ? 0.4 + clamp01((hungerStart - hunger) / Math.max(1, hungerStart)) * 0.6
+    : 0;
+
+  if (healthActive && hungerActive) {
+    return { tone: 'both', intensity: Math.min(1, Math.max(healthIntensity, hungerIntensity) + 0.12) };
+  }
+  if (hungerActive) return { tone: 'hunger', intensity: hungerIntensity };
+  return { tone: 'health', intensity: healthIntensity };
 }
 
 /** Flavor name shown in the top bar for each of the 20 floors, descending from

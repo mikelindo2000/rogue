@@ -15,21 +15,23 @@
 </script>
 
 <div class="frame">
-  <TopBar />
-  <div class="body">
-    <aside class="rail rail-left">
-      <CharacterCard />
-      <Vitals />
-      <Equipment />
-      <Consumables />
-    </aside>
-    <CenterStage />
-    <aside class="rail rail-right">
-      <Inventory />
-      <MessageLog />
-    </aside>
+  <div class="shell">
+    <TopBar />
+    <div class="body">
+      <aside class="rail rail-left">
+        <CharacterCard />
+        <Vitals />
+        <Equipment />
+        <Consumables />
+      </aside>
+      <CenterStage />
+      <aside class="rail rail-right">
+        <Inventory />
+        <MessageLog />
+      </aside>
+    </div>
+    <Footer />
   </div>
-  <Footer />
 </div>
 
 <Compendium />
@@ -46,6 +48,12 @@
     background: var(--surface-app);
     color: var(--text-bright);
     overflow: hidden;
+  }
+  .shell {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
   }
   .body {
     flex: 1;

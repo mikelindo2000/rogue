@@ -49,9 +49,9 @@ export function survivalWarningView(input: {
 }): { tone: SurvivalWarningTone; intensity: number };
 ```
 
-Suggested v1 thresholds:
+V1 thresholds:
 
-- `nearStarved`: `hunger > 0 && hunger < hungerFatigued`
+- `nearStarved`: `hunger < hungerFatigued + 50`
 - `starving`: `hunger <= 0`
 - `nearDead`: `maxHp > 0 && hp / maxHp <= 0.25`
 - `criticalHp`: `maxHp > 0 && hp / maxHp <= 0.15`
@@ -95,32 +95,23 @@ state.
 
 ## Visual Direction
 
-Render the warning at the app frame level in `src/ui/App.svelte`, not inside the
-vitals widget. The player should feel the whole dungeon UI breathing a little
-when survival is precarious.
-
-Add classes/data attributes to the root frame:
-
-```svelte
-<div
-  class="frame"
-  data-survival-warning={ui.survivalWarningTone}
-  style:--survival-intensity={ui.survivalWarningIntensity}
->
-```
+Render the warning in `src/ui/components/CenterStage.svelte`, above the dungeon
+canvas/background but below stage prompts, tooltips, modals, rails, focus rings,
+and text. The player should feel the dungeon breathing a little when survival is
+precarious without washing out the controls.
 
 Suggested tones:
 
 - `hunger`: a dry amber/ochre pulse, like torchlight thinning out.
 - `health`: a low red pulse, like a heartbeat under the stone.
-- `both`: a sickly bruised crimson-violet with a faint amber edge. It should be
-  recognizably different from "just low HP."
+- `both`: a sickly bruised crimson-violet with a faint amber edge and a faster
+  pulse. It should be recognizably different from "just low HP."
 
-Suggested implementation:
+Implementation shape:
 
-- Use `::before` on `.frame` as a non-interactive overlay:
-  `pointer-events: none; z-index: 0;`.
-- Put actual app content in stacking context above it.
+- Use a non-interactive `.survival-wash` layer:
+  `pointer-events: none`, stacked above the canvas but below stage controls.
+- Keep it below interactive stage overlays and outside global chrome.
 - Combine:
   - a radial edge vignette,
   - a very low-opacity repeating-linear-gradient texture,
@@ -150,6 +141,16 @@ Example CSS shape:
 The precise alpha values should be tuned in-browser with a live low-HP/low-food
 save state. Start lower than feels necessary; the effect can be fun without
 shouting.
+
+## Synchronized Vitals Pulse
+
+The ambient frame pulse should be reinforced by the existing vitals controls:
+
+- HP segments pulse only for `health` and `both`.
+- The hunger ring pulses only for `hunger` and `both`.
+- `both` uses the faster pulse cadence so the player can identify the overlapping
+  danger without reading the gauges.
+- Reduced motion keeps the emphasis static.
 
 ## Texture
 
@@ -222,21 +223,22 @@ inventory labels, HP/hunger readouts, and map glyphs remain legible.
 
 ## Non-Goals
 
-- No new sound events in v1. Existing health and hunger cues already cover this
-  gameplay need.
 - No engine behavior changes.
 - No death-prevention mechanic, auto-eat, or forced pause.
 - No modal, toast, or banner warning.
 - No large generated background asset unless browser proof shows CSS texture is
   insufficient.
 
-## Open Tuning Questions
+## Audio Scope
 
-- Should low HP warning start at `25%`, or should it match the existing audio
-  tracker's low-health threshold exactly?
-- Should hunger warning begin at `Fatigued`, or should it start slightly before
-  Fatigued so the player gets a pre-warning?
-- Should the `both` tone pulse faster than individual warnings, or only change
-  color/texture?
-- Should the HP segmented bar get a subtle synchronized pulse in `health` and
-  `both`, or should the app-frame atmosphere be the only new effect?
+Existing `player.criticalHealth` and hunger cues remain in place. V1 adds:
+
+- `hunger.nearStarved`, emitted when hunger crosses the visual warning threshold
+  before Fatigued.
+- `survival.dualWarning`, emitted once when critical HP and near-starved hunger
+  overlap, then re-armed after HP recovers above its hysteresis boundary or
+  hunger recovers to `nearStarved + 25`.
+
+Audio assets are produced offline with ElevenLabs, documented in
+`design/implemented/sound_effect_asset_prompts.md`, and resolved through the
+typed manifest. Runtime code never calls the generation API.

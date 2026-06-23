@@ -14,19 +14,25 @@ export interface VitalsSnapshot {
 }
 
 export class VitalsSoundTracker {
+  private static readonly HUNGER_REARM_BUFFER = 25;
+
   private lowArmed = true;
   private critArmed = true;
   private hungryArmed = true;
+  private nearStarvedArmed = true;
   private fatiguedArmed = true;
+  private dualWarningArmed = true;
   private starvingFired = false;
 
   /**
    * @param hungerHungry   BALANCE.player.hungerHungry (raw hunger threshold)
    * @param hungerFatigued BALANCE.player.hungerFatigued (raw, lower than hungry)
+   * @param hungerNearStarved raw hunger threshold for the ambient pre-fatigued warning
    */
   constructor(
     private readonly hungerHungry: number,
     private readonly hungerFatigued: number,
+    private readonly hungerNearStarved = hungerFatigued + 50,
   ) {}
 
   /** Re-arm every gate (call on new game / restart). */
@@ -34,7 +40,9 @@ export class VitalsSoundTracker {
     this.lowArmed = true;
     this.critArmed = true;
     this.hungryArmed = true;
+    this.nearStarvedArmed = true;
     this.fatiguedArmed = true;
+    this.dualWarningArmed = true;
     this.starvingFired = false;
   }
 
@@ -46,6 +54,8 @@ export class VitalsSoundTracker {
   update(v: VitalsSnapshot): SoundEvent[] {
     const out: SoundEvent[] = [];
     const pct = v.maxHp > 0 ? v.hp / v.maxHp : 0;
+    const hpWarningActive = v.hp > 0 && pct <= 0.25;
+    const hungerWarningActive = v.hunger <= 0 || (v.hunger > 0 && v.hunger < this.hungerNearStarved);
 
     // --- HP: critical (<=25%) outranks low (<=50%) on a shared crossing. ---
     // Critical firing also disarms the low gate so it doesn't chirp on the next
@@ -74,6 +84,7 @@ export class VitalsSoundTracker {
       } else {
         out.push({ type: 'hunger.starveTick' });
       }
+      this.nearStarvedArmed = false;
       this.fatiguedArmed = false;
       this.hungryArmed = false;
     } else {
@@ -81,14 +92,28 @@ export class VitalsSoundTracker {
       if (this.fatiguedArmed && v.hunger < this.hungerFatigued) {
         out.push({ type: 'hunger.fatigued' });
         this.fatiguedArmed = false;
+        this.nearStarvedArmed = false;
+        this.hungryArmed = false; // already past hungry
+      } else if (this.nearStarvedArmed && v.hunger < this.hungerNearStarved) {
+        out.push({ type: 'hunger.nearStarved' });
+        this.nearStarvedArmed = false;
         this.hungryArmed = false; // already past hungry
       } else if (this.hungryArmed && v.hunger < this.hungerHungry) {
         out.push({ type: 'hunger.hungry' });
         this.hungryArmed = false;
       }
       // Re-arm once hunger recovers to/above each threshold (e.g. after eating).
+      if (v.hunger >= this.hungerNearStarved + VitalsSoundTracker.HUNGER_REARM_BUFFER) this.nearStarvedArmed = true;
       if (v.hunger >= this.hungerFatigued) this.fatiguedArmed = true;
       if (v.hunger >= this.hungerHungry) this.hungryArmed = true;
+    }
+
+    if (this.dualWarningArmed && hpWarningActive && hungerWarningActive) {
+      out.unshift({ type: 'survival.dualWarning' });
+      this.dualWarningArmed = false;
+    }
+    if (pct > 0.35 || v.hunger >= this.hungerNearStarved + VitalsSoundTracker.HUNGER_REARM_BUFFER) {
+      this.dualWarningArmed = true;
     }
 
     return out;

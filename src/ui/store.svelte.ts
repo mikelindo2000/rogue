@@ -7,7 +7,7 @@
 
 import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
-import type { HungerTone } from './format';
+import type { HungerTone, SurvivalWarningTone } from './format';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 import type { RunSummaryV1 } from '../runStats';
@@ -142,6 +142,8 @@ export interface UIState {
   hungerStatus: string;
   hungerPct: number;
   hungerTone: HungerTone;
+  survivalWarningTone: SurvivalWarningTone;
+  survivalWarningIntensity: number;
   // consumables
   food: number;
   foodMax: number;
@@ -211,6 +213,8 @@ export const ui = $state<UIState>({
   hungerStatus: 'Satiated',
   hungerPct: 100,
   hungerTone: 'ok',
+  survivalWarningTone: 'none',
+  survivalWarningIntensity: 0,
   food: 0,
   foodMax: 4,
   equipment: [],

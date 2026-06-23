@@ -24,9 +24,11 @@ export type SoundEvent =
   | { type: 'player.death' }
   // hunger / survival
   | { type: 'hunger.hungry' }
+  | { type: 'hunger.nearStarved' }
   | { type: 'hunger.fatigued' }
   | { type: 'hunger.starving' }
   | { type: 'hunger.starveTick' }
+  | { type: 'survival.dualWarning' }
   // equipment
   | { type: 'equipment.equipWeapon' }
   | { type: 'equipment.equipArmor' }

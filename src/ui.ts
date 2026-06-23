@@ -9,7 +9,7 @@ import {
   type InventoryCell,
   type LogLineView,
 } from './ui/store.svelte';
-import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
+import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from './ui/format';
 import { buildEquipmentView } from './ui/equipmentView';
 import {
   buildInventoryComparisons,
@@ -1115,6 +1115,14 @@ export class GameUI {
     ui.hungerStatus = hv.status;
     ui.hungerPct = hv.pct;
     ui.hungerTone = hv.tone;
+    const survival = survivalWarningView({
+      hp: ui.hp,
+      maxHp: ui.maxHp,
+      hunger: player.hunger,
+      hungerFatigued,
+    });
+    ui.survivalWarningTone = survival.tone;
+    ui.survivalWarningIntensity = survival.intensity;
 
     ui.food = player.inventory.food;
     ui.foodMax = cfg.playerMaxFood;

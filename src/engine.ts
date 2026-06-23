@@ -2035,7 +2035,7 @@ export class GameEngine {
   private emitVitalSounds() {
     const events = this.vitals.update({
       hp: this.player.hp,
-      maxHp: this.player.maxHp,
+      maxHp: this.vigorMaxHp(),
       hunger: this.player.hunger,
     });
     events.forEach(e => this.sound.emit(e));

@@ -14,6 +14,9 @@
   };
 
   const hungerColor = $derived(HUNGER_COLOR[ui.hungerTone]);
+  const hpWarning = $derived(ui.survivalWarningTone === 'health' || ui.survivalWarningTone === 'both');
+  const hungerWarning = $derived(ui.survivalWarningTone === 'hunger' || ui.survivalWarningTone === 'both');
+  const dualWarning = $derived(ui.survivalWarningTone === 'both');
 </script>
 
 <div class="vitals">
@@ -25,7 +28,7 @@
         >
       {/snippet}
     </SectionLabel>
-    <SegmentedBar value={ui.hp} max={ui.maxHp} />
+    <SegmentedBar value={ui.hp} max={ui.maxHp} warning={hpWarning} />
   </div>
 
   <div class="row">
@@ -40,7 +43,7 @@
         {#if ui.atMaxLevel}MAX LEVEL{:else}{ui.xp} / {ui.xpReq}{/if}
       </div>
     </div>
-    <ProgressRing pct={ui.hungerPct} label={ui.hungerStatus} color={hungerColor} />
+    <ProgressRing pct={ui.hungerPct} label={ui.hungerStatus} color={hungerColor} warning={hungerWarning} urgent={dualWarning} />
   </div>
 </div>
 
