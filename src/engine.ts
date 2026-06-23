@@ -54,7 +54,6 @@ export class GameEngine {
   public readonly COLS = 46;
   public readonly ROWS = 29;
   public readonly TILE_SIZE = 20;
-  public readonly VISION_RADIUS = 6;
 
   /** Seed and RNG for the current run; reproducible when seeded explicitly. */
   public seed: number = 0;
@@ -180,7 +179,7 @@ export class GameEngine {
       let cx = this.player.x + 0.5;
       let cy = this.player.y + 0.5;
 
-      for (let d = 0; d < this.VISION_RADIUS; d++) {
+      for (let d = 0; d < BALANCE.fov.radius; d++) {
         cx += dx;
         cy += dy;
         const mapX = Math.floor(cx);

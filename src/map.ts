@@ -283,6 +283,13 @@ function roomForEncounter(encounter: EncounterDefinition, endRoom: Room): Room {
     case 'endRoom':
     case 'finalRoom':
       return endRoom;
+    default: {
+      // Exhaustiveness guard: a new placement value must declare where it spawns
+      // here. Without this, an unhandled case fell through to `undefined` and
+      // crashed later in spawnEncounter's `encounterSpawnTiles(room)` deref.
+      const _exhaustive: never = encounter.placement;
+      throw new Error(`Unhandled encounter placement: ${String(_exhaustive)}`);
+    }
   }
 }
 

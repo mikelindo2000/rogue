@@ -68,6 +68,11 @@ export const BALANCE = {
   fov: {
     rays: 72,
     angleStepDeg: 5,
+    // How far the player sees in a normal (lit) room or corridor, in tiles.
+    radius: 6,
+    // Sight radius inside an unlit (dark) room: only the immediate 3x3 block
+    // around the player. See design/VISIBILITY_AND_FOV.md.
+    darkRadius: 1,
   },
   player: {
     regenInterval: 15, // turns between +1 HP regen
