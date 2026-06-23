@@ -15,6 +15,14 @@ import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
+import {
+  drawAvatar,
+  DEFAULT_PLAYER_SPRITE,
+  PLAYER_ARMOR,
+  PLAYER_ACCENT,
+  type PlayerSprite,
+  type PlayerPalette,
+} from './render/avatar';
 import { snapshotDiscovery, type DiscoveryState } from './discovery';
 import { enrichMonsterMentionsHtml, escapeHtml } from './ui/monsterMention';
 
@@ -99,41 +107,14 @@ interface Scene {
   gameWon: boolean;
 }
 
-/** Selectable visual styles for the player avatar. */
-export type PlayerSprite = 'rogue' | 'knight' | 'adventurer' | 'mage';
-
-export interface PlayerSpriteOption {
-  id: PlayerSprite;
-  name: string;
-  blurb: string;
-}
-
-/** Ordered catalog of avatars. A character-select UI will enumerate this; for
- *  now the choice is made in code via GameUI.setPlayerSprite(). */
-export const PLAYER_SPRITE_OPTIONS: PlayerSpriteOption[] = [
-  { id: 'rogue', name: 'Rogue', blurb: 'Hooded cloak with glowing eyes.' },
-  { id: 'knight', name: 'Knight', blurb: 'Plumed helm and a drawn sword.' },
-  { id: 'adventurer', name: 'Adventurer', blurb: 'A plucky everyman hero.' },
-  { id: 'mage', name: 'Mage', blurb: 'Pointed hat and a glowing staff.' },
-];
-
-export const DEFAULT_PLAYER_SPRITE: PlayerSprite = 'knight';
-
-/** Avatar colors for a living player. Fixed (not floor-themed) so the hero
- *  stays a high-contrast blue against the green floor dots on every floor;
- *  death/victory still recolor to the floor's red/green for state feedback. */
-const PLAYER_ARMOR = '#3f8cff';
-const PLAYER_ACCENT = '#ffd34d';
-
-/** Working colors a player sprite draws with, resolved per floor and run state. */
-interface PlayerPalette {
-  armor: string;
-  armorDark: string;
-  armorLight: string;
-  accent: string;
-  dark: string;
-  skin: string;
-}
+// Player-avatar rendering now lives in src/render/avatar.ts so the cinematic
+// stage can draw the same hero. Re-exported here to keep the public surface.
+export {
+  PLAYER_SPRITE_OPTIONS,
+  DEFAULT_PLAYER_SPRITE,
+  type PlayerSprite,
+  type PlayerSpriteOption,
+} from './render/avatar';
 
 export class GameUI {
   private canvas: HTMLCanvasElement;
@@ -618,6 +599,7 @@ export class GameUI {
    *  character-select UI; the current selection persists for the session. */
   public setPlayerSprite(sprite: PlayerSprite) {
     this.playerSprite = sprite;
+    ui.playerSprite = sprite; // keep the cinematic's hero in sync
     this.paint();
   }
 
@@ -951,25 +933,7 @@ export class GameUI {
   ) {
     const m = this.tileMetrics(gx, gy, tileSize);
     const pal = this.playerPalette(style, gameOver, gameWon, flash);
-
-    this.ctx.save();
-    this.ctx.translate(m.cx + dx, m.cy + dy);
-    switch (this.playerSprite) {
-      case 'rogue':
-        this.drawRogue(tileSize, pal);
-        break;
-      case 'adventurer':
-        this.drawAdventurer(tileSize, pal);
-        break;
-      case 'mage':
-        this.drawMage(tileSize, pal);
-        break;
-      case 'knight':
-      default:
-        this.drawKnight(tileSize, pal);
-        break;
-    }
-    this.ctx.restore();
+    drawAvatar(this.ctx, this.playerSprite, m.cx + dx, m.cy + dy, tileSize, pal);
   }
 
   /** Resolve the avatar's working colors from the floor palette and run state.
@@ -998,185 +962,6 @@ export class GameUI {
       dark,
       skin,
     };
-  }
-
-  /** Hooded cloak silhouette with glowing eyes in the shadow. */
-  private drawRogue(T: number, pal: PlayerPalette) {
-    const ctx = this.ctx;
-    ctx.fillStyle = pal.armorDark;
-    ctx.beginPath();
-    ctx.moveTo(0, -0.47 * T);
-    ctx.bezierCurveTo(0.30 * T, -0.40 * T, 0.31 * T, -0.12 * T, 0.25 * T, 0.08 * T);
-    ctx.lineTo(0.35 * T, 0.47 * T);
-    ctx.lineTo(-0.35 * T, 0.47 * T);
-    ctx.lineTo(-0.25 * T, 0.08 * T);
-    ctx.bezierCurveTo(-0.31 * T, -0.12 * T, -0.30 * T, -0.40 * T, 0, -0.47 * T);
-    ctx.closePath();
-    ctx.fill();
-
-    // Inner robe panel
-    ctx.fillStyle = pal.armor;
-    ctx.beginPath();
-    ctx.moveTo(0, -0.16 * T);
-    ctx.lineTo(0.13 * T, 0.46 * T);
-    ctx.lineTo(-0.13 * T, 0.46 * T);
-    ctx.closePath();
-    ctx.fill();
-
-    // Face shadow + glowing eyes
-    ctx.fillStyle = pal.dark;
-    ctx.beginPath();
-    ctx.ellipse(0.03 * T, -0.20 * T, 0.14 * T, 0.17 * T, 0, 0, Math.PI * 2);
-    ctx.fill();
-    this.disc(-0.04 * T, -0.21 * T, Math.max(0.7, 0.035 * T), pal.accent);
-    this.disc(0.10 * T, -0.21 * T, Math.max(0.7, 0.035 * T), pal.accent);
-
-    // Belt
-    this.roundFill(-0.13 * T, 0.04 * T, 0.26 * T, 0.04 * T, 0.02 * T, pal.accent);
-  }
-
-  /** Plumed helm with a visor slit, pauldrons, and a drawn sword. */
-  private drawKnight(T: number, pal: PlayerPalette) {
-    const ctx = this.ctx;
-
-    // Plume crest atop the helm
-    ctx.fillStyle = pal.accent;
-    ctx.beginPath();
-    ctx.moveTo(-0.02 * T, -0.40 * T);
-    ctx.quadraticCurveTo(0.22 * T, -0.52 * T, 0.15 * T, -0.30 * T);
-    ctx.quadraticCurveTo(0.05 * T, -0.34 * T, -0.02 * T, -0.40 * T);
-    ctx.fill();
-
-    // Breastplate (tapered)
-    ctx.fillStyle = pal.armor;
-    ctx.beginPath();
-    ctx.moveTo(-0.22 * T, -0.02 * T);
-    ctx.lineTo(0.22 * T, -0.02 * T);
-    ctx.lineTo(0.17 * T, 0.40 * T);
-    ctx.lineTo(-0.17 * T, 0.40 * T);
-    ctx.closePath();
-    ctx.fill();
-
-    // Pauldrons + helm
-    this.disc(-0.23 * T, 0.02 * T, 0.12 * T, pal.armor);
-    this.disc(0.23 * T, 0.02 * T, 0.12 * T, pal.armor);
-    this.disc(0, -0.18 * T, 0.20 * T, pal.armor);
-
-    // Visor: horizontal slot with a vertical breathing slit
-    ctx.fillStyle = pal.dark;
-    ctx.fillRect(-0.15 * T, -0.21 * T, 0.30 * T, Math.max(2, 0.06 * T));
-    ctx.fillRect(-0.045 * T, -0.30 * T, Math.max(2, 0.09 * T), 0.19 * T);
-
-    // Eye glints inside the visor
-    ctx.fillStyle = pal.accent;
-    const g = Math.max(1, Math.round(0.05 * T));
-    ctx.fillRect(-0.10 * T, -0.20 * T, g, g);
-    ctx.fillRect(0.06 * T, -0.20 * T, g, g);
-
-    // Sword held at the side
-    ctx.strokeStyle = pal.accent;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(2, 0.06 * T);
-    ctx.beginPath();
-    ctx.moveTo(0.33 * T, 0.36 * T);
-    ctx.lineTo(0.33 * T, -0.34 * T);
-    ctx.stroke();
-    ctx.lineWidth = Math.max(1.5, 0.045 * T);
-    ctx.beginPath();
-    ctx.moveTo(0.24 * T, 0.13 * T);
-    ctx.lineTo(0.42 * T, 0.13 * T);
-    ctx.stroke();
-  }
-
-  /** A plucky everyman hero — round head, hair, torso, arms, legs. */
-  private drawAdventurer(T: number, pal: PlayerPalette) {
-    const ctx = this.ctx;
-    // Legs
-    this.roundFill(-0.15 * T, 0.24 * T, 0.11 * T, 0.24 * T, 0.04 * T, pal.armorDark);
-    this.roundFill(0.05 * T, 0.24 * T, 0.11 * T, 0.24 * T, 0.04 * T, pal.armorDark);
-    // Torso
-    this.roundFill(-0.17 * T, -0.04 * T, 0.34 * T, 0.34 * T, 0.07 * T, pal.armor);
-    // Arms
-    this.roundFill(-0.26 * T, 0.0 * T, 0.10 * T, 0.26 * T, 0.05 * T, pal.armorLight);
-    this.roundFill(0.16 * T, -0.07 * T, 0.10 * T, 0.25 * T, 0.05 * T, pal.armorLight);
-    // Head
-    this.disc(0, -0.22 * T, 0.155 * T, pal.skin);
-    // Hair
-    ctx.fillStyle = pal.armorDark;
-    ctx.beginPath();
-    ctx.arc(0, -0.24 * T, 0.16 * T, Math.PI * 1.05, Math.PI * 2.0);
-    ctx.fill();
-    // Eyes
-    this.disc(-0.05 * T, -0.21 * T, Math.max(0.6, 0.022 * T), pal.dark);
-    this.disc(0.05 * T, -0.21 * T, Math.max(0.6, 0.022 * T), pal.dark);
-  }
-
-  /** Pointed hat, robe, and a glowing staff. */
-  private drawMage(T: number, pal: PlayerPalette) {
-    const ctx = this.ctx;
-    // Robe
-    ctx.fillStyle = pal.armor;
-    ctx.beginPath();
-    ctx.moveTo(0, -0.04 * T);
-    ctx.lineTo(0.31 * T, 0.46 * T);
-    ctx.lineTo(-0.31 * T, 0.46 * T);
-    ctx.closePath();
-    ctx.fill();
-    // Robe highlight
-    ctx.fillStyle = pal.armorLight;
-    ctx.beginPath();
-    ctx.moveTo(0, 0.06 * T);
-    ctx.lineTo(0.10 * T, 0.46 * T);
-    ctx.lineTo(-0.10 * T, 0.46 * T);
-    ctx.closePath();
-    ctx.fill();
-    // Face
-    this.disc(0, -0.11 * T, 0.135 * T, pal.skin);
-    // Hat brim
-    ctx.fillStyle = pal.armorDark;
-    ctx.beginPath();
-    ctx.ellipse(0, -0.17 * T, 0.27 * T, 0.06 * T, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Hat cone (with a bent tip)
-    ctx.beginPath();
-    ctx.moveTo(-0.20 * T, -0.18 * T);
-    ctx.lineTo(0.20 * T, -0.18 * T);
-    ctx.quadraticCurveTo(0.12 * T, -0.42 * T, 0.05 * T, -0.56 * T);
-    ctx.quadraticCurveTo(-0.04 * T, -0.34 * T, -0.20 * T, -0.18 * T);
-    ctx.closePath();
-    ctx.fill();
-    // Hat band
-    this.roundFill(-0.17 * T, -0.22 * T, 0.34 * T, 0.05 * T, 0.02 * T, pal.accent);
-    // Staff
-    ctx.strokeStyle = pal.armorDark;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(2, 0.05 * T);
-    ctx.beginPath();
-    ctx.moveTo(0.30 * T, 0.47 * T);
-    ctx.lineTo(0.30 * T, -0.28 * T);
-    ctx.stroke();
-    // Glowing orb
-    this.disc(0.30 * T, -0.33 * T, Math.max(1.5, 0.07 * T), pal.accent);
-  }
-
-  private disc(x: number, y: number, r: number, color: string) {
-    this.ctx.fillStyle = color;
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, r, 0, Math.PI * 2);
-    this.ctx.fill();
-  }
-
-  private roundFill(x: number, y: number, w: number, h: number, r: number, color: string) {
-    const c = this.ctx;
-    c.fillStyle = color;
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
-    c.fill();
   }
 
   private drawGlyph(

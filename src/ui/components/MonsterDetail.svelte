@@ -41,7 +41,7 @@
         <!-- Remount the stage when the monster changes so a future prev/next
              detail-view navigation animates the right creature. -->
         {#key monster}
-          <MonsterStage {monster} heroGlyph={ui.glyph} />
+          <MonsterStage {monster} heroSprite={ui.playerSprite} />
         {/key}
 
         <div class="meta">

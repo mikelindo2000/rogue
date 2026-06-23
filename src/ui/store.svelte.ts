@@ -9,6 +9,7 @@ import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
 import type { HungerTone } from './format';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
+import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 
 /** One selectable option in an equipment slot's picker. */
 export interface EquipOption {
@@ -84,6 +85,8 @@ export interface UIState {
   charName: string;
   charClass: string;
   glyph: string;
+  /** Current player avatar — drives the bestiary cinematic's hero. */
+  playerSprite: PlayerSprite;
   level: number;
   // vitals
   hp: number;
@@ -131,6 +134,7 @@ export const ui = $state<UIState>({
   charName: 'The Wretch',
   charClass: 'Rogue',
   glyph: '@',
+  playerSprite: DEFAULT_PLAYER_SPRITE,
   level: 1,
   hp: 0,
   maxHp: 0,

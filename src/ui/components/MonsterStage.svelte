@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import type { MonsterTemplate } from '../../types';
   import { MonsterStage } from '../../render/stage';
+  import { resolveBehavior } from '../../ai/archetypes';
+  import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../../render/avatar';
   import { monsterArtUrl } from '../monsterArt';
 
   let {
     monster,
-    heroGlyph = '@',
+    heroSprite = DEFAULT_PLAYER_SPRITE,
   }: {
     monster: MonsterTemplate;
-    heroGlyph?: string;
+    heroSprite?: PlayerSprite;
   } = $props();
 
   let canvas: HTMLCanvasElement;
@@ -17,13 +19,18 @@
   const artUrl = $derived(monsterArtUrl(monster));
 
   onMount(() => {
-    stage = new MonsterStage(canvas, {
-      symbol: monster.symbol,
-      color: monster.color,
-      boss: monster.special === 'boss',
-    }, {
-      glyph: heroGlyph,
-    });
+    // Drive the cinematic from the monster's actual behavior profile.
+    const b = resolveBehavior(monster);
+    stage = new MonsterStage(
+      canvas,
+      { symbol: monster.symbol, color: monster.color, boss: monster.special === 'boss' },
+      { sprite: heroSprite },
+      {
+        attackKind: (b.attacks[0]?.windupTurns ?? 0) > 0 ? 'telegraph' : 'melee',
+        hasEvasion: (b.defense.dodgeChance ?? 0) > 0,
+        erratic: b.movement.style === 'erratic',
+      },
+    );
     stage.start();
     return () => {
       stage?.stop();
@@ -32,7 +39,7 @@
   });
 
   $effect(() => {
-    stage?.setHero({ glyph: heroGlyph });
+    stage?.setHero({ sprite: heroSprite });
   });
 </script>
 
@@ -43,7 +50,7 @@
     aria-hidden="true"
   ></div>
   <canvas bind:this={canvas} aria-hidden="true"></canvas>
-  <span class="caption">Sparring preview</span>
+  <span class="caption">Combat preview</span>
 </div>
 
 <style>
