@@ -4,6 +4,9 @@
   import Icon from './primitives/Icon.svelte';
 
   const firstPotion = $derived(ui.potions[0]);
+  const scrollCells = $derived(ui.inventoryItems.filter((c) => c.ref.kind === 'scroll'));
+  const scrollCount = $derived(scrollCells.reduce((n, c) => n + (c.count ?? 1), 0));
+  const firstScrollIcon = $derived(scrollCells[0]?.icon ?? 'book');
   let runMode = $state(false);
 
   function directional(dx: number, dy: number) {
@@ -87,7 +90,10 @@
           <Icon name="leaf" size={16} />
           <span class="count tnum">{ui.food}</span>
         </button>
-        <button class="quick" onclick={() => actions.readScroll()}>Read</button>
+        <button class="quick icon" aria-label="Read scroll" disabled={scrollCount === 0} onclick={() => actions.readScroll()}>
+          <Icon name={firstScrollIcon} size={16} />
+          <span class="count tnum">{scrollCount}</span>
+        </button>
         <button class="quick" onclick={() => actions.drawFirstWand()}>Zap</button>
       {/if}
     </div>

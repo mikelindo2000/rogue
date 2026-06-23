@@ -7,7 +7,7 @@
  * design/implemented/sound_effect_asset_prompts.md for the asset catalogue.
  */
 
-import type { WandType } from '../types';
+import type { ScrollType, WandType } from '../types';
 
 export type SoundEvent =
   // combat
@@ -34,7 +34,9 @@ export type SoundEvent =
   | { type: 'equipment.rejected' }
   // items
   | { type: 'item.pickup'; kind: 'gold' | 'food' | 'potion' | 'scroll' | 'gear' | 'wand' }
-  | { type: 'item.consume'; kind: 'food' | 'potion' | 'scroll' }
+  // `scrollType` lets the manifest resolve a per-effect read cue (falls back to
+  // the generic scroll-consume clip when no per-type asset exists yet).
+  | { type: 'item.consume'; kind: 'food' | 'potion' | 'scroll'; scrollType?: ScrollType }
   // a wand is zapped; wandType lets the manifest resolve a per-effect cue.
   | { type: 'item.zap'; wandType: WandType }
   // map / navigation

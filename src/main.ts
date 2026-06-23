@@ -164,7 +164,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!overlayOpen()) engine.search();
   };
   actions.readScroll = () => {
-    if (!overlayOpen()) engine.readScroll();
+    if (overlayOpen()) return;
+    // No scrolls: let the engine log the "nothing to read" message.
+    if (engine.player.inventory.scrolls.length === 0) {
+      engine.readScroll();
+      return;
+    }
+    // Otherwise open the scroll-focused chooser (inventory modal, first scroll
+    // pre-selected) rather than blindly reading the first scroll — so a misread
+    // never fires a harmful scroll. The modal's Read action does the deliberate
+    // read via readScrollRef.
+    const firstScroll = ui.inventoryItems.find(c => c.ref.kind === 'scroll');
+    actions.setInventoryOpen(true);
+    if (firstScroll) ui.selectedInventoryRef = firstScroll.ref;
   };
   actions.drawFirstWand = () => {
     if (overlayOpen()) return;
@@ -331,11 +343,11 @@ document.addEventListener('DOMContentLoaded', () => {
     context: 'game',
     callback: () => {
       // Context-gated: restart only matters once the run is over, so during
-      // active play 'r' reads a carried scroll (the Rogue "read" verb).
+      // active play 'r' opens the scroll chooser (the Rogue "read" verb).
       if (engine.gameOver || engine.gameWon) {
         actions.restart();
-      } else if (!overlayOpen()) {
-        engine.readScroll();
+      } else {
+        actions.readScroll();
       }
     },
   });

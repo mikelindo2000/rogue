@@ -130,6 +130,10 @@
     } else if (event.key.toLowerCase() === 'e') {
       event.preventDefault();
       runEquipAction();
+    } else if (event.key.toLowerCase() === 'r' && selected?.ref.kind === 'scroll') {
+      // Rogue "read" verb, scoped to the modal: read the selected scroll.
+      event.preventDefault();
+      runDefaultAction();
     }
   }
 

@@ -1088,7 +1088,7 @@ export class GameEngine {
 
     scrolls.splice(index, 1);
     recordScrollTriggered(this.stats, `read:${type}`);
-    this.sound.emit({ type: 'item.consume', kind: 'scroll' });
+    this.sound.emit({ type: 'item.consume', kind: 'scroll', scrollType: type });
     this.ui.updateDropdowns(this.player);
     this.processTurn();
   }

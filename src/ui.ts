@@ -23,6 +23,7 @@ import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl, wandArtUrl } from '
 import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
 import { wandDetail, wandLabel, wandTooltipStats } from './ui/wandView';
 import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
+import { SCROLLS, scrollDisplayName } from './scrolls';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
 import {
   drawAvatar,
@@ -1186,15 +1187,16 @@ export class GameUI {
     for (const [type, n] of scrollCounts) {
       const ref: InventoryRef = { kind: 'scroll', scrollType: type };
       const visual = scrollVisual(type);
+      const def = SCROLLS[type];
+      const name = scrollDisplayName(type);
       cells.push({
         icon: visual.icon,
         artUrl: scrollArtUrl(type),
         rarityColor: visual.uiColor,
         count: n > 1 ? n : undefined,
-        label: n > 1 ? `Scroll of ${titleCase(type)} ×${n}` : `Scroll of ${titleCase(type)}`,
-        detail: type === 'light'
-          ? 'Reading it floods your current dark room with permanent light.'
-          : 'A mysterious scroll.',
+        label: n > 1 ? `${name} ×${n}` : name,
+        detail: def.detail,
+        statLabel: def.harmful ? 'Risky' : undefined,
         ref,
         actions: this.inventoryActions(player, ref),
       });
