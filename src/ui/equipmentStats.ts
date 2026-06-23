@@ -22,6 +22,11 @@ export function gearStatText(item: GearItem | undefined, kind: EquipmentStatKind
   return max > def ? `DEF ${def}/${max}` : `DEF ${def}`;
 }
 
+export function shortGearStatText(item: GearItem | undefined, kind: EquipmentStatKind): string {
+  if (!item || item.name === 'None') return kind === 'attack' ? 'ATK 0' : 'DEF 0';
+  return kind === 'attack' ? `ATK ${item.dmg ?? 0}` : `DEF ${item.def ?? 0}`;
+}
+
 export function availableEquipCount(
   options: EquipCountOption[],
   emptyValues: readonly string[] = []

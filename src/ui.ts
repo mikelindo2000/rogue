@@ -11,6 +11,12 @@ import {
 } from './ui/store.svelte';
 import { rarityVar, hungerView, floorName, titleCase } from './ui/format';
 import { buildEquipmentView } from './ui/equipmentView';
+import {
+  buildInventoryComparisons,
+  gearTooltipStats,
+  shortGearStatText,
+  weaponTypeLabel,
+} from './ui/inventoryStats';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl } from './ui/inventoryArt';
 import { drawGlyphAt, type GlyphOpts } from './render/glyph';
@@ -1132,8 +1138,11 @@ export class GameUI {
           icon: 'sword',
           artUrl: gearArtUrl(w),
           rarityColor: rarityVar(w.rarity),
-          label: `${w.name} (+${w.dmg ?? 0})`,
-          detail: `${this.weaponTypeLabel(w.type)} weapon. ${w.dmg ?? 0} damage.`,
+          label: w.name,
+          detail: `${weaponTypeLabel(w.type)} weapon. ${w.dmg ?? 0} damage.`,
+          statLabel: shortGearStatText(w, 'attack'),
+          tooltipStats: gearTooltipStats(w, 'attack'),
+          comparisons: buildInventoryComparisons(player, ref, w),
           ref,
           actions: this.inventoryActions(player, ref),
         });
@@ -1148,8 +1157,14 @@ export class GameUI {
             icon: SLOT_ICON[slot],
             artUrl: gearArtUrl(a),
             rarityColor: rarityVar(a.rarity),
-            label: `${a.name} (${a.def}/${a.maxDef})`,
+            label: a.name,
             detail: `${titleCase(slot)} armor. ${a.def ?? 0}/${a.maxDef ?? a.def ?? 0} defense.`,
+            statLabel: shortGearStatText(a, 'defense'),
+            tooltipStats: [
+              { label: 'Slot', value: titleCase(slot) },
+              ...gearTooltipStats(a, 'defense'),
+            ],
+            comparisons: buildInventoryComparisons(player, ref, a),
             ref,
             actions: this.inventoryActions(player, ref),
           });
@@ -1164,8 +1179,14 @@ export class GameUI {
           icon: 'shield-dome',
           artUrl: gearArtUrl(s),
           rarityColor: rarityVar(s.rarity),
-          label: `${s.name} (${s.def}/${s.maxDef})`,
+          label: s.name,
           detail: `Off-hand shield. ${s.def ?? 0}/${s.maxDef ?? s.def ?? 0} defense.`,
+          statLabel: shortGearStatText(s, 'defense'),
+          tooltipStats: [
+            { label: 'Slot', value: 'Off-hand' },
+            ...gearTooltipStats(s, 'defense'),
+          ],
+          comparisons: buildInventoryComparisons(player, ref, s),
           ref,
           actions: this.inventoryActions(player, ref),
         });
@@ -1228,11 +1249,6 @@ export class GameUI {
     if (type === 'invisibility') return `Makes monsters lose track of you for ${BALANCE.status.invisTurns} turns.`;
     if (type === 'armor') return `Adds ${BALANCE.status.armorDefBonus} defense for ${BALANCE.status.armorTurns} turns.`;
     return 'A mysterious potion.';
-  }
-
-  private weaponTypeLabel(type?: string): string {
-    if (!type) return 'Unknown';
-    return titleCase(type.replace(/^1h_/, 'one-handed ').replace(/^2h_/, 'two-handed ').replace(/_/g, ' '));
   }
 
   /** Clear the accumulated UI log history and gutter numbering. Called by the

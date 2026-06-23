@@ -1,31 +1,97 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { InventoryCell } from '../store.svelte';
   import Icon from './primitives/Icon.svelte';
+  import InventoryTooltip from './InventoryTooltip.svelte';
 
   let { cell, onSelect }: { cell?: InventoryCell; onSelect?: (cell: InventoryCell) => void } = $props();
+
+  let showTooltip = $state(false);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const tooltipId = $derived(cell ? `inventory-tooltip-${refKey(cell)}` : undefined);
+
+  function refKey(cell: InventoryCell): string {
+    const ref = cell.ref;
+    if (ref.kind === 'food') return 'food';
+    if (ref.kind === 'potion') return `potion-${ref.potionType}`;
+    if (ref.kind === 'weapon') return `weapon-${ref.index}`;
+    if (ref.kind === 'shield') return `shield-${ref.index}`;
+    return `armor-${ref.slot}-${ref.index}`;
+  }
+
+  function hasTooltip() {
+    return !!cell?.tooltipStats?.length;
+  }
+
+  function clearTimer() {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  }
+
+  function showDelayed() {
+    if (!hasTooltip()) return;
+    clearTimer();
+    timer = setTimeout(() => {
+      showTooltip = true;
+      timer = null;
+    }, 500);
+  }
+
+  function hideTooltip() {
+    clearTimer();
+    showTooltip = false;
+  }
+
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') hideTooltip();
+  }
+
+  onDestroy(clearTimer);
 </script>
 
 {#if cell}
-  <button
-    class="slot filled"
-    aria-label={cell.label}
-    style="--rarity:{cell.rarityColor}"
-    onclick={() => onSelect?.(cell)}
-  >
-    <span class="icon" style="color:{cell.rarityColor}">
-      <Icon name={cell.icon} size={20} />
-    </span>
-    {#if cell.count}
-      <span class="count">{cell.count}</span>
+  <div class="slot-wrap">
+    <button
+      class="slot filled"
+      aria-label={cell.statLabel ? `${cell.label}, ${cell.statLabel}` : cell.label}
+      aria-describedby={showTooltip && tooltipId ? tooltipId : undefined}
+      style="--rarity:{cell.rarityColor}"
+      onclick={() => onSelect?.(cell)}
+      onpointerenter={showDelayed}
+      onpointerleave={hideTooltip}
+      onfocus={showDelayed}
+      onblur={hideTooltip}
+      onkeydown={onKeydown}
+    >
+      <span class="icon" style="color:{cell.rarityColor}">
+        <Icon name={cell.icon} size={20} />
+      </span>
+      {#if cell.statLabel}
+        <span class="stat tnum">{cell.statLabel}</span>
+      {/if}
+      {#if cell.count}
+        <span class="count">{cell.count}</span>
+      {/if}
+    </button>
+    {#if showTooltip && tooltipId}
+      <InventoryTooltip {cell} id={tooltipId} />
     {/if}
-  </button>
+  </div>
 {:else}
   <div class="slot empty" aria-hidden="true"></div>
 {/if}
 
 <style>
+  .slot-wrap {
+    position: relative;
+    aspect-ratio: 1;
+  }
+
   .slot {
     aspect-ratio: 1;
+    width: 100%;
+    height: 100%;
     border-radius: var(--r-lg);
     display: flex;
     align-items: center;
@@ -40,15 +106,35 @@
     padding: 0;
     transition: border-color var(--dur-fast) var(--ease);
   }
-  .filled:hover {
+  .filled:hover,
+  .filled:focus-visible {
     border-color: color-mix(in srgb, var(--rarity) 65%, var(--border-slot));
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--surface-page),
+      0 0 0 4px var(--focus-ring),
+      inset 0 0 14px color-mix(in srgb, var(--rarity) 10%, transparent);
   }
   .empty {
+    aspect-ratio: 1;
     background: var(--surface-page);
     border: 1px dashed var(--border-dashed);
   }
   .icon {
     display: flex;
+  }
+  .stat {
+    position: absolute;
+    left: 4px;
+    bottom: 3px;
+    max-width: calc(100% - 8px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 750 8.5px var(--font-display);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-label);
+    text-shadow: 0 1px 2px var(--surface-page);
   }
   .count {
     position: absolute;

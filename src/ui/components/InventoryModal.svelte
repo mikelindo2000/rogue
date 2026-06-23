@@ -5,6 +5,7 @@
   import Modal from './primitives/Modal.svelte';
   import Icon from './primitives/Icon.svelte';
   import RarityDot from './primitives/RarityDot.svelte';
+  import InventoryComparePanel from './InventoryComparePanel.svelte';
 
   let listEl = $state<HTMLElement | null>(null);
   let bodyEl = $state<HTMLElement | null>(null);
@@ -165,6 +166,7 @@
               <span class="name" style:color={cell.rarityColor}>{cell.label}</span>
               <span class="detail">{cell.detail}</span>
             </span>
+            {#if cell.statLabel}<span class="row-stat tnum">{cell.statLabel}</span>{/if}
             <RarityDot color={cell.rarityColor} glow />
           </button>
         {/each}
@@ -178,7 +180,10 @@
               {#if selected.count}<span class="hero-count">{selected.count}</span>{/if}
             </span>
             <div class="hero-text">
-              <h3 style:color={selected.rarityColor}>{selected.label}</h3>
+              <h3 style:color={selected.rarityColor}>
+                <span>{selected.label}</span>
+                {#if selected.statLabel}<em class="tnum">{selected.statLabel}</em>{/if}
+              </h3>
               <p>{selected.detail}</p>
             </div>
           </div>
@@ -208,6 +213,7 @@
             </div>
           {/if}
         </section>
+        <InventoryComparePanel cell={selected} />
       {/if}
     {/if}
   </div>
@@ -216,9 +222,11 @@
 <style>
   .body {
     display: grid;
-    grid-template-columns: minmax(260px, 340px) minmax(300px, 420px);
+    grid-template-columns: minmax(250px, 318px) minmax(300px, 390px) minmax(220px, 260px);
     gap: 0;
-    width: min(82vw, 760px);
+    width: min(80vw, 968px);
+    max-width: 100%;
+    box-sizing: border-box;
     min-height: 420px;
   }
 
@@ -278,6 +286,17 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+  }
+
+  .row-stat {
+    flex: none;
+    padding: 2px 5px;
+    border: 1px solid var(--border-chip);
+    border-radius: var(--r-pill);
+    background: var(--surface-inset);
+    color: var(--text-label);
+    font: 750 var(--fs-micro) var(--font-display);
+    font-variant-numeric: tabular-nums;
   }
 
   .name {
@@ -362,8 +381,22 @@
   }
 
   h3 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
     margin: 0 0 6px;
     font: 700 18px var(--font-display);
+  }
+
+  h3 span {
+    min-width: 0;
+  }
+
+  h3 em {
+    color: var(--accent);
+    font: 750 var(--fs-body) var(--font-display);
+    font-style: normal;
   }
 
   p {
@@ -442,9 +475,9 @@
     background: var(--surface-inset);
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 1040px) {
     .body {
-    grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
       width: min(100%, 460px);
     }
 

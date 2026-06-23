@@ -46,9 +46,31 @@ export interface InventoryCell {
   count?: number; // shown as a badge when > 1
   label: string; // accessible name / tooltip
   detail: string;
+  statLabel?: string;
+  tooltipStats?: InventoryTooltipStat[];
+  comparisons?: InventoryComparisonView[];
   ref: InventoryRef;
   equipped?: boolean;
   actions: InventoryActionView[];
+}
+
+export interface InventoryTooltipStat {
+  label: string;
+  value: string;
+  tone?: 'better' | 'worse' | 'neutral';
+}
+
+export interface InventoryComparisonView {
+  slot: EquipSlot;
+  slotLabel: string;
+  icon: IconName;
+  currentName: string;
+  currentStatLabel: string;
+  candidateName?: string;
+  candidateStatLabel: string;
+  deltaLabel: string;
+  tone: 'better' | 'same' | 'worse' | 'blocked';
+  note?: string;
 }
 
 export interface InventoryActionView {
