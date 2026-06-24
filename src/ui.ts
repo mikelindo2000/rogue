@@ -1395,6 +1395,7 @@ export class GameUI {
       maxHp: ui.maxHp,
       hunger: player.hunger,
       hungerFatigued,
+      hungerHungry,
     });
     ui.survivalWarningTone = survival.tone;
     ui.survivalWarningIntensity = survival.intensity;
@@ -1406,6 +1407,7 @@ export class GameUI {
       maxHp: ui.maxHp,
       hunger: player.hunger,
       hungerFatigued,
+      hungerHungry,
     });
 
     ui.food = player.inventory.food;

@@ -44,6 +44,7 @@ export interface VisualEffectInput {
   maxHp: number;
   hunger: number;
   hungerFatigued: number;
+  hungerHungry: number;
 }
 
 /** Paint layers, low → high. Atmosphere sits behind danger signaling. */
@@ -133,6 +134,7 @@ export function visualEffectLayers(input: VisualEffectInput): VisualEffectInstan
     maxHp: input.maxHp,
     hunger: input.hunger,
     hungerFatigued: input.hungerFatigued,
+    hungerHungry: input.hungerHungry,
   });
   if (survival.tone !== 'none') {
     const kind = SURVIVAL_KIND[survival.tone];

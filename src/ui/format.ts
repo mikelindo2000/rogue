@@ -49,6 +49,7 @@ export interface SurvivalWarningInput {
   maxHp: number;
   hunger: number;
   hungerFatigued: number;
+  hungerHungry: number;
 }
 
 export interface SurvivalWarningView {
@@ -63,9 +64,9 @@ export function survivalWarningView({
   hp,
   maxHp,
   hunger,
-  hungerFatigued,
+  hungerHungry,
 }: SurvivalWarningInput): SurvivalWarningView {
-  const hungerStart = hungerFatigued + 50;
+  const hungerStart = hungerHungry;
   const hpPct = maxHp > 0 ? hp / maxHp : 1;
   const healthActive = hp > 0 && hpPct <= 0.25;
   const hungerActive = hunger < hungerStart;

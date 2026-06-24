@@ -11,7 +11,7 @@ describe('hungerView', () => {
 });
 
 describe('survivalWarningView', () => {
-  const base = { hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190 };
+  const base = { hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190, hungerHungry: 425 };
 
   it('stays inactive when HP and hunger are safe', () => {
     expect(survivalWarningView(base)).toEqual({ tone: 'none', intensity: 0 });
@@ -24,9 +24,9 @@ describe('survivalWarningView', () => {
     expect(warning.intensity).toBeCloseTo(0.45);
   });
 
-  it('starts hunger slightly before fatigued and intensifies toward starvation', () => {
-    expect(survivalWarningView({ ...base, hunger: 240 }).tone).toBe('none');
-    const early = survivalWarningView({ ...base, hunger: 239 });
+  it('starts hunger warning when hungry and intensifies toward starvation', () => {
+    expect(survivalWarningView({ ...base, hunger: 425 }).tone).toBe('none');
+    const early = survivalWarningView({ ...base, hunger: 424 });
     const starving = survivalWarningView({ ...base, hunger: 0 });
     expect(early.tone).toBe('hunger');
     expect(early.intensity).toBeGreaterThan(0.4);

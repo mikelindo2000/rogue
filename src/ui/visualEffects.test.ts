@@ -3,7 +3,7 @@ import { visualEffectLayers, visualEffectStyle } from './visualEffects';
 
 // Mirrors format.test.ts's survival baseline so the two stay in lockstep.
 // Floor 2 is a neutral floor with no atmosphere (floors 1/11/13 have effects).
-const base = { floor: 2, hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190 };
+const base = { floor: 2, hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190, hungerHungry: 425 };
 
 describe('visualEffectLayers — survival migration', () => {
   it('produces no effects in a safe state', () => {
