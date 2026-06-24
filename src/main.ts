@@ -226,10 +226,17 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setInventoryOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
     ui.inventoryOpen = open;
-    if (!open) ui.inventoryFilterKind = 'all';
+    if (!open) {
+      ui.inventoryFilterKind = 'all';
+      // Clear the loadout focus so the next plain `i` opens neutrally.
+      ui.selectedEquipSlot = null;
+    }
     if (open && !ui.selectedInventoryRef) {
       ui.selectedInventoryRef = ui.inventoryItems[0]?.ref ?? null;
     }
+  };
+  actions.selectEquipSlot = (slot) => {
+    ui.selectedEquipSlot = slot;
   };
   actions.setInventoryFilterKind = (kind) => {
     ui.inventoryFilterKind = kind;
@@ -458,6 +465,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (ui.inventoryOpen || !overlayOpen()) {
         actions.setInventoryOpen(!ui.inventoryOpen);
       }
+    },
+  });
+
+  keyboard.register({
+    keys: ['c'],
+    description: 'Open loadout (equipment)',
+    context: 'game',
+    callback: () => {
+      if (ui.inventoryOpen) {
+        actions.setInventoryOpen(false);
+        return;
+      }
+      if (overlayOpen()) return;
+      // Land on the equipment spine rather than the pack.
+      actions.selectEquipSlot(ui.equipment[0]?.slot ?? 'mainHand');
+      actions.setInventoryOpen(true);
     },
   });
 

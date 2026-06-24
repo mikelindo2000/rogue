@@ -1,14 +1,40 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ui, actions, type InventoryCell } from '../store.svelte';
-  import type { InventoryAction, InventoryRef } from '../../types';
+  import { ui, actions, type InventoryCell, type EquipSlotView } from '../store.svelte';
+  import type { EquipSlot, InventoryAction, InventoryRef } from '../../types';
   import Modal from './primitives/Modal.svelte';
   import Icon from './primitives/Icon.svelte';
   import RarityDot from './primitives/RarityDot.svelte';
+  import DurabilityBar from './primitives/DurabilityBar.svelte';
+  import UpgradeBadge from './primitives/UpgradeBadge.svelte';
   import InventoryComparePanel from './InventoryComparePanel.svelte';
 
+  // The loadout hub is a three-column, keyboard-first screen:
+  //   spine (equip slots + pack categories) | candidates | detail/compare.
+  // Focus drives selection — arrowing a column live-updates the column to its
+  // right — so Left/Right (or Tab) hop columns and Enter acts on the highlight.
+
+  type Group =
+    | { key: string; kind: 'slot'; label: string; icon: EquipSlotView['icon']; slotView: EquipSlotView }
+    | { key: string; kind: 'cat'; label: string; icon: InventoryCell['icon']; catKind: InventoryRef['kind']; count: number };
+
+  type Entry =
+    | { key: string; kind: 'equipped'; view: EquipSlotView }
+    | { key: string; kind: 'cell'; cell: InventoryCell };
+
+  const CAT_ORDER: { kind: InventoryRef['kind']; label: string }[] = [
+    { kind: 'potion', label: 'Potions' },
+    { kind: 'scroll', label: 'Scrolls' },
+    { kind: 'wand', label: 'Wands' },
+    { kind: 'food', label: 'Food' },
+  ];
+
+  let spineEl = $state<HTMLElement | null>(null);
   let listEl = $state<HTMLElement | null>(null);
-  let bodyEl = $state<HTMLElement | null>(null);
+  let detailEl = $state<HTMLElement | null>(null);
+
+  let activeKey = $state<string>('');
+  let selectedKey = $state<string>('');
 
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
@@ -20,311 +46,610 @@
     return `armor:${ref.slot}:${ref.index}`;
   }
 
-  const visibleItems = $derived.by<InventoryCell[]>(() => {
-    if (ui.inventoryFilterKind === 'scroll') {
-      return ui.inventoryItems.filter((cell) => cell.ref.kind === 'scroll');
+  /** Which equip slot a gear cell belongs under in the spine. */
+  function cellSlot(cell: InventoryCell): EquipSlot | null {
+    const r = cell.ref;
+    if (r.kind === 'weapon') return 'mainHand';
+    if (r.kind === 'shield') return 'offHand';
+    if (r.kind === 'armor') return r.slot;
+    return null;
+  }
+
+  const groups = $derived.by<Group[]>(() => {
+    const slotGroups: Group[] = ui.equipment.map((s) => ({
+      key: `slot:${s.slot}`,
+      kind: 'slot',
+      label: s.label,
+      icon: s.icon,
+      slotView: s,
+    }));
+    const catGroups: Group[] = [];
+    for (const { kind, label } of CAT_ORDER) {
+      const items = ui.inventoryItems.filter((c) => c.ref.kind === kind);
+      if (items.length > 0) {
+        catGroups.push({ key: `cat:${kind}`, kind: 'cat', label, icon: items[0].icon, catKind: kind, count: items.length });
+      }
     }
-    return ui.inventoryItems;
+    return [...slotGroups, ...catGroups];
   });
 
-  const selected = $derived.by<InventoryCell | undefined>(() => {
-    const items = visibleItems;
-    const selectedRef = ui.selectedInventoryRef;
-    if (!selectedRef) return items[0];
-    return items.find((cell) => refKey(cell.ref) === refKey(selectedRef)) ?? items[0];
+  const activeGroup = $derived(groups.find((g) => g.key === activeKey) ?? groups[0]);
+
+  const entries = $derived.by<Entry[]>(() => {
+    const g = activeGroup;
+    if (!g) return [];
+    if (g.kind === 'cat') {
+      return ui.inventoryItems
+        .filter((c) => c.ref.kind === g.catKind)
+        .map((c) => ({ key: refKey(c.ref), kind: 'cell', cell: c }));
+    }
+    const candidates = ui.inventoryItems
+      .filter((c) => cellSlot(c) === g.slotView.slot)
+      .map<Entry>((c) => ({ key: refKey(c.ref), kind: 'cell', cell: c }));
+    return [{ key: `eq:${g.slotView.slot}`, kind: 'equipped', view: g.slotView }, ...candidates];
   });
+
+  const selected = $derived(entries.find((e) => e.key === selectedKey) ?? entries[0]);
+
+  // Custom generated art for the highlighted item — shown as the detail-pane
+  // backdrop, the same treatment the previous modal used.
+  const selectedArt = $derived(
+    selected?.kind === 'cell' ? selected.cell.artUrl : selected?.kind === 'equipped' ? selected.view.artUrl : ''
+  );
+
+  function groupKeyForRef(ref: InventoryRef): string {
+    if (ref.kind === 'weapon') return 'slot:mainHand';
+    if (ref.kind === 'shield') return 'slot:offHand';
+    if (ref.kind === 'armor') return `slot:${ref.slot}`;
+    return `cat:${ref.kind}`;
+  }
 
   function close() {
     actions.setInventoryOpen(false);
   }
 
-  function choose(cell: InventoryCell) {
-    actions.selectInventoryItem(cell.ref);
-  }
+  // ---- Selection / actions -------------------------------------------------
 
-  function run(cell: InventoryCell, action: InventoryAction) {
-    actions.inventoryAction(cell.ref, action);
-  }
-
-  function selectedIndex() {
-    if (!selected) return -1;
-    return visibleItems.findIndex((cell) => refKey(cell.ref) === refKey(selected.ref));
-  }
-
-  function rowFor(cell: InventoryCell | undefined) {
-    if (!cell) return null;
-    return listEl?.querySelector<HTMLButtonElement>(`button[data-ref="${refKey(cell.ref)}"]`) ?? null;
-  }
-
-  function enabledActions() {
-    if (!bodyEl) return [];
-    return Array.from(bodyEl.querySelectorAll<HTMLButtonElement>('.detail-pane .action:not([aria-disabled="true"])'));
-  }
-
-  function moveSelection(delta: number, focusAction = false) {
-    if (visibleItems.length === 0) return;
-    const currentIndex = selectedIndex();
-    const index = currentIndex === -1 ? 0 : currentIndex;
-    const next = visibleItems[(index + delta + visibleItems.length) % visibleItems.length];
-    if (!next) return;
-    choose(next);
-    setTimeout(() => {
-      if (focusAction) {
-        enabledActions()[0]?.focus();
-      } else {
-        rowFor(next)?.focus();
-      }
+  function selectGroup(key: string) {
+    if (activeKey === key) return;
+    activeKey = key;
+    selectedKey = '';
+    // Default the candidate highlight to the first real candidate, else the
+    // equipped row (so the detail pane always has something to show). `entries`
+    // recomputes after activeKey settles, hence the tick.
+    tick().then(() => {
+      const first = entries.find((e) => e.kind === 'cell') ?? entries[0];
+      selectedKey = first?.key ?? '';
     });
   }
 
-  function focusSelectedRow() {
-    setTimeout(() => rowFor(selected)?.focus());
+  function defaultAction(cell: InventoryCell): InventoryAction | null {
+    return cell.actions.find((a) => !a.disabled)?.action ?? null;
   }
 
-  function runDefaultAction() {
-    if (!selected) return;
-    const action = selected.actions.find((item) => !item.disabled);
-    if (action) run(selected, action.action);
+  function runDefault(cell: InventoryCell) {
+    const action = defaultAction(cell);
+    if (action) actions.inventoryAction(cell.ref, action);
   }
 
-  function runEquipAction() {
-    if (!selected) return;
-    const action = selected.actions.find((item) => !item.disabled && item.action.startsWith('equip'));
-    if (action) run(selected, action.action);
+  function runVerb(cell: InventoryCell, predicate: (a: InventoryAction) => boolean) {
+    const action = cell.actions.find((a) => !a.disabled && predicate(a.action));
+    if (action) actions.inventoryAction(cell.ref, action.action);
   }
 
-  function runDropAction() {
-    if (!selected) return;
-    const action = selected.actions.find((item) => !item.disabled && item.action === 'drop');
-    if (action) run(selected, action.action);
+  // ---- Focus / keyboard ----------------------------------------------------
+
+  function navButtons(container: HTMLElement | null): HTMLButtonElement[] {
+    return container ? Array.from(container.querySelectorAll<HTMLButtonElement>('[data-nav]:not([disabled])')) : [];
   }
 
-  function focusAction(delta: number) {
-    const buttons = enabledActions();
+  function activeColumnIndex(): number {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return -1;
+    if (spineEl?.contains(el)) return 0;
+    if (listEl?.contains(el)) return 1;
+    if (detailEl?.contains(el)) return 2;
+    return -1;
+  }
+
+  // Selection is driven explicitly here rather than via onfocus, because
+  // programmatic .focus() doesn't reliably fire focus events (e.g. when the
+  // document isn't focused), which would desync the highlight from the cursor.
+  function applySelection(button: HTMLButtonElement, colIdx: number) {
+    const key = button.dataset.nav;
+    if (!key) return;
+    if (colIdx === 0) selectGroup(key);
+    else if (colIdx === 1) selectedKey = key;
+  }
+
+  function focusColumn(index: number) {
+    const cols = [spineEl, listEl, detailEl];
+    const target = cols[index];
+    if (!target) return;
+    const buttons = navButtons(target);
+    if (buttons.length === 0) {
+      // Nothing focusable here (e.g. empty detail) — skip onward.
+      if (index < 2) focusColumn(index + 1);
+      return;
+    }
+    // Prefer the already-selected row in the list column.
+    const selectedBtn = buttons.find((b) => b.dataset.nav === selectedKey) ?? buttons.find((b) => b.dataset.nav === activeKey);
+    const btn = selectedBtn ?? buttons[0];
+    btn.focus();
+    applySelection(btn, index);
+  }
+
+  function moveWithin(dir: number) {
+    const colIdx = activeColumnIndex();
+    if (colIdx < 0) return;
+    const container = [spineEl, listEl, detailEl][colIdx];
+    const buttons = navButtons(container);
     if (buttons.length === 0) return;
-    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    buttons[(index + delta + buttons.length) % buttons.length]?.focus();
+    const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = current < 0 ? 0 : (current + dir + buttons.length) % buttons.length;
+    const btn = buttons[next];
+    if (!btn) return;
+    btn.focus();
+    applySelection(btn, colIdx);
   }
 
   function handleKeyboard(event: KeyboardEvent) {
-    if (!ui.inventoryOpen || visibleItems.length === 0) return;
-
+    if (!ui.inventoryOpen) return;
     const target = event.target as HTMLElement | null;
+    const bodyEl = spineEl?.closest('.body');
     if (!target || !bodyEl?.contains(target)) return;
 
-    const onAction = !!target?.closest('.detail-pane .action');
+    const colIdx = activeColumnIndex();
 
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      moveSelection(-1, onAction);
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      moveSelection(1, onAction);
-    } else if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      if (onAction) {
-        focusSelectedRow();
-      } else {
-        moveSelection(-1);
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        moveWithin(1);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        moveWithin(-1);
+        break;
+      case 'ArrowRight':
+      case 'Tab':
+        if (event.key === 'Tab' && event.shiftKey) {
+          event.preventDefault();
+          focusColumn(Math.max(0, colIdx - 1));
+        } else {
+          event.preventDefault();
+          focusColumn(Math.min(2, colIdx + 1));
+        }
+        break;
+      case 'ArrowLeft':
+        event.preventDefault();
+        focusColumn(Math.max(0, colIdx - 1));
+        break;
+      case 'Enter': {
+        event.preventDefault();
+        if (colIdx === 0) {
+          focusColumn(1);
+        } else if (colIdx === 2 && target instanceof HTMLButtonElement) {
+          target.click();
+        } else if (selected?.kind === 'cell') {
+          runDefault(selected.cell);
+        }
+        break;
       }
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      if (onAction) {
-        focusAction(1);
-      } else {
-        enabledActions()[0]?.focus();
-      }
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      if (onAction && target instanceof HTMLButtonElement) {
-        target.click();
-      } else {
-        runDefaultAction();
-      }
-    } else if (event.key.toLowerCase() === 'e') {
-      event.preventDefault();
-      runEquipAction();
-    } else if (event.key.toLowerCase() === 'r' && selected?.ref.kind === 'scroll') {
-      // Rogue "read" verb, scoped to the modal: read the selected scroll.
-      event.preventDefault();
-      runDefaultAction();
-    } else if (event.key.toLowerCase() === 'd') {
-      // Rogue "drop" verb, scoped to the modal. Drop is never the default action,
-      // so Return still triggers the primary verb (read/drink/equip), not drop.
-      event.preventDefault();
-      runDropAction();
+      case 'e':
+      case 'E':
+        if (selected?.kind === 'cell') {
+          event.preventDefault();
+          runVerb(selected.cell, (a) => a === 'equip' || a === 'equipOffHand');
+        }
+        break;
+      case 'd':
+      case 'D':
+        if (selected?.kind === 'cell') {
+          event.preventDefault();
+          runVerb(selected.cell, (a) => a === 'drop');
+        }
+        break;
+      case 'r':
+      case 'R':
+        if (selected?.kind === 'cell' && selected.cell.ref.kind === 'scroll') {
+          event.preventDefault();
+          runDefault(selected.cell);
+        }
+        break;
     }
   }
 
+  // ---- Initialization on open ---------------------------------------------
+
+  let wasOpen = false;
   $effect(() => {
-    if (!ui.inventoryOpen || visibleItems.length === 0) return;
+    if (!ui.inventoryOpen) {
+      wasOpen = false;
+      return;
+    }
+    if (wasOpen) return; // only initialize on the open transition
+    wasOpen = true;
+
+    let key = groups[0]?.key ?? '';
+    if (ui.inventoryFilterKind === 'scroll' && groups.some((g) => g.key === 'cat:scroll')) {
+      key = 'cat:scroll';
+    } else if (ui.selectedEquipSlot && groups.some((g) => g.key === `slot:${ui.selectedEquipSlot}`)) {
+      key = `slot:${ui.selectedEquipSlot}`;
+    } else if (ui.selectedInventoryRef) {
+      const candidate = groupKeyForRef(ui.selectedInventoryRef);
+      if (groups.some((g) => g.key === candidate)) key = candidate;
+    }
+    activeKey = key;
+
     tick().then(() => {
-      rowFor(selected)?.focus();
+      // Highlight the ref the user clicked, the first candidate, else equipped.
+      let initial = entries.find((e) => e.kind === 'cell') ?? entries[0];
+      if (ui.selectedInventoryRef) {
+        const wanted = refKey(ui.selectedInventoryRef);
+        initial = entries.find((e) => e.key === wanted) ?? initial;
+      }
+      selectedKey = initial?.key ?? '';
+      tick().then(() => focusColumn(entries.length > 0 ? 1 : 0));
     });
   });
+
+  const title = $derived(ui.inventoryFilterKind === 'scroll' ? 'Scrolls' : 'Loadout');
 </script>
 
 <svelte:window onkeydown={handleKeyboard} />
 
-<Modal open={ui.inventoryOpen} title={ui.inventoryFilterKind === 'scroll' ? 'Scrolls' : 'Inventory'} onClose={close}>
-  <div class="body" bind:this={bodyEl}>
-    {#if visibleItems.length === 0}
-      <div class="empty">
-        <div class="empty-icon"><Icon name="pouch" size={28} /></div>
-        <p>{ui.inventoryItems.length === 0 ? 'Your pack is empty.' : 'No scrolls in your pack.'}</p>
-      </div>
-    {:else}
-      <div class="list" aria-label="Carried items" bind:this={listEl}>
-        {#each visibleItems as cell (refKey(cell.ref))}
+<Modal open={ui.inventoryOpen} {title} onClose={close}>
+  <div class="body">
+    <!-- Column 1: spine -->
+    <nav class="spine" bind:this={spineEl} aria-label="Equipment slots and pack">
+      {#each groups as g (g.key)}
+        {#if g.kind === 'slot'}
           <button
-            class="row"
-            class:selected={selected && refKey(selected.ref) === refKey(cell.ref)}
-            data-ref={refKey(cell.ref)}
-            onclick={() => choose(cell)}
-            aria-pressed={selected && refKey(selected.ref) === refKey(cell.ref)}
-            aria-label="{cell.label}{cell.statLabel ? `, ${cell.statLabel}` : ''}{cell.health ? `, condition ${cell.health.tone}, ${cell.health.label}` : ''}"
+            class="spine-row"
+            class:active={activeGroup?.key === g.key}
+            data-nav={g.key}
+            onclick={() => selectGroup(g.key)}
+            aria-current={activeGroup?.key === g.key}
           >
-            <span class="tile" class:broken={cell.health?.tone === 'broken'} style:color={cell.health?.color ?? cell.rarityColor}>
-              <Icon name={cell.icon} size={18} />
-              {#if cell.health && cell.health.tone !== 'good'}<span class="health-mini">{cell.health.label}</span>{/if}
-              {#if cell.count}<span class="count">{cell.count}</span>{/if}
+            <span class="spine-icon" style:color={g.slotView.empty ? 'var(--text-faintest)' : (g.slotView.health?.color ?? g.slotView.rarityColor)}>
+              <Icon name={g.icon} size={16} />
             </span>
-            <span class="row-text">
-              <span class="name" style:color={cell.rarityColor}>{cell.label}</span>
-              <span class="detail">{cell.detail}</span>
+            <span class="spine-text">
+              <span class="spine-label">{g.label}</span>
+              <span class="spine-name" class:empty={g.slotView.empty} style:color={g.slotView.empty ? undefined : g.slotView.rarityColor}>
+                {g.slotView.empty ? (g.slotView.emptyLabel ?? 'Empty') : g.slotView.itemName}
+              </span>
             </span>
-            {#if cell.statLabel}<span class="row-stat tnum">{cell.statLabel}</span>{/if}
-            <RarityDot color={cell.rarityColor} glow />
+            {#if g.slotView.upgrade}
+              <span class="spine-up" title="Better available">▲</span>
+            {/if}
           </button>
-        {/each}
-      </div>
-
-      {#if selected}
-        <section class="detail-pane" aria-label="Selected item" style={`--item-art: url("${selected.artUrl}")`}>
-          <div class="hero">
-            <span class="hero-icon" class:broken={selected.health?.tone === 'broken'} style:color={selected.health?.color ?? selected.rarityColor}>
-              <Icon name={selected.icon} size={28} stroke={1.35} />
-              {#if selected.health && selected.health.tone !== 'good'}<span class="health-mini hero-health">{selected.health.label}</span>{/if}
-              {#if selected.count}<span class="hero-count">{selected.count}</span>{/if}
+        {:else}
+          <button
+            class="spine-row"
+            class:active={activeGroup?.key === g.key}
+            data-nav={g.key}
+            onclick={() => selectGroup(g.key)}
+            aria-current={activeGroup?.key === g.key}
+          >
+            <span class="spine-icon"><Icon name={g.icon} size={16} /></span>
+            <span class="spine-text">
+              <span class="spine-label">Pack</span>
+              <span class="spine-name">{g.label}</span>
             </span>
-            <div class="hero-text">
-              <h3 style:color={selected.rarityColor}>
-                <span>{selected.label}</span>
-                {#if selected.statLabel}<em class="tnum">{selected.statLabel}</em>{/if}
-              </h3>
-              <p>{selected.detail}</p>
-            </div>
-          </div>
+            <span class="spine-count tnum">{g.count}</span>
+          </button>
+        {/if}
+      {/each}
+    </nav>
 
-          <div class="actions">
-            {#each selected.actions as item (item.action)}
-              <button
-                class="action"
-                aria-disabled={item.disabled ? 'true' : undefined}
-                aria-describedby={item.reason ? `inventory-reason-${item.action}` : undefined}
-                tabindex={item.disabled ? -1 : 0}
-                title={item.reason}
-                onclick={() => {
-                  if (!item.disabled) run(selected, item.action);
-                }}
-              >
-                {item.label}
-              </button>
-            {/each}
-          </div>
-
-          {#if selected.actions.some((item) => item.disabled && item.reason)}
-            <div class="reasons">
-              {#each selected.actions.filter((item) => item.disabled && item.reason) as item (item.action)}
-                <p id="inventory-reason-{item.action}">{item.reason}</p>
-              {/each}
-            </div>
+    <!-- Column 2: candidates -->
+    <div class="list" bind:this={listEl} aria-label="Candidates">
+      {#if entries.length === 0}
+        <div class="empty-col">Nothing here.</div>
+      {:else}
+        {#each entries as entry (entry.key)}
+          {#if entry.kind === 'equipped'}
+            <button
+              class="row equipped"
+              class:selected={selected?.key === entry.key}
+              data-nav={entry.key}
+              onclick={() => (selectedKey = entry.key)}
+            >
+              <span class="tile" class:broken={entry.view.health?.tone === 'broken'} style:color={entry.view.health?.color ?? entry.view.rarityColor}>
+                <Icon name={entry.view.icon} size={18} />
+              </span>
+              <span class="row-text">
+                <span class="row-top">
+                  <span class="name" style:color={entry.view.empty ? 'var(--text-faint)' : entry.view.rarityColor}>
+                    {entry.view.empty ? (entry.view.emptyLabel ?? 'Empty') : entry.view.itemName}
+                  </span>
+                  <span class="tag">Equipped</span>
+                </span>
+                {#if entry.view.health}<DurabilityBar health={entry.view.health} />{/if}
+              </span>
+              <span class="row-stat tnum">{entry.view.statLabel}</span>
+            </button>
+          {:else}
+            <button
+              class="row"
+              class:selected={selected?.key === entry.key}
+              data-nav={entry.key}
+              onclick={() => (selectedKey = entry.key)}
+              aria-label="{entry.cell.label}{entry.cell.statLabel ? `, ${entry.cell.statLabel}` : ''}{entry.cell.health ? `, condition ${entry.cell.health.tone}` : ''}{entry.cell.strictlyBetter ? ', strictly better' : entry.cell.verdict ? `, ${entry.cell.verdict}` : ''}"
+            >
+              <span class="tile" class:broken={entry.cell.health?.tone === 'broken'} style:color={entry.cell.health?.color ?? entry.cell.rarityColor}>
+                <Icon name={entry.cell.icon} size={18} />
+                {#if entry.cell.count}<span class="count">{entry.cell.count}</span>{/if}
+              </span>
+              <span class="row-text">
+                <span class="row-top">
+                  <span class="name" style:color={entry.cell.rarityColor}>{entry.cell.label}</span>
+                  <UpgradeBadge verdict={entry.cell.verdict} strictlyBetter={entry.cell.strictlyBetter} isBest={entry.cell.isBest} />
+                </span>
+                {#if entry.cell.health}<DurabilityBar health={entry.cell.health} />{:else}<span class="row-detail">{entry.cell.detail}</span>{/if}
+              </span>
+              {#if entry.cell.statLabel}<span class="row-stat tnum">{entry.cell.statLabel}</span>{/if}
+              <RarityDot color={entry.cell.rarityColor} glow />
+            </button>
           {/if}
-        </section>
-        <InventoryComparePanel cell={selected} />
+        {/each}
       {/if}
-    {/if}
+    </div>
+
+    <!-- Column 3: detail / comparison -->
+    <section
+      class="detail"
+      class:has-art={!!selectedArt}
+      bind:this={detailEl}
+      aria-label="Details"
+      style={selectedArt ? `--item-art: url("${selectedArt}")` : undefined}
+    >
+      {#if selected?.kind === 'equipped'}
+        <div class="hero">
+          <span class="hero-icon" style:color={selected.view.health?.color ?? selected.view.rarityColor}>
+            <Icon name={selected.view.icon} size={26} stroke={1.35} />
+          </span>
+          <div class="hero-text">
+            <h3 style:color={selected.view.rarityColor}>
+              <span>{selected.view.empty ? (selected.view.emptyLabel ?? 'Empty') : selected.view.itemName}</span>
+              <em class="tnum">{selected.view.statLabel}</em>
+            </h3>
+            <p>Currently equipped in your {selected.view.label.toLowerCase()} slot.{selected.view.upgrade ? ` A better option is in your pack.` : ''}</p>
+          </div>
+        </div>
+        {#if selected.view.health}
+          <div class="dura-row"><DurabilityBar health={selected.view.health} width="160px" /><span class="tnum">{selected.view.health.label}</span></div>
+        {/if}
+        <p class="hint">Highlight a candidate on the left to compare and equip.</p>
+      {:else if selected?.kind === 'cell'}
+        {@const cell = selected.cell}
+        <div class="hero">
+          <span class="hero-icon" class:broken={cell.health?.tone === 'broken'} style:color={cell.health?.color ?? cell.rarityColor}>
+            <Icon name={cell.icon} size={26} stroke={1.35} />
+            {#if cell.count}<span class="hero-count">{cell.count}</span>{/if}
+          </span>
+          <div class="hero-text">
+            <h3 style:color={cell.rarityColor}>
+              <span>{cell.label}</span>
+              {#if cell.statLabel}<em class="tnum">{cell.statLabel}</em>{/if}
+            </h3>
+            <p>{cell.detail}</p>
+            <UpgradeBadge verdict={cell.verdict} strictlyBetter={cell.strictlyBetter} isBest={cell.isBest} />
+          </div>
+        </div>
+
+        {#if cell.health}
+          <div class="dura-row"><DurabilityBar health={cell.health} width="160px" /><span class="tnum">{cell.health.label}</span></div>
+        {/if}
+
+        <div class="actions">
+          {#each cell.actions as item (item.action)}
+            <button
+              class="action"
+              data-nav={`act:${item.action}`}
+              disabled={item.disabled}
+              title={item.reason}
+              onclick={() => { if (!item.disabled) actions.inventoryAction(cell.ref, item.action); }}
+            >
+              {item.label}
+            </button>
+          {/each}
+        </div>
+
+        {#if cell.comparisons?.length}
+          <InventoryComparePanel {cell} />
+        {/if}
+      {:else}
+        <div class="empty-col">Select an item.</div>
+      {/if}
+    </section>
   </div>
 </Modal>
 
 <style>
   .body {
     display: grid;
-    grid-template-columns: minmax(250px, 318px) minmax(300px, 390px) minmax(220px, 260px);
-    gap: 0;
-    width: min(80vw, 968px);
+    grid-template-columns: minmax(190px, 220px) minmax(280px, 360px) minmax(250px, 300px);
+    width: min(84vw, 1000px);
     max-width: 100%;
     box-sizing: border-box;
-    min-height: 420px;
+    min-height: 440px;
+    max-height: 72vh;
   }
 
-  .list {
-    min-height: 0;
-    max-height: 66vh;
+  .spine {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 10px 8px;
     overflow: auto;
-    padding: 10px;
     border-right: 1px solid var(--border);
     background: var(--surface-rail);
   }
-
-  .row {
+  .spine-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     width: 100%;
-    padding: 9px;
+    padding: 7px 8px;
     border: 1px solid transparent;
     border-radius: var(--r-md);
     background: transparent;
     color: var(--text);
     text-align: left;
     cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease),
-      border-color var(--dur-fast) var(--ease);
+  }
+  .spine-row:hover,
+  .spine-row.active {
+    background: var(--surface-card);
+    border-color: var(--border-slot);
+  }
+  .spine-row:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 35%, transparent);
+  }
+  .spine-icon {
+    display: inline-flex;
+    flex: none;
+  }
+  .spine-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .spine-label {
+    font: 600 var(--fs-micro) var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-dimmer);
+  }
+  .spine-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 600 var(--fs-xs) var(--font-ui);
+  }
+  .spine-name.empty {
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+  .spine-up {
+    flex: none;
+    color: var(--good-bright);
+    font: 750 11px var(--font-display);
+  }
+  .spine-count {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border-chip);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    font: 700 10px var(--font-display);
+    font-variant-numeric: tabular-nums;
   }
 
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    overflow: auto;
+    border-right: 1px solid var(--border);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px;
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
   .row:hover,
   .row.selected {
     background: var(--surface-card);
     border-color: var(--border-slot);
   }
-
-  .tile,
-  .hero-icon {
+  .row:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 35%, transparent);
+  }
+  .row.equipped {
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+  .tile {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: none;
-    background: var(--surface-inset-2);
-    border: 1px solid color-mix(in srgb, currentColor 45%, var(--border-slot));
-    box-shadow: inset 0 0 14px color-mix(in srgb, currentColor 9%, transparent);
-  }
-
-  .tile {
     width: 34px;
     height: 34px;
+    flex: none;
     border-radius: var(--r-md);
+    background: var(--surface-inset-2);
+    border: 1px solid color-mix(in srgb, currentColor 45%, var(--border-slot));
   }
-
-  .tile.broken,
-  .hero-icon.broken {
+  .tile.broken {
     opacity: 0.74;
     filter: saturate(0.55);
   }
-
+  .count {
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    font: 700 9px var(--font-display);
+    color: var(--text-label);
+  }
   .row-text {
-    min-width: 0;
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
   }
-
+  .row-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 650 var(--fs-body) var(--font-ui);
+  }
+  .row-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 500 var(--fs-xs) var(--font-ui);
+    color: var(--text-dim);
+  }
+  .tag {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border-chip));
+    background: var(--accent-surface);
+    color: var(--accent);
+    font: 700 8.5px var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
   .row-stat {
     flex: none;
-    padding: 2px 5px;
+    padding: 2px 6px;
     border: 1px solid var(--border-chip);
     border-radius: var(--r-pill);
     background: var(--surface-inset);
@@ -333,75 +658,28 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font: 650 var(--fs-body) var(--font-ui);
-  }
-
   .detail {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font: 500 var(--fs-xs) var(--font-ui);
-    color: var(--text-dim);
-  }
-
-  .count,
-  .hero-count {
-    position: absolute;
-    right: 4px;
-    bottom: 3px;
-    font: 700 9px var(--font-display);
-    color: var(--text-label);
-  }
-
-  .health-mini {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    max-width: calc(100% - 4px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 1px 4px;
-    border-radius: var(--r-pill);
-    border: 1px solid color-mix(in srgb, currentColor 42%, var(--border-chip));
-    background: var(--surface-inset);
-    color: currentColor;
-    font: 750 8px var(--font-display);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hero-health {
-    top: 5px;
-    right: 5px;
-    font-size: 9px;
-  }
-
-  .detail-pane {
     position: relative;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 18px;
+    gap: 14px;
+    padding: 16px;
+    overflow: auto;
     background: var(--surface-app);
   }
-
-  .detail-pane::before {
+  /* Custom generated item art, faded behind the detail content (matches the
+     previous modal's treatment). */
+  .detail.has-art::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 0;
-    background: var(--item-art) right 8px center / min(86%, 360px) auto no-repeat;
+    background: var(--item-art) right 6px top 10px / min(82%, 320px) auto no-repeat;
     opacity: 0.8;
     filter: saturate(1.05) contrast(1.08) brightness(1.12);
     pointer-events: none;
   }
-
-  .detail-pane::after {
+  .detail.has-art::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -409,65 +687,85 @@
     background: linear-gradient(
       90deg,
       var(--surface-app) 0%,
-      color-mix(in srgb, var(--surface-app) 92%, transparent) 42%,
-      color-mix(in srgb, var(--surface-app) 44%, transparent) 70%,
+      color-mix(in srgb, var(--surface-app) 90%, transparent) 40%,
+      color-mix(in srgb, var(--surface-app) 42%, transparent) 72%,
       transparent 100%
     );
     pointer-events: none;
   }
-
-  .detail-pane > * {
+  .detail > * {
     position: relative;
     z-index: 2;
   }
-
   .hero {
     display: flex;
-    gap: 14px;
+    gap: 13px;
     align-items: flex-start;
   }
-
   .hero-icon {
-    width: 58px;
-    height: 58px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    flex: none;
     border-radius: var(--r-lg);
+    background: var(--surface-inset-2);
+    border: 1px solid color-mix(in srgb, currentColor 45%, var(--border-slot));
   }
-
+  .hero-icon.broken {
+    opacity: 0.74;
+    filter: saturate(0.55);
+  }
+  .hero-count {
+    position: absolute;
+    right: 4px;
+    bottom: 3px;
+    font: 700 10px var(--font-display);
+    color: var(--text-label);
+  }
   .hero-text {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-
   h3 {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 8px;
-    margin: 0 0 6px;
-    font: 700 18px var(--font-display);
+    margin: 0;
+    font: 700 17px var(--font-display);
   }
-
-  h3 span {
-    min-width: 0;
-  }
-
   h3 em {
     color: var(--accent);
     font: 750 var(--fs-body) var(--font-display);
     font-style: normal;
   }
-
-  p {
+  .detail p {
     margin: 0;
     color: var(--text-muted);
     font: 500 var(--fs-body)/1.45 var(--font-ui);
   }
-
+  .hint {
+    color: var(--text-dim) !important;
+    font-size: var(--fs-xs) !important;
+  }
+  .dura-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-label);
+    font: 700 var(--fs-xs) var(--font-display);
+    font-variant-numeric: tabular-nums;
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
-
   .action {
     min-height: 32px;
     padding: 0 12px;
@@ -477,106 +775,48 @@
     color: var(--text-bright);
     cursor: pointer;
     font: 700 11px var(--font-display);
-    transition:
-      background var(--dur-fast) var(--ease),
-      border-color var(--dur-fast) var(--ease),
-      color var(--dur-fast) var(--ease);
   }
-
-  .action:hover:not([aria-disabled="true"]),
+  .action:hover:not(:disabled),
   .action:focus-visible {
     background: var(--accent-log-surface);
     border-color: var(--accent);
     outline: none;
   }
-
-  .action[aria-disabled="true"] {
+  .action:disabled {
     cursor: default;
     border-color: var(--border-slot);
     background: var(--surface-inset);
     color: var(--text-faint);
   }
 
-  .reasons {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding-top: 2px;
-  }
-
-  .reasons p {
-    color: var(--text-dim);
-    font-size: var(--fs-xs);
-  }
-
-  .empty {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    min-height: 360px;
-    color: var(--text-dim);
-  }
-
-  .empty-icon {
+  .empty-col {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 56px;
-    height: 56px;
-    border: 1px dashed var(--border-slot);
-    border-radius: var(--r-lg);
-    color: var(--text-faint);
-    background: var(--surface-inset);
+    min-height: 120px;
+    color: var(--text-dim);
+    font: 500 var(--fs-body) var(--font-ui);
   }
 
   @media (max-width: 1040px) {
     .body {
       grid-template-columns: 1fr;
       width: min(100%, 460px);
+      max-height: none;
     }
-
-    .list {
-      max-height: 36vh;
+    .spine {
+      flex-direction: row;
+      flex-wrap: wrap;
       border-right: none;
       border-bottom: 1px solid var(--border);
     }
-  }
-
-  @media (max-width: 680px) {
-    .body {
-      width: 100%;
-      min-height: 0;
+    .spine-row {
+      width: auto;
     }
-
     .list {
-      max-height: 34vh;
-      padding: 8px;
-    }
-
-    .detail-pane {
-      gap: 12px;
-      padding: 14px;
-    }
-
-    .detail-pane::before {
-      background-size: min(70%, 260px) auto;
-      opacity: 0.54;
-    }
-
-    .hero-icon {
-      width: 48px;
-      height: 48px;
-    }
-
-    h3 {
-      font-size: 16px;
-    }
-
-    .action {
-      flex: 1 1 96px;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      max-height: 36vh;
     }
   }
 </style>

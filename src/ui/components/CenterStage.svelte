@@ -5,17 +5,19 @@
   import EffectLayerHost from './EffectLayerHost.svelte';
   import FloorTransitionSwitcher from './FloorTransitionSwitcher.svelte';
   import { getDungeonStyle } from '../../theme';
-  import { backgroundUrl, pickFloorBackground } from '../backgrounds';
+  import { backgroundUrl, createFloorBackgroundPicker } from '../backgrounds';
 
   const dungeonStyle = $derived(getDungeonStyle(ui.floor));
   const floorBg = $derived(dungeonStyle.background);
 
-  let currentBg = $state(pickFloorBackground(ui.floor));
+  let backgroundPicker = createFloorBackgroundPicker();
+  let currentBg = $state(backgroundPicker.pick(ui.floor));
   let previousBg = $state<string | null>(null);
   let isTransitioning = $state(false);
 
-  let wasEnded = false;
+  let wasEnded = ui.gameOver || ui.gameWon;
   let lastFloor = ui.floor;
+  let lastTurn = ui.turn;
 
   function transitionToBackground(nextBg: string) {
     if (nextBg === currentBg) return;
@@ -30,23 +32,23 @@
   }
 
   $effect(() => {
-    const floor = ui.floor;
-    let cleanup: (() => void) | undefined = undefined;
-    if (floor !== lastFloor) {
-      cleanup = transitionToBackground(pickFloorBackground(floor));
-      lastFloor = floor;
-    }
-    return cleanup;
-  });
-
-  $effect(() => {
     const isEnded = ui.gameOver || ui.gameWon;
+    const floor = ui.floor;
+    const turn = ui.turn;
+    const isNewRun = (wasEnded && !isEnded) || turn < lastTurn;
     let cleanup: (() => void) | undefined = undefined;
-    if (wasEnded && !isEnded) {
+
+    if (isNewRun) {
+      backgroundPicker = createFloorBackgroundPicker();
+      cleanup = transitionToBackground(backgroundPicker.pick(floor));
+      lastFloor = floor;
+    } else if (floor !== lastFloor) {
+      cleanup = transitionToBackground(backgroundPicker.pick(floor));
       lastFloor = ui.floor;
-      cleanup = transitionToBackground(pickFloorBackground(ui.floor));
     }
+
     wasEnded = isEnded;
+    lastTurn = turn;
     return cleanup;
   });
 </script>

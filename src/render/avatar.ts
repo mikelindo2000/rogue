@@ -23,6 +23,10 @@ export const PLAYER_SPRITE_OPTIONS: PlayerSpriteOption[] = [
 
 export const DEFAULT_PLAYER_SPRITE: PlayerSprite = 'knight';
 
+export function playerSpriteName(sprite: PlayerSprite): string {
+  return PLAYER_SPRITE_OPTIONS.find(option => option.id === sprite)?.name ?? 'Hero';
+}
+
 /** Fixed avatar colors for a living hero — high-contrast blue/gold, not floor
  *  themed, so the hero reads against any background. */
 export const PLAYER_ARMOR = '#3f8cff';

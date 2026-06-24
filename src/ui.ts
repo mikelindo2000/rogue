@@ -21,6 +21,7 @@ import {
   weaponTypeLabel,
 } from './ui/inventoryStats';
 import { gearHealthView } from './ui/equipmentStats';
+import { bestIndex, compareGear } from './ui/gearCompare';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl, wandArtUrl } from './ui/inventoryArt';
 import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
@@ -1497,9 +1498,12 @@ export class GameUI {
       });
     });
 
+    const mainWeapon = player.inventory.weapons[player.equipped.mainHand];
+    const weaponBest = bestIndex(player.inventory.weapons, 'attack');
     player.inventory.weapons.forEach((w, i) => {
       if (i !== player.equipped.mainHand && player.equipped.offHand !== 'weapon:' + i) {
         const ref: InventoryRef = { kind: 'weapon', index: i };
+        const cmp = compareGear(mainWeapon, w, 'attack');
         cells.push({
           icon: 'sword',
           artUrl: gearArtUrl(w),
@@ -1509,6 +1513,9 @@ export class GameUI {
           statLabel: shortGearStatText(w, 'attack'),
           tooltipStats: gearTooltipStats(w, 'attack'),
           comparisons: buildInventoryComparisons(player, ref, w),
+          verdict: cmp.verdict,
+          strictlyBetter: cmp.strictlyBetter,
+          isBest: i === weaponBest,
           ref,
           actions: this.inventoryActions(player, ref),
         });
@@ -1516,9 +1523,12 @@ export class GameUI {
     });
 
     for (const slot of ARMOR_SLOTS) {
+      const wornArmor = player.inventory[slot][player.equipped[slot]];
+      const armorBest = bestIndex(player.inventory[slot], 'defense');
       player.inventory[slot].forEach((a, i) => {
         if (i !== player.equipped[slot] && a.name !== 'None') {
           const ref: InventoryRef = { kind: 'armor', slot, index: i };
+          const cmp = compareGear(wornArmor, a, 'defense');
           cells.push({
             icon: SLOT_ICON[slot],
             artUrl: gearArtUrl(a),
@@ -1532,6 +1542,9 @@ export class GameUI {
               ...gearTooltipStats(a, 'defense'),
             ],
             comparisons: buildInventoryComparisons(player, ref, a),
+            verdict: cmp.verdict,
+            strictlyBetter: cmp.strictlyBetter,
+            isBest: i === armorBest,
             ref,
             actions: this.inventoryActions(player, ref),
           });
@@ -1539,9 +1552,14 @@ export class GameUI {
       });
     }
 
+    const wornShield = player.equipped.offHand.startsWith('shield:')
+      ? player.inventory.shield[Number(player.equipped.offHand.split(':')[1])]
+      : undefined;
+    const shieldBest = bestIndex(player.inventory.shield, 'defense');
     player.inventory.shield.forEach((s, i) => {
       if (i !== 0 && player.equipped.offHand !== 'shield:' + i) {
         const ref: InventoryRef = { kind: 'shield', index: i };
+        const cmp = compareGear(wornShield, s, 'defense');
         cells.push({
           icon: 'shield-dome',
           artUrl: gearArtUrl(s),
@@ -1555,6 +1573,9 @@ export class GameUI {
             ...gearTooltipStats(s, 'defense'),
           ],
           comparisons: buildInventoryComparisons(player, ref, s),
+          verdict: cmp.verdict,
+          strictlyBetter: cmp.strictlyBetter,
+          isBest: i === shieldBest,
           ref,
           actions: this.inventoryActions(player, ref),
         });
