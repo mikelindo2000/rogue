@@ -3,11 +3,13 @@
   import { pickOpeningEndRunArt } from '../endRunArt';
   import { buildEndRunView, type EndRunStat } from '../endRunView';
   import KeyCap from './primitives/KeyCap.svelte';
+  import HowToPlay from './HowToPlay.svelte';
 
-  type TabId = 'story' | 'combat' | 'loot' | 'exploration' | 'records' | 'history' | 'credits';
+  type TabId = 'story' | 'howto' | 'combat' | 'loot' | 'exploration' | 'records' | 'history' | 'credits';
 
   const TABS: Array<{ id: TabId; label: string }> = [
     { id: 'story', label: 'Run Story' },
+    { id: 'howto', label: 'How to Play' },
     { id: 'combat', label: 'Combat' },
     { id: 'loot', label: 'Loot' },
     { id: 'exploration', label: 'Exploration' },
@@ -255,6 +257,10 @@
               </div>
             {/if}
             <p class="local-note">Saved in this browser only.</p>
+          {:else if activeTab === 'howto'}
+            <div class="howto-tab">
+              <HowToPlay variant="tab" />
+            </div>
           {:else if activeTab === 'credits'}
             <div class="credits-scene" aria-label="Credits">
               <div class="credits-window">
@@ -324,6 +330,9 @@
 {/if}
 
 <style>
+  .howto-tab {
+    padding: 6px 2px 4px;
+  }
   .end-screen {
     position: fixed;
     inset: 0;
