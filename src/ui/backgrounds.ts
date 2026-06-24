@@ -12,6 +12,11 @@ export interface FloorBackgroundTheme {
   intensity: string;
 }
 
+export interface FloorBackgroundPicker {
+  pick(floor: number): string;
+  reset(): void;
+}
+
 export const FLOOR_BACKGROUND_THEMES: FloorBackgroundTheme[] = [
   { floor: 1, title: 'Ember Gate', intensity: 'quiet threshold' },
   { floor: 2, title: 'Collapsed Barracks', intensity: 'watchful ruin' },
@@ -67,6 +72,29 @@ export function pickFloorBackground(floor: number, rng?: RNG): string {
   }
   const idx = Math.floor(Math.random() * backgrounds.length);
   return backgrounds[idx];
+}
+
+/**
+ * Creates a run-scoped picker. Each floor gets one random variant per run; the
+ * cached choice is reused when the player revisits that floor.
+ */
+export function createFloorBackgroundPicker(rng?: RNG): FloorBackgroundPicker {
+  const selectedByFloor = new Map<number, string>();
+
+  return {
+    pick(floor: number) {
+      const safeFloor = clampFloor(floor);
+      const selected = selectedByFloor.get(safeFloor);
+      if (selected) return selected;
+
+      const next = pickFloorBackground(safeFloor, rng);
+      selectedByFloor.set(safeFloor, next);
+      return next;
+    },
+    reset() {
+      selectedByFloor.clear();
+    },
+  };
 }
 
 function floorBackgroundName(floor: number, variant: FloorBackgroundVariant): string {

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { makeRng } from '../rng';
 import {
@@ -7,9 +9,12 @@ import {
   FLOOR_MAX,
   LEGACY_DUNGEON_BACKGROUNDS,
   backgroundUrl,
+  createFloorBackgroundPicker,
   floorBackgrounds,
   pickFloorBackground,
 } from './backgrounds';
+
+const BACKGROUND_DIR = resolve(process.cwd(), 'public/backgrounds');
 
 describe('backgrounds', () => {
   it('lists four themed backgrounds for each floor', () => {
@@ -69,5 +74,27 @@ describe('backgrounds', () => {
     expect(floorBackgrounds(7)).toContain(bg1);
     expect(bg1).toBe(bg2); // same seed -> same selection
     expect(bg1).not.toBe(bg3); // different seed -> different selection (probabilistically, but holds for these seeds)
+  });
+
+  it('keeps one selected variant per floor until the picker resets', () => {
+    const picker = createFloorBackgroundPicker(makeRng(999));
+
+    const floor1 = picker.pick(1);
+    const floor2 = picker.pick(2);
+
+    expect(floorBackgrounds(1)).toContain(floor1);
+    expect(floorBackgrounds(2)).toContain(floor2);
+    expect(picker.pick(1)).toBe(floor1);
+    expect(picker.pick(2)).toBe(floor2);
+
+    picker.reset();
+
+    expect(picker.pick(1)).not.toBe(floor1);
+  });
+
+  it('has generated files for every themed floor background', () => {
+    const missing = FLOOR_BACKGROUNDS.filter(name => !existsSync(resolve(BACKGROUND_DIR, name)));
+
+    expect(missing).toEqual([]);
   });
 });
