@@ -60,7 +60,7 @@
 
   {#if ui.stairsNearby}
     <div class="stairs-pill">
-      <span class="caret">></span>
+      <span class="stairs-icon stairs-icon--down" aria-hidden="true"></span>
       <span class="text">Stairs nearby</span>
     </div>
   {/if}
@@ -207,9 +207,10 @@
     border: 1px solid var(--border-chip);
     border-radius: var(--r-md);
   }
-  .stairs-pill .caret {
-    font: 700 12px var(--font-display);
-    color: var(--accent);
+  .stairs-pill .stairs-icon {
+    flex: none;
+    width: 14px;
+    height: 14px;
   }
   .stairs-pill .text {
     font: 500 var(--fs-sm) var(--font-ui);

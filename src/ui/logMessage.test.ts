@@ -21,15 +21,16 @@ describe('log message enrichment', () => {
 
   it('renders stair glyphs as trusted inline log mentions', () => {
     const html = enrichLogMessageHtml(
-      'Welcome to the Dungeon! Move onto stairs (< or >) to travel between floors.'
+      'Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors.'
     );
 
     expect(html).toContain('class="stair-mention stair-mention--up"');
     expect(html).toContain('class="stair-mention stair-mention--down"');
-    expect(html).toContain('>&lt;</span> or <span');
-    expect(html).toContain('>&gt;</span>) to travel');
-    expect(html).not.toContain('&amp;lt;');
-    expect(html).not.toContain('&amp;gt;');
+    expect(html).toContain('aria-label="stairs up"');
+    expect(html).toContain('aria-label="stairs down"');
+    expect(html).not.toContain('&lt;');
+    expect(html).not.toContain('&gt;');
+    expect(html).not.toContain('< or >');
   });
 
   it('preserves pre-styled rarity spans on looted gear instead of escaping them', () => {

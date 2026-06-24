@@ -47,14 +47,14 @@ const makeBossKiller = (floor: number) => {
 };
 
 describe('GameEngine startup logs', () => {
-  it('uses the actual stair glyphs in the welcome message', () => {
+  it('does not expose legacy angle-bracket stair glyphs in the welcome message', () => {
     const engine = new GameEngine(makeUi() as any);
 
     engine.initGame(123);
 
-    expect(engine.logs[0]).toBe(
-      `Welcome to the Dungeon! Move onto stairs (${TILE.STAIRS_UP} or ${TILE.STAIRS_DOWN}) to travel between floors.`
-    );
+    expect(engine.logs[0]).toBe("Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors.");
+    expect(engine.logs[0]).not.toContain(TILE.STAIRS_UP);
+    expect(engine.logs[0]).not.toContain(TILE.STAIRS_DOWN);
   });
 });
 

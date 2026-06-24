@@ -82,16 +82,52 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.28em;
-  height: 1.28em;
+  position: relative;
+  width: 1.42em;
+  height: 1.22em;
   margin-inline: 0.08em;
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   border-radius: var(--r-xs);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
-  font: 800 0.88em / 1 var(--font-mono);
   vertical-align: -0.12em;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.stair-mention::before,
+.stairs-icon::before {
+  content: "";
+  position: absolute;
+  inset: 28% 23% 24% 23%;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 72% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 18% 50% / 82% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 36% 100% / 64% 2px no-repeat;
+}
+
+.stair-mention::after,
+.stairs-icon::after {
+  content: "";
+  position: absolute;
+  left: 59%;
+  top: 22%;
+  width: 2px;
+  height: 52%;
+  background: currentColor;
+}
+
+.stair-mention--up::after {
+  left: 39%;
+}
+
+.stairs-icon {
+  position: relative;
+  display: inline-block;
+  color: var(--accent);
+}
+
+.stairs-icon--up::after {
+  left: 39%;
 }
 
 /* Consistent keyboard focus affordance. Components may override the offset, but

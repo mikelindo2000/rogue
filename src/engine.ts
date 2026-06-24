@@ -217,7 +217,7 @@ export class GameEngine {
     this.secretsFoundThisRun = 0;
     this.trapdoorGeneratedThisRun = false;
     this.vitals.reset();
-    this.logs = [`Welcome to the Dungeon! Move onto stairs (${TILE.STAIRS_UP} or ${TILE.STAIRS_DOWN}) to travel between floors.`];
+    this.logs = ["Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors."];
 
     this.generateFloor();
     this.ui.updateDropdowns(this.player);

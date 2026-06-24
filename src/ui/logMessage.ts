@@ -1,6 +1,5 @@
 import { enrichItemMentionsHtml } from './itemMention';
 import { enrichMonsterMentionsHtml, enrichOutsideSpans } from './monsterMention';
-import { TILE } from '../tiles';
 
 export function enrichLogMessageHtml(message: string): string {
   const stairHtml = enrichStairMentionsHtml(message);
@@ -24,19 +23,8 @@ export function enrichLogMessageHtml(message: string): string {
 function enrichStairMentionsHtml(message: string): string {
   return enrichOutsideSpans(message, (segment) =>
     segment.replace(
-      new RegExp(`\\(${escapeRegExp(TILE.STAIRS_UP)} or ${escapeRegExp(TILE.STAIRS_DOWN)}\\)`, 'g'),
-      `(<span class="stair-mention stair-mention--up" title="Stairs up">${escapeHtmlForTrustedSpan(TILE.STAIRS_UP)}</span> or <span class="stair-mention stair-mention--down" title="Stairs down">${escapeHtmlForTrustedSpan(TILE.STAIRS_DOWN)}</span>)`
+      /\(up or down\)/g,
+      `(<span class="stair-mention stair-mention--up" role="img" aria-label="stairs up" title="Stairs up"></span> or <span class="stair-mention stair-mention--down" role="img" aria-label="stairs down" title="Stairs down"></span>)`
     )
-  );
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function escapeHtmlForTrustedSpan(s: string): string {
-  return s.replace(
-    /[&<>"]/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c
   );
 }
