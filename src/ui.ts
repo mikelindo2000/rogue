@@ -143,6 +143,7 @@ interface Scene {
   dungeonFloor: number;
   gameOver: boolean;
   gameWon: boolean;
+  monsterDetectionActive: boolean;
 }
 
 // Player-avatar rendering now lives in src/render/avatar.ts so the cinematic
@@ -350,7 +351,8 @@ export class GameUI {
     rows: number,
     dungeonFloor: number,
     gameOver: boolean,
-    gameWon: boolean
+    gameWon: boolean,
+    monsterDetectionActive = false
   ) {
     // Any engine-driven render after a run replay begins means newer gameplay
     // state has arrived; stop replaying the old presentation path immediately.
@@ -358,7 +360,7 @@ export class GameUI {
 
     // Snapshot the board so the animation loop can repaint between turns
     // without the turn-based engine having to drive every frame.
-    this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
+    this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon, monsterDetectionActive };
 
     this.syncOverlays(map, explored, visible, player, monsters, items, cols, rows, gameOver, gameWon);
 
@@ -482,6 +484,12 @@ export class GameUI {
 
     // Draw Monsters — bold, optically centered on the tile dot, with the
     // hit shake/flash applied to whichever monster is being struck.
+    if (s.monsterDetectionActive) {
+      s.monsters.forEach(m => {
+        if (s.visible[m.y]?.[m.x]) return;
+        this.drawDetectedMonster(m, t, s.tileSize);
+      });
+    }
     s.monsters.forEach(m => {
       if (!s.visible[m.y]?.[m.x]) return;
       const { gx, gy } = this.monsterPos(m, t);
@@ -539,6 +547,30 @@ export class GameUI {
       else if (f.kind === 'whiff') this.drawWhiff(f, t, s.tileSize);
       else if (f.kind === 'float') this.drawFloatLabel(f, t, s.tileSize);
     }
+    this.ctx.globalAlpha = 1;
+  }
+
+  /** Dim psychic glyph for a monster sensed by Scroll of Monster Detection.
+   *  This deliberately does not depend on `visible`, and it draws no terrain. */
+  private drawDetectedMonster(monster: Monster, t: number, tileSize: number) {
+    const { gx, gy } = this.monsterPos(monster, t);
+    const m = this.tileMetrics(gx, gy, tileSize);
+    const pulse = 0.5 + 0.5 * Math.sin(t / 260 + monster.x * 0.7 + monster.y * 0.4);
+    const radius = tileSize * (0.36 + pulse * 0.08);
+    const color = this.blend(monster.color, '#66e0c2', 0.7);
+
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.32 + pulse * 0.22;
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = Math.max(1, tileSize * 0.055);
+    this.ctx.beginPath();
+    this.ctx.arc(m.cx, m.cy, radius, 0, Math.PI * 2);
+    this.ctx.stroke();
+
+    this.ctx.globalAlpha = 0.42 + pulse * 0.2;
+    this.ctx.fillStyle = color;
+    this.drawGlyph(monster.symbol, gx, gy, tileSize, 0.88, { weight: 700, sizeRatio: 0.9, embolden: 0.04 });
+    this.ctx.restore();
     this.ctx.globalAlpha = 1;
   }
 
@@ -687,6 +719,7 @@ export class GameUI {
     if (this.fx.length > 0 || this.nowMs() < this.animUntil) return true;
     if (this.mapStage?.isAnimating()) return true;
     if (this.floorTransition?.isAnimating()) return true;
+    if (this.scene?.monsterDetectionActive) return true;
     // A live telegraph keeps pulsing until its attack resolves.
     const ms = this.scene?.monsters;
     if (ms) for (const m of ms) if (m.ai?.pendingAttack) return true;

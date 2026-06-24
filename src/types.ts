@@ -67,6 +67,7 @@ export type ScrollType =
   | 'light'
   | 'repair'
   | 'magic_mapping'
+  | 'monster_detection'
   | 'teleportation'
   | 'hold_monster'
   | 'sleep'
@@ -228,6 +229,7 @@ export interface StatusEffects {
   strengthTurns: number;
   invisTurns: number;
   armorTurns: number;
+  monsterDetectionTurns: number;
 }
 
 export type TrapKind = 'bear' | 'sleep_gas' | 'dart' | 'teleport' | 'trapdoor';

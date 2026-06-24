@@ -182,6 +182,7 @@ export const BALANCE = {
   scrolls: {
     sleepTurns: 4,          // Scroll of Sleep: turns the player is out
     holdMonsterTurns: 8,    // Scroll of Hold Monster: turns held in place
+    monsterDetectionTurns: 30, // Scroll of Monster Detection: sensed-monster overlay duration
     enchantWeaponBonus: 1,  // Scroll of Enchant Weapon: +dmg to the target weapon
     enchantArmorBonus: 1,   // Scroll of Enchant Armor: +def/+maxDef to target armor
   },

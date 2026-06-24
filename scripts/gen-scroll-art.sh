@@ -25,6 +25,7 @@ gen() {
 # Scroll of Light = seed 8500 and already exists. New scrolls reserve 8520+.
 gen 8520 scroll-of-repair              "aged rolled parchment scroll tied with cord, silver anvil and mending rune, tiny sparks stitching a cracked shield, accent color silver blue"
 gen 8521 scroll-of-magic-mapping       "unfurled aged parchment scroll with glowing dungeon corridors and room outlines drawn in blue ink, accent color blueprint blue"
+gen 8537 scroll-of-monster-detection   "aged parchment scroll with a bright teal eye rune sensing tiny clawed silhouettes through smoky darkness, pulsing psychic rings, accent color psychic teal"
 gen 8522 scroll-of-teleportation       "aged parchment scroll twisting around a violet portal spiral, edges lifting in impossible wind, accent color portal violet"
 gen 8523 scroll-of-hold-monster        "aged rolled parchment scroll bound by spectral chains around a clawed shadow silhouette, accent color spectral teal"
 gen 8524 scroll-of-sleep               "aged parchment scroll with a pale crescent moon rune shedding soft blue sleep mist, accent color drowsy periwinkle"

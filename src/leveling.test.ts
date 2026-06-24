@@ -6,7 +6,7 @@ import { StatusEffects } from './types';
 const addLog = (_msg: string) => {};
 
 function zeroStatus(): StatusEffects {
-  return { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0 };
+  return { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0, monsterDetectionTurns: 0 };
 }
 
 describe('gainXp', () => {

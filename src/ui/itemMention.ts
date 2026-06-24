@@ -1,4 +1,4 @@
-import { potionVisual, scrollVisual, wandVisual } from '../itemVisuals';
+import { SCROLL_TYPES, potionVisual, scrollVisual, wandVisual } from '../itemVisuals';
 import { scrollDisplayName } from '../scrolls';
 import type { PotionType, ScrollType, WandType } from '../types';
 import { titleCase } from './format';
@@ -22,12 +22,7 @@ const itemMentions: ItemMentionView[] = [
       color: visual.uiColor,
     };
   }),
-  ...([
-    'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
-    'create_monster', 'aggravate_monsters', 'enchant_weapon', 'enchant_armor',
-    'protect_armor', 'remove_curse', 'identify', 'food_detection', 'gold_detection',
-    'monster_confusion', 'scare_monster', 'blank_paper',
-  ] as const satisfies readonly ScrollType[]).map((type) => {
+  ...SCROLL_TYPES.map((type: ScrollType) => {
     const visual = scrollVisual(type);
     return {
       id: `scroll-${type}`,

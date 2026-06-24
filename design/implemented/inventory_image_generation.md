@@ -106,6 +106,7 @@ wand/staff line. See `scripts/gen-scroll-art.sh`; re-running is idempotent
 | --- | --- | --- |
 | Scroll of Repair | aged rolled parchment scroll tied with cord, silver anvil and mending rune, tiny sparks stitching a cracked shield (accent silver blue) | 8520 |
 | Scroll of Magic Mapping | unfurled aged parchment scroll with glowing dungeon corridors and room outlines drawn in blue ink (accent blueprint blue) | 8521 |
+| Scroll of Monster Detection | aged parchment scroll with a bright teal eye rune sensing tiny clawed silhouettes through smoky darkness, pulsing psychic rings (accent psychic teal) | 8537 |
 | Scroll of Teleportation | aged parchment scroll twisting around a violet portal spiral, edges lifting in impossible wind (accent portal violet) | 8522 |
 | Scroll of Hold Monster | aged rolled parchment scroll bound by spectral chains around a clawed shadow silhouette (accent spectral teal) | 8523 |
 | Scroll of Sleep | aged parchment scroll with a pale crescent moon rune shedding soft blue sleep mist (accent drowsy periwinkle) | 8524 |

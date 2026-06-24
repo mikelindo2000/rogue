@@ -98,7 +98,7 @@ export interface SaveGameV2 {
 }
 
 const STORAGE_KEY = 'rogue_savegame';
-const VERSION = 4;
+const VERSION = 5;
 
 function store(backend?: Storage | null): Store<SaveGameV2 | null> {
   return defineStore<SaveGameV2 | null>({
@@ -111,10 +111,12 @@ function store(backend?: Storage | null): Store<SaveGameV2 | null> {
     // favour of the typed scroll catalog. All three on-disk shapes are otherwise
     // compatible, so a V2/V3 blob is handed straight to validateSaveGame, which
     // backfills wands (normalizeWands) and migrates legacy scroll items
-    // (migrateLegacyScrollItems). Older versions are discarded. Coordinate further
-    // bumps with the rings / potion-dipping plans.
+    // (migrateLegacyScrollItems). V4 -> V5 added monsterDetectionTurns to the
+    // persisted StatusEffects shape; validateSaveGame backfills it to 0. Older
+    // versions are discarded. Coordinate further bumps with the rings /
+    // potion-dipping plans.
     migrate: (data, storedVersion) =>
-      (storedVersion === 2 || storedVersion === 3) && data ? (data as SaveGameV2) : null,
+      (storedVersion === 2 || storedVersion === 3 || storedVersion === 4) && data ? (data as SaveGameV2) : null,
     backend: backend !== undefined ? backend : resolveBackend(),
   });
 }
@@ -188,6 +190,15 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
   for (const k of ['vigorTurns', 'midasTurns', 'strengthTurns', 'invisTurns', 'armorTurns']) {
     if (typeof se[k] !== 'number') return null;
   }
+  if (se.monsterDetectionTurns !== undefined && typeof se.monsterDetectionTurns !== 'number') return null;
+  const statusEffects: StatusEffects = {
+    vigorTurns: Number(se.vigorTurns),
+    midasTurns: Number(se.midasTurns),
+    strengthTurns: Number(se.strengthTurns),
+    invisTurns: Number(se.invisTurns),
+    armorTurns: Number(se.armorTurns),
+    monsterDetectionTurns: Number(se.monsterDetectionTurns ?? 0),
+  };
 
   if (!Array.isArray(raw.map) || raw.map.length === 0 || !raw.map.every(row => Array.isArray(row))) return null;
 
@@ -328,6 +339,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
   return {
     ...(raw as unknown as Omit<SaveGameV2, 'stats'>),
     player,
+    statusEffects,
     traps: (raw.traps as TrapState[] | undefined) ?? [],
     trapEffects,
     stats,

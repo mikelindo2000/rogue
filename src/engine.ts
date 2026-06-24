@@ -126,7 +126,8 @@ export class GameEngine {
     midasTurns: 0,
     strengthTurns: 0,
     invisTurns: 0,
-    armorTurns: 0
+    armorTurns: 0,
+    monsterDetectionTurns: 0,
   };
 
   public trapEffects: TrapEffects = {
@@ -215,7 +216,8 @@ export class GameEngine {
       midasTurns: 0,
       strengthTurns: 0,
       invisTurns: 0,
-      armorTurns: 0
+      armorTurns: 0,
+      monsterDetectionTurns: 0,
     };
     this.trapEffects = {
       bearTrapTurns: 0,
@@ -893,6 +895,7 @@ export class GameEngine {
 
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
+    this.statusEffects.monsterDetectionTurns = 0;
     recordStairs(this.stats, this.dungeonFloor, delta);
     this.sound.emit({ type: 'map.stairs', dir: delta > 0 ? 'down' : 'up' });
 
@@ -1344,6 +1347,18 @@ export class GameEngine {
           : "You read the scroll, but you have already mapped this floor.");
         return revealed;
       }
+      case 'monster_detection': {
+        const sensed = this.detectMonstersOnFloor();
+        this.statusEffects.monsterDetectionTurns = Math.max(
+          this.statusEffects.monsterDetectionTurns,
+          BALANCE.scrolls.monsterDetectionTurns
+        );
+        this.addLog(sensed > 0
+          ? "You read the Scroll of Monster Detection. Shapes burn in your mind."
+          : "You read the Scroll of Monster Detection, but sense no monsters on this floor.");
+        this.updateUI();
+        return true;
+      }
       case 'teleportation': {
         this.teleportPlayerSafely();
         this.addLog("You read the Scroll of Teleportation and blink across the dungeon!");
@@ -1491,6 +1506,20 @@ export class GameEngine {
     }
     if (revealed) this.updateUI();
     return revealed;
+  }
+
+  /** Monster Detection: mark each live monster species as seen and enable the
+   *  sensed-monster render overlay without making those monsters visible. */
+  private detectMonstersOnFloor(): number {
+    let changed = false;
+    for (const m of this.monsters) {
+      if (markSeen(this.discovery, monsterId(m), this.dungeonFloor)) changed = true;
+    }
+    if (changed) {
+      saveDiscovery(this.discovery);
+      this.ui.syncDiscovery(this.discovery);
+    }
+    return this.monsters.length;
   }
 
   /** Hold Monster: freeze every monster currently in the player's view. Returns
@@ -2244,6 +2273,10 @@ export class GameEngine {
       this.statusEffects.armorTurns--;
       if (this.statusEffects.armorTurns === 0) this.addLog("Armor status expired.");
     }
+    if (this.statusEffects.monsterDetectionTurns > 0) {
+      this.statusEffects.monsterDetectionTurns--;
+      if (this.statusEffects.monsterDetectionTurns === 0) this.addLog("Monster detection fades.");
+    }
     if (this.trapEffects.confusedTurns > 0) {
       this.trapEffects.confusedTurns--;
       if (this.trapEffects.confusedTurns === 0) this.addLog("Your senses clear.");
@@ -2396,7 +2429,8 @@ export class GameEngine {
       this.ROWS,
       this.dungeonFloor,
       this.gameOver,
-      this.gameWon
+      this.gameWon,
+      this.statusEffects.monsterDetectionTurns > 0
     );
   }
 
@@ -2475,7 +2509,10 @@ export class GameEngine {
       if (!Array.isArray(this.player.inventory.scrolls)) this.player.inventory.scrolls = [];
       // Backfill the wands bucket for saves written before wands existed.
       if (!Array.isArray(this.player.inventory.wands)) this.player.inventory.wands = [];
-      this.statusEffects = { ...save.statusEffects };
+      this.statusEffects = {
+        ...save.statusEffects,
+        monsterDetectionTurns: save.statusEffects.monsterDetectionTurns ?? 0,
+      };
       this.dungeonFloor = save.dungeonFloor;
       this.turn = save.turn;
       this.gameOver = save.gameOver;

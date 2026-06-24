@@ -3,6 +3,7 @@ import { GameEngine } from './engine';
 import { TILE } from './tiles';
 import { BALANCE } from './config';
 import type { Monster } from './types';
+import { monsterId, tierOf } from './discovery';
 
 const makeUi = () => ({
   renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
@@ -95,6 +96,38 @@ describe('scroll Phase 1 effects', () => {
     engine.useScroll(0);
     expect(engine.player.inventory.scrolls).toContain('magic_mapping');
     expect(engine.turn).toBe(turn);
+  });
+
+  it('Monster Detection: senses off-screen monsters without changing FOV or terrain memory', () => {
+    const engine = makeRunner(5);
+    carve(engine, 2, 1, 4);
+    carve(engine, 8, 14, 16);
+    const sensed = monster({ x: 15, y: 8, frozenTurns: 99 });
+    engine.monsters = [sensed];
+    engine.player.inventory.scrolls = ['monster_detection'];
+    const turn = engine.turn;
+
+    engine.useScroll(0);
+
+    expect(engine.player.inventory.scrolls).not.toContain('monster_detection');
+    expect(engine.turn).toBe(turn + 1);
+    expect(engine.statusEffects.monsterDetectionTurns).toBe(BALANCE.scrolls.monsterDetectionTurns - 1);
+    expect(engine.visible[8][15]).toBe(false);
+    expect(engine.explored[8][15]).toBe(false);
+    expect(tierOf(engine.discovery, monsterId(sensed))).toBe('seen');
+    expect(engine.discovery.defeated[monsterId(sensed)]).toBeUndefined();
+  });
+
+  it('Monster Detection: still consumes on an empty floor', () => {
+    const engine = makeRunner(5);
+    carve(engine, 2, 1, 4);
+    engine.player.inventory.scrolls = ['monster_detection'];
+
+    engine.useScroll(0);
+
+    expect(engine.player.inventory.scrolls).not.toContain('monster_detection');
+    expect(engine.statusEffects.monsterDetectionTurns).toBe(BALANCE.scrolls.monsterDetectionTurns - 1);
+    expect(engine.logs.some(line => line.includes('sense no monsters'))).toBe(true);
   });
 
   it('Hold Monster: freezes monsters in sight', () => {

@@ -230,7 +230,8 @@ describe('GameEngine amulet escape endgame', () => {
 
     expect(renders.length).toBeGreaterThan(0);
     const lastRender = renders[renders.length - 1];
-    expect(lastRender[lastRender.length - 1]).toBe(true);
+    const gameWon = lastRender[12];
+    expect(gameWon).toBe(true);
   });
 
   it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {

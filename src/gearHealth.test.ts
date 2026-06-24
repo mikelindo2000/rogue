@@ -55,7 +55,7 @@ describe('gear health', () => {
 
     expect(result).toMatchObject({ slot: 'chest', before: 1, after: 0, max: 1, broken: true });
     expect(player.inventory.chest[1].health).toEqual({ current: 0, max: 1 });
-    expect(getTotalDef(player, { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0 })).toBe(0);
+    expect(getTotalDef(player, { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0, monsterDetectionTurns: 0 })).toBe(0);
   });
 
   it('skips empty gear and leaves gear untouched when wear chance misses', () => {

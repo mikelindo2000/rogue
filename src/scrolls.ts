@@ -55,6 +55,12 @@ export const SCROLLS: Record<ScrollType, ScrollDefinition> = {
     detail: 'Charts every room and corridor on this floor at once. Kept if the floor is already fully explored.',
     minFloor: 3, rarity: 'uncommon', harmful: false, needsTarget: 'none', noOpKeepsScroll: true,
   },
+  monster_detection: {
+    type: 'monster_detection', name: 'Monster Detection', scrollOf: true,
+    summary: 'Senses every monster on this floor.',
+    detail: 'For a short time, monster glyphs pulse through walls and darkness. They are sensed, not in sight.',
+    minFloor: 5, rarity: 'uncommon', harmful: false, needsTarget: 'none', noOpKeepsScroll: false,
+  },
   teleportation: {
     type: 'teleportation', name: 'Teleportation', scrollOf: true,
     summary: 'Whisks you to a random safe tile.',
@@ -199,6 +205,7 @@ export const SCROLL_TUNING: Partial<Record<ScrollType, ScrollSpawnTuning>> = {
   // situational detection — useful in context, not staple filler.
   food_detection: { role: 'situational', early: 5,  mid: 4,  deep: 3 },
   gold_detection: { role: 'situational', early: 3,  mid: 2,  deep: 2 },
+  monster_detection: { role: 'situational', early: 0, mid: 3, deep: 4 },
   // risky reads — rare spice with visible names, never baseline economy.
   sleep:              { role: 'risky',   early: 1,  mid: 1,  deep: 1 },
   create_monster:     { role: 'risky',   early: 1,  mid: 1,  deep: 1 },
@@ -232,7 +239,7 @@ export interface ScrollSpawnEntry {
 export const IMPLEMENTED_SCROLLS: ReadonlySet<ScrollType> = new Set<ScrollType>([
   'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
   'create_monster', 'aggravate_monsters', 'food_detection', 'gold_detection',
-  'blank_paper', 'enchant_weapon', 'enchant_armor',
+  'monster_detection', 'blank_paper', 'enchant_weapon', 'enchant_armor',
 ]);
 
 export function isScrollImplemented(type: ScrollType): boolean {

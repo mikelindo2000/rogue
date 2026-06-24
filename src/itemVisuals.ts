@@ -60,7 +60,7 @@ export interface ScrollVisual {
 }
 
 export const SCROLL_TYPES = [
-  'light', 'repair', 'magic_mapping', 'teleportation', 'hold_monster', 'sleep',
+  'light', 'repair', 'magic_mapping', 'monster_detection', 'teleportation', 'hold_monster', 'sleep',
   'create_monster', 'aggravate_monsters', 'enchant_weapon', 'enchant_armor',
   'protect_armor', 'remove_curse', 'identify', 'food_detection', 'gold_detection',
   'monster_confusion', 'scare_monster', 'blank_paper',
@@ -75,6 +75,7 @@ export const SCROLL_VISUALS: Record<ScrollType, ScrollVisual> = {
   light:              { icon: 'scroll-light',              mapColor: '#ffd86b', uiColor: 'var(--scroll-light)', accent: 'warm-gold' },
   repair:             { icon: 'scroll-repair',             mapColor: '#b9c4d0', uiColor: '#b9c4d0', accent: 'silver anvil' },
   magic_mapping:      { icon: 'scroll-magic_mapping',      mapColor: '#6bb8ff', uiColor: '#6bb8ff', accent: 'blueprint blue' },
+  monster_detection:  { icon: 'scroll-monster_detection',  mapColor: '#66e0c2', uiColor: '#66e0c2', accent: 'psychic teal' },
   teleportation:      { icon: 'scroll-teleportation',      mapColor: '#b06bff', uiColor: '#b06bff', accent: 'portal violet' },
   hold_monster:       { icon: 'scroll-hold_monster',       mapColor: '#8fcfd6', uiColor: '#8fcfd6', accent: 'spectral teal' },
   sleep:              { icon: 'scroll-sleep',              mapColor: '#9fb0ff', uiColor: '#9fb0ff', accent: 'drowsy periwinkle' },

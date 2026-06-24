@@ -215,6 +215,19 @@ describe('savegame validation', () => {
     expect(loadSaveGame(mem)).toBeNull();
   });
 
+  it('migrates a V4 save by backfilling monster detection status', () => {
+    const mem = new MemoryStorage();
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.statusEffects.monsterDetectionTurns;
+    mem.setItem(KEY, JSON.stringify({ v: 4, data: snap }));
+
+    const loaded = loadSaveGame(mem);
+
+    expect(loaded?.statusEffects.monsterDetectionTurns).toBe(0);
+  });
+
   it('discards old V1 save wrappers instead of migrating them', () => {
     const mem = new MemoryStorage();
     const engine = newEngine();
@@ -364,6 +377,19 @@ describe('savegame validation', () => {
     const parsed = validateSaveGame(snap);
 
     expect(parsed?.trapEffects?.confusedTurns).toBe(0);
+  });
+
+  it('round-trips active monster detection through save validation and restore', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    engine.statusEffects.monsterDetectionTurns = 9;
+
+    const parsed = validateSaveGame(engine.snapshot());
+    expect(parsed?.statusEffects.monsterDetectionTurns).toBe(9);
+
+    const restored = newEngine();
+    expect(restored.restore(parsed!)).toBe(true);
+    expect(restored.statusEffects.monsterDetectionTurns).toBe(9);
   });
 
   it('round-trips active trap confusion through save validation and restore', () => {

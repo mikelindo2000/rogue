@@ -20,6 +20,7 @@ const noStatus = (): StatusEffects => ({
   strengthTurns: 0,
   invisTurns: 0,
   armorTurns: 0,
+  monsterDetectionTurns: 0,
 });
 
 function mob(name: string, over: Partial<Monster> = {}): Monster {

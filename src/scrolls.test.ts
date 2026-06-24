@@ -35,6 +35,7 @@ describe('scroll registry', () => {
   it('renders display names with the right prefix', () => {
     expect(scrollDisplayName('light')).toBe('Scroll of Light');
     expect(scrollDisplayName('magic_mapping')).toBe('Scroll of Magic Mapping');
+    expect(scrollDisplayName('monster_detection')).toBe('Scroll of Monster Detection');
     expect(scrollDisplayName('blank_paper')).toBe('Blank Paper');
   });
 });
@@ -121,6 +122,7 @@ describe('SCROLL_POOL spawn weighting', () => {
     }
     // Floor 1 should never surface a deep scroll like aggravate (minFloor 7).
     expect(seen[1].has('aggravate_monsters')).toBe(false);
+    expect(seen[3].has('monster_detection')).toBe(false);
     // Common floor-1 utility scrolls should appear early.
     expect(seen[1].has('light')).toBe(true);
   });

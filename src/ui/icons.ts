@@ -69,6 +69,8 @@ const SCROLL_ICONS: Record<ScrollIconName, string> = {
   'scroll-repair': `${scroll}<path d="M8.5 11h7l-1.3 2.2H10.8z"/><path d="M12 13.4v3M10 16.4h4"/><path d="M15.4 9l.3 1 1 .3-1 .3-.3 1-.3-1-1-.3 1-.3z"/>`,
   // dungeon grid
   'scroll-magic_mapping': `${scroll}<rect x="9" y="9" width="6.5" height="6.5" rx="0.6"/><path d="M12.2 9v6.5M9 12.2h6.5"/>`,
+  // watching eye with monster glyph pings
+  'scroll-monster_detection': `${scroll}<path d="M8.6 12s1.5-2.3 3.4-2.3 3.4 2.3 3.4 2.3-1.5 2.3-3.4 2.3S8.6 12 8.6 12z"/><circle cx="12" cy="12" r="0.85"/><path d="M8.6 8.7l.8.8M15.4 8.7l-.8.8M8.6 15.3l.8-.8M15.4 15.3l-.8-.8"/>`,
   // portal spiral
   'scroll-teleportation': `${scroll}<path d="M12.5 15a2.6 2.6 0 10-2.6-3.3 1.6 1.6 0 103.1.5"/>`,
   // two chain links

@@ -44,7 +44,7 @@ and don't collide:
 
 These related plans all touch the same seams. Coordinate so they integrate cleanly:
 
-1. **Savegame version** (`src/persistence/savegame.ts`, currently `VERSION = 4`).
+1. **Savegame version** (`src/persistence/savegame.ts`, currently `VERSION = 5`).
    Each plan bumps it and adds shape validation + migration. **If two or more ship
    together, do a single combined bump** rather than stacking sequential versions.
    Each plan documents its own delta.
