@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { playerSpriteName } from './avatar';
 import { MonsterStage, lifecycleHp, STAGE_LOOP, type StageBehavior } from './stage';
 
 // A no-op 2D context: every method is a stub, measureText returns plausible
@@ -81,5 +82,14 @@ describe('MonsterStage.renderFrame', () => {
       const stage = new MonsterStage(stubCanvas(), mon, { sprite }, COMBOS[0]);
       expect(() => stage.renderFrame(1700)).not.toThrow();
     }
+  });
+});
+
+describe('playerSpriteName', () => {
+  it('returns display names for playable character sprites', () => {
+    expect(playerSpriteName('rogue')).toBe('Rogue');
+    expect(playerSpriteName('knight')).toBe('Knight');
+    expect(playerSpriteName('adventurer')).toBe('Adventurer');
+    expect(playerSpriteName('mage')).toBe('Mage');
   });
 });

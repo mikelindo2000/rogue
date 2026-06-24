@@ -1,13 +1,38 @@
 <script lang="ts">
   import { ui } from '../store.svelte';
+  import { alivePlayerPalette, drawAvatar, playerSpriteName } from '../../render/avatar';
+
+  const avatarName = $derived(playerSpriteName(ui.playerSprite));
+  let avatarCanvas = $state<HTMLCanvasElement>();
+
+  $effect(() => {
+    const canvas = avatarCanvas;
+    const sprite = ui.playerSprite;
+    if (!canvas) return;
+
+    const size = 44;
+    const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    drawAvatar(ctx, sprite, size / 2, size / 2 + 1, 34, alivePlayerPalette());
+  });
 </script>
 
 <div class="card">
-  <div class="avatar" aria-hidden="true">{ui.glyph}</div>
+  <div class="avatar" aria-label="{avatarName} avatar" title={avatarName}>
+    <canvas bind:this={avatarCanvas} aria-hidden="true"></canvas>
+  </div>
   <div class="text">
     <div class="name">{ui.charName}</div>
     <div class="sub">
-      Level {ui.level} · {ui.charClass}{ui.strengthDrain > 0 ? ` · -${ui.strengthDrain} STR` : ''}
+      Level {ui.level} · {avatarName}{ui.strengthDrain > 0 ? ` · -${ui.strengthDrain} STR` : ''}
     </div>
   </div>
 </div>
@@ -30,9 +55,13 @@
     border-radius: var(--r-lg);
     background: var(--surface-inset-2);
     border: 1px solid var(--border-strong);
-    color: var(--accent);
-    font: 700 22px var(--font-display);
-    text-shadow: 0 0 10px var(--accent-glow);
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.34), 0 0 18px rgba(255, 211, 77, 0.08);
+    overflow: hidden;
+  }
+  .avatar canvas {
+    display: block;
+    width: 44px;
+    height: 44px;
   }
   .text {
     min-width: 0;
