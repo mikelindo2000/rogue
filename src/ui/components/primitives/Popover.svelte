@@ -149,6 +149,12 @@
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       btns[(idx - 1 + btns.length) % btns.length]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      btns[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      btns[btns.length - 1]?.focus();
     }
   }
 
@@ -261,17 +267,26 @@
     gap: 8px;
     width: 100%;
     padding: 8px 9px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--r-md);
     background: transparent;
     text-align: left;
     cursor: pointer;
     font: 500 var(--fs-body) var(--font-ui);
-    transition: background var(--dur-fast) var(--ease);
+    transition:
+      background var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease);
   }
-  .item:hover:not(:disabled),
-  .item:focus-visible {
+  .item:hover:not(:disabled) {
     background: var(--surface-card);
+  }
+  /* The keyboard cursor: a clear, always-visible highlight on the focused row,
+     matching the loadout hub's selected-row treatment (:focus, not just
+     :focus-visible, so arrow-key navigation is unambiguous). */
+  .item:focus:not(:disabled) {
+    background: var(--surface-card);
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 35%, transparent);
     outline: none;
   }
   .item:disabled {
