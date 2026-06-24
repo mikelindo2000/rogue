@@ -202,7 +202,7 @@ export const BALANCE = {
   },
   // Wands/staves: zapped at range, never consume charges. Power is gated by a
   // per-item cooldown (caps burst) plus a flat hunger cost per zap (caps
-  // sustain). See design/planning/wands_and_staves_plan.md.
+  // sustain). See design/implemented/wands_and_staves_plan.md.
   wands: {
     defaultCooldown: 4,        // turns; overridable per type below
     defaultHungerCost: 8,      // hunger units per zap (per-turn drain is 1)

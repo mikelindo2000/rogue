@@ -15,7 +15,7 @@ and don't collide:
   Invisible, Adornment, and the cursed Aggravate Monster / Teleportation), with
   Rogue's food-upkeep tension and room for rarity/enchant scaling, identification,
   and curses.
-- **[Wands & Staves](wands_and_staves_plan.md)** — zappable arcane items at
+- **[Wands & Staves](../implemented/wands_and_staves_plan.md)** — zappable arcane items at
   original-Rogue catalog parity, using the **Rogue: DungeonMaster no-charges
   model** (persistent items gated by cooldown/hunger rather than finite charges).
   Introduces the engine's first ranged/targeting subsystem and reconciles the

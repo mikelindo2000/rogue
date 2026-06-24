@@ -86,7 +86,7 @@ export type ScrollType =
 /** The zappable arcane line. Distinct from the melee WeaponType 'staff': wands
  *  are carried (not equipped) and zapped in a direction. No charges — power is
  *  gated by a per-item cooldown plus a small hunger cost. See
- *  design/planning/wands_and_staves_plan.md. */
+ *  design/implemented/wands_and_staves_plan.md. */
 export type WandType =
   | 'striking'       // force bolt, scaled melee-style damage
   | 'magic_missile'  // reliable low-variance damage, never misses

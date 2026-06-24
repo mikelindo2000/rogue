@@ -1,7 +1,7 @@
 /* Pure helpers for the wand/staff line: cooldown + hunger gating, target-mode
  * classification, and floor-gated spawn selection. Effect resolution lives in
  * the engine (it mutates monsters/player); this module stays side-effect free
- * so it is trivially unit-testable. See design/planning/wands_and_staves_plan.md. */
+ * so it is trivially unit-testable. See design/implemented/wands_and_staves_plan.md. */
 
 import { BALANCE, WAND_POOL } from './config';
 import { rollLootRarity } from './items';
