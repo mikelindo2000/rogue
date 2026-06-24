@@ -186,6 +186,9 @@ export const BALANCE = {
   },
   gold: {
     variance: 0.1, // +/- 10%
+    // A hoard-guardian (dragon/golem) drops this many chests' worth of gold for
+    // its floor on death — the payoff for clearing a leashed treasure-defender.
+    hoardMultiplier: 5,
   },
   loot: {
     legendaryMinFloor: 12,

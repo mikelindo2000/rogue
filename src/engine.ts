@@ -1030,13 +1030,13 @@ export class GameEngine {
       let pickedUp = true;
 
       if (item.type === 'gold' && item.amount !== undefined) {
-        // A dropped pile with an explicit amount (a slain leprechaun's gold).
-        // Paid out exactly — no chest re-roll, no bonus XP, no Midas multiplier —
-        // so it reads as "you recovered your gold," not as found treasure.
+        // A dropped pile with an explicit amount — a slain leprechaun's stolen
+        // purse or a guardian's hoard. Paid out exactly: no chest re-roll, no
+        // bonus XP, no Midas multiplier. It's loot off a corpse, not found treasure.
         const g = item.amount;
         this.player.gold += g;
         recordChest(this.stats, g);
-        this.addLog(`Recovered ${g} gold.`);
+        this.addLog(`You collect ${g} gold.`);
       } else if (item.type === 'gold') {
         const baseGold = CHEST_GOLD_TABLE[this.player.level] || 15;
         const minGold = Math.round(baseGold * (1 - BALANCE.gold.variance));
@@ -1752,19 +1752,37 @@ export class GameEngine {
     return tmpl.name;
   }
 
-  /** Spill a slain monster's gold onto its tile as a recoverable pile. Gold-
-   *  carriers (the leprechaun/trickster) always drop at least a depth-scaled base
-   *  hoard — GOLDCALC = rnd(50 + 10·depth) + 2, canonical Rogue — on top of any
-   *  gold they stole and stashed in their purse. So killing a leprechaun refunds
-   *  what it took plus its own hoard; a thief that escaped with your gold keeps it
-   *  until you hunt it down. The pile carries an explicit `amount`, so pickup pays
-   *  out exactly this (no chest re-roll, no bonus XP — see checkItems). */
+  /** Spill a slain monster's gold onto its tile as a recoverable pile, combining
+   *  any gold it pocketed during the fight (a leprechaun's stolen purse) with the
+   *  base hoard it was sitting on. So killing a leprechaun refunds what it took
+   *  plus its small hoard, and felling a guardian dragon/golem yields its lair's
+   *  treasure. The pile carries an explicit `amount`, so pickup pays out exactly
+   *  this (no chest re-roll, no bonus XP — see checkItems). */
   private dropMonsterGold(monster: Monster) {
-    const base = archetypeOf(monster) === 'trickster' ? 2 + this.rng.int(50 + 10 * this.dungeonFloor) : 0;
-    const total = (monster.gold ?? 0) + base;
+    const total = (monster.gold ?? 0) + this.monsterHoardGold(monster);
     if (total <= 0) return;
     this.items.push({ type: 'gold', amount: total, symbol: '$', color: '#ffff55', x: monster.x, y: monster.y });
     this.addLog(`The ${monster.name} drops ${total} gold!`);
+  }
+
+  /** The base hoard a gold-carrier sits on, by archetype (on top of any gold it
+   *  pocketed mid-fight). Tricksters carry a modest GOLDCALC purse; guardians
+   *  sleep on a large floor-scaled hoard. Everything else carries none. */
+  private monsterHoardGold(monster: Monster): number {
+    switch (archetypeOf(monster)) {
+      case 'trickster':
+        return 2 + this.rng.int(50 + 10 * this.dungeonFloor); // canonical GOLDCALC
+      case 'guardian': {
+        const chest = CHEST_GOLD_TABLE[this.dungeonFloor] ?? 60;
+        const hoard = chest * BALANCE.gold.hoardMultiplier;
+        return this.rng.range(
+          Math.round(hoard * (1 - BALANCE.gold.variance)),
+          Math.round(hoard * (1 + BALANCE.gold.variance)),
+        );
+      }
+      default:
+        return 0;
+    }
   }
 
   /** Relocate a monster to a safe floor tile: not adjacent to the player, not on

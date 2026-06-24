@@ -212,5 +212,45 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
 
     case 'flee':
       return stepAway(ctx, player.x, player.y);
+
+    case 'guard': {
+      // Anchor to the lair the first time we act, then guard it. (An adjacent
+      // player is handled by the attack check upstream, so the dormant sentinel
+      // still bites anyone who walks right up to its hoard.)
+      if (rt.homeX === undefined) {
+        rt.homeX = m.x;
+        rt.homeY = m.y;
+      }
+      const homeX = rt.homeX;
+      const homeY = rt.homeY!;
+      const wake = effectiveAggro(ctx, mv.wakeRange ?? mv.aggroRange);
+      const leash = mv.leashRange ?? 5;
+      const distHome = manhattan(m.x, m.y, homeX, homeY);
+
+      // Dormant on the hoard until the player comes near.
+      if (rt.state !== 'hunting') {
+        if (dist <= wake) rt.state = 'hunting';
+        else return { type: 'wait' };
+      }
+
+      // Engaged: chase the player, but never past the leash, and give up once
+      // they've fled well clear — the hoard comes first.
+      const atLeashEdge = distHome >= leash;
+      const playerFled = dist > wake + leash;
+      if (!atLeashEdge && !playerFled) {
+        const chase = stepToward(ctx, player.x, player.y);
+        if (chase.type === 'move') return chase;
+        return { type: 'wait' };
+      }
+
+      // Out of leash or the player bolted: trudge back to the hoard, re-arming
+      // the dormant guard once we're standing on it again.
+      if (distHome > 0) {
+        const back = stepToward(ctx, homeX, homeY);
+        if (back.type === 'move') return back;
+      }
+      rt.state = 'asleep';
+      return { type: 'wait' };
+    }
   }
 }

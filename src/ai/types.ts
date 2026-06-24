@@ -23,6 +23,9 @@ export type MovementStyle =
   | 'kite'
   /** Always flees the player (used by the `fleeing` FSM state). */
   | 'flee'
+  /** Dormant on its lair until the player nears (wakeRange), chases only within
+   *  `leashRange` of home, and returns to guard its hoard otherwise (guardian). */
+  | 'guard'
   /** Never moves. */
   | 'stationary';
 
@@ -36,6 +39,9 @@ export interface MovementSpec {
   erraticChance?: number;
   /** Target spacing for kiters (they back off when closer than this). */
   keepDistance?: number;
+  /** Max distance a `guard` mover will stray from its lair to chase before
+   *  turning back to its hoard. */
+  leashRange?: number;
 }
 
 export interface AttackSpec {
@@ -118,6 +124,10 @@ export interface MonsterAIRuntime {
   /** Set by an on-hit ability (leprechaun steal) to request a blink-away this
    *  turn. processMonsterAI consumes it after the attack and calls `onBlink`. */
   pendingBlink?: boolean;
+  /** A `guard` mover's lair, captured the first time it acts. It leashes its
+   *  pursuit to this tile and returns here to keep watch over its hoard. */
+  homeX?: number;
+  homeY?: number;
 }
 
 export interface PendingAttack {

@@ -65,14 +65,15 @@ const GOLEM = MONSTER_DATABASE.find((m) => m.name === 'Golem')!;
 const GARY = MONSTER_DATABASE.find((m) => m.name === 'Gary the Golem')!;
 
 describe('Golem', () => {
-  it('resolves Golem and Gary to the ambusher archetype (movement-only, plain melee)', () => {
-    for (const name of ['Golem', 'Gary the Golem']) {
+  it('resolves Golem, Gary, and the Dragon to the guardian archetype (movement-only, plain melee)', () => {
+    for (const name of ['Golem', 'Gary the Golem', 'Dragon']) {
       const b = resolveBehavior({ name });
-      expect(b.id).toBe('ambusher');
-      expect(archetypeOf({ name })).toBe('ambusher');
-      expect(b.movement.style).toBe('ambush');
-      // wakeRange is what trips the latch.
+      expect(b.id).toBe('guardian');
+      expect(archetypeOf({ name })).toBe('guardian');
+      expect(b.movement.style).toBe('guard');
+      // wakeRange rouses it; leashRange tethers it to the hoard.
       expect(b.movement.wakeRange).toBeGreaterThan(0);
+      expect(b.movement.leashRange).toBeGreaterThan(0);
       // Movement-only: a single plain-melee attack, no telegraph, no evasion.
       expect(b.attacks).toHaveLength(1);
       const atk = b.attacks[0];
@@ -84,41 +85,72 @@ describe('Golem', () => {
   });
 
   it('is balance-neutral vs the default archetype (its combat shape is identical)', () => {
-    const ambush = primaryAttackShape({ id: 'ambusher', ...ARCHETYPES.ambusher });
+    const guardian = primaryAttackShape({ id: 'guardian', ...ARCHETYPES.guardian });
     const def = primaryAttackShape({ id: 'default', ...ARCHETYPES.default });
-    // Same damage/turn/evasion — ambush only changes *movement*, not combat.
-    expect(ambush).toEqual(def);
+    // Same damage/turn/evasion — guard only changes *movement*, not combat.
+    expect(guardian).toEqual(def);
   });
 
-  // --- the ambush FSM: wait → wake (latch) → keep hunting --------------------
+  // --- the guard FSM: dormant → wake → leashed chase → return home -----------
 
-  it('holds perfectly still while the player is outside wakeRange', () => {
+  it('lies dormant on its hoard while the player is outside wakeRange', () => {
     const wake = resolveBehavior({ name: 'Golem' }).movement.wakeRange!;
     const m = mob('Golem', { x: 0, y: 7 });
-    // Player well outside wakeRange — the sentinel does not move.
+    // Player well outside wakeRange — the sentinel does not stir.
     const a = decide(m, { x: wake + 5, y: 7 }, resolveBehavior({ name: 'Golem' }), { monsters: [m] });
     expect(a.type).toBe('wait');
     expect(m.ai?.state).not.toBe('hunting');
   });
 
-  it('wakes and chases once the player enters wakeRange, and latches permanently when they back away', () => {
+  it('wakes and steps toward the player once they enter wakeRange', () => {
     const b = resolveBehavior({ name: 'Golem' });
     const wake = b.movement.wakeRange!;
     const m = mob('Golem', { x: 0, y: 7 });
 
-    // Far away: asleep, waits.
+    // Far away: dormant, waits, and anchors its lair here.
     expect(decide(m, { x: 12, y: 7 }, b, { monsters: [m] }).type).toBe('wait');
     expect(m.ai?.state).not.toBe('hunting');
+    expect(m.ai?.homeX).toBe(0);
 
-    // Player steps within wakeRange: wakes and steps toward them.
+    // Player steps within wakeRange: wakes and advances.
     const woke = decide(m, { x: wake, y: 7 }, b, { monsters: [m] });
     expect(woke).toEqual({ type: 'move', dx: 1, dy: 0 });
     expect(m.ai?.state).toBe('hunting');
+  });
 
-    // Player flees far back out of wakeRange: the latch holds — still chasing.
-    const stillChasing = decide(m, { x: 14, y: 7 }, b, { monsters: [m] });
-    expect(stillChasing.type).toBe('move');
-    expect(m.ai?.state).toBe('hunting');
+  it('leashes to its hoard: turns back home rather than chase past leashRange', () => {
+    const b = resolveBehavior({ name: 'Golem' });
+    const leash = b.movement.leashRange!;
+    // Already engaged and standing exactly at the leash edge, lair behind it.
+    const m = mob('Golem', {
+      x: leash,
+      y: 7,
+      ai: { state: 'hunting', cooldowns: {}, swipeToggle: false, homeX: 0, homeY: 7 },
+    });
+    // Player just beyond, tempting it onward — it refuses and heads back home.
+    const a = decide(m, { x: leash + 2, y: 7 }, b, { monsters: [m] });
+    expect(a).toEqual({ type: 'move', dx: -1, dy: 0 });
+  });
+
+  it('returns to its lair and re-arms when the player flees far away', () => {
+    const b = resolveBehavior({ name: 'Golem' });
+    // Engaged but the player has bolted across the level.
+    const m = mob('Golem', {
+      x: 1,
+      y: 7,
+      ai: { state: 'hunting', cooldowns: {}, swipeToggle: false, homeX: 0, homeY: 7 },
+    });
+    // One step back toward the hoard.
+    expect(decide(m, { x: 14, y: 7 }, b, { monsters: [m] })).toEqual({ type: 'move', dx: -1, dy: 0 });
+
+    // Standing on the lair with the player still gone: re-dormants and holds.
+    const home = mob('Golem', {
+      x: 0,
+      y: 7,
+      ai: { state: 'hunting', cooldowns: {}, swipeToggle: false, homeX: 0, homeY: 7 },
+    });
+    expect(decide(home, { x: 14, y: 7 }, b, { monsters: [home] }).type).toBe('wait');
+    expect(home.ai?.state).not.toBe('hunting');
   });
 
   it('bites with plain melee when adjacent once engaged', () => {
@@ -130,7 +162,7 @@ describe('Golem', () => {
 
   // --- difficulty (harness) -------------------------------------------------
 
-  it('Golem is fair at floor 15 (ambusher is balance-neutral, ~unchanged threat)', () => {
+  it('Golem is fair at floor 15 (guardian is balance-neutral, ~unchanged threat)', () => {
     const report = analyzeMonster(GOLEM, { trials: 1500, shapeFor: shapeForTemplate });
     expect(report.floor).toBe(15);
     expect(report.difficulty).toBe('fair');

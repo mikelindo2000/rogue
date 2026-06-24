@@ -35,6 +35,7 @@ export type ArchetypeId =
   | 'brute'
   | 'kiter'
   | 'trickster'
+  | 'guardian'
   | 'boss-swiper'
   | 'bat'
   | 'raptor'
@@ -102,6 +103,20 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
     attacks: [melee()],
     defense: { fleeBelowHpPct: 0.5 },
     abilities: [{ id: 'stealGold', chance: 0.7, magnitude: 50, cooldown: 0, trigger: 'onHit', thenBlink: true }],
+  },
+  // The hoard guardian — a dragon on its gold, a golem watching a vault. Dormant
+  // on its lair until you come within wakeRange, then it engages, but it leashes
+  // to the hoard: it chases only within `leashRange` of home and trudges back to
+  // guard the gold when you flee, never abandoning the lair. Plain melee, so it's
+  // balance-neutral vs `default` (movement-only). The reward is the hoard itself:
+  // a large floor-scaled pile (plus any gold it carries) drops on death — see
+  // dropMonsterGold. Pairs the leprechaun's gold-drop system with a stationary
+  // treasure-defender fantasy.
+  guardian: {
+    movement: { style: 'guard', aggroRange: AGGRO, wakeRange: 3, leashRange: 5 },
+    attacks: [melee()],
+    defense: {},
+    abilities: [],
   },
   // The modern Brown Bat: erratic flier that telegraphs a heavy dive you can
   // step out of, and flits aside from your own blows. Its danger is the swoop
@@ -187,13 +202,16 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   // same threat. See MONSTER_DATABASE for the bumped rows.
   'cyclops': 'brute',
   'colossal-cyclops': 'brute',
-  // Golem & elite: a stone sentinel — inert until you stumble within wakeRange,
-  // then it latches and chases permanently (ambush FSM). Movement-only: once
-  // engaged it bites with plain melee every turn, identical to default, so this
-  // is balance-neutral — no base-atk change needed (confirmed fair at floor 15
-  // via the harness: threat unchanged vs default).
-  'golem': 'ambusher',
-  'gary-the-golem': 'ambusher',
+  // Golem & elite: a stone sentinel guarding a hoard. Dormant on its lair until
+  // you stumble within wakeRange, then it engages — but it leashes to its gold,
+  // chasing only within leashRange and returning to guard the pile when you flee
+  // (guard FSM). Movement-only plain melee, so balance-neutral vs default (still
+  // fair at floor 15). On death it spills a large floor-scaled hoard.
+  'golem': 'guardian',
+  'gary-the-golem': 'guardian',
+  // The Dragon: the canonical Rogue gold-greedy monster (the ISGREED flag), here
+  // realized as a hoard guardian sleeping on a massive pile it drops when slain.
+  'dragon': 'guardian',
   // Flying Serpent: a ranged poker (kiter) — holds its distance and spits
   // telegraphed bolts; you close the gap or strafe off its line to dodge. The
   // bolt is BOTH telegraphed (windupTurns:1) AND low-multiplier chip, so it

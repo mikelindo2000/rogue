@@ -1011,3 +1011,71 @@ describe('scroll system', () => {
     expect(engine.equipInventoryItem({ kind: 'scroll', scrollType: 'light' })).toBe(false);
   });
 });
+
+describe('monster gold drops', () => {
+  // makeRunner gives a 1-damage player; computeStrike clamps to min 1, so a
+  // 1-HP monster always dies in one swing. setChanceRoll(0) makes int()/range()
+  // deterministic (int → 0, range → min), so dropped amounts are exact.
+  const kill = (engine: GameEngine, m: Monster) => {
+    engine.monsters = [m];
+    engine.playerAttack(m);
+  };
+
+  it('a slain leprechaun drops its stolen purse plus a GOLDCALC hoard', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 5;
+    setChanceRoll(engine, 0); // GOLDCALC base = 2 + int(100) = 2
+    const lep: Monster = {
+      x: 3, y: 2, symbol: 'L', name: 'Leprechaun', hp: 1, maxHp: 1, atk: 1,
+      color: '#00ff00', minFloor: 5, frozenTurns: 0, gold: 100, // 100 already stolen
+    };
+
+    kill(engine, lep);
+
+    const pile = engine.items.find((i) => i.type === 'gold');
+    expect(pile).toMatchObject({ type: 'gold', amount: 102, x: 3, y: 2 });
+  });
+
+  it('a slain guardian dragon drops a large floor-scaled hoard', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 20;
+    setChanceRoll(engine, 0); // range() returns its min
+    const dragon: Monster = {
+      x: 3, y: 2, symbol: 'D', name: 'Dragon', hp: 1, maxHp: 1, atk: 1,
+      color: '#00ff00', minFloor: 20, frozenTurns: 0,
+    };
+
+    kill(engine, dragon);
+
+    // CHEST_GOLD_TABLE[20] (1200) × hoardMultiplier (5) = 6000, min of ±10% = 5400.
+    const pile = engine.items.find((i) => i.type === 'gold');
+    expect(pile).toMatchObject({ type: 'gold', amount: 5400 });
+  });
+
+  it('a plain monster drops no gold', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 1;
+    setChanceRoll(engine, 0);
+    const orc: Monster = {
+      x: 3, y: 2, symbol: 'O', name: 'Orc', hp: 1, maxHp: 1, atk: 1,
+      color: '#556b2f', minFloor: 1, frozenTurns: 0,
+    };
+
+    kill(engine, orc);
+
+    expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
+  });
+
+  it('collecting a dropped pile credits its exact amount with no chest re-roll', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 5;
+    setChanceRoll(engine, 0);
+    const goldBefore = engine.player.gold;
+    engine.items = [{ type: 'gold', amount: 250, symbol: '$', color: '#ffff55', x: 2, y: 2 }];
+
+    engine.checkItems(); // player is standing on (2,2)
+
+    expect(engine.player.gold).toBe(goldBefore + 250);
+    expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
+  });
+});

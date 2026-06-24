@@ -216,6 +216,9 @@ export interface Monster {
     /** Set when an on-hit ability (leprechaun's steal) wants the monster to blink
      *  away this turn. The engine consumes it after the attack resolves. */
     pendingBlink?: boolean;
+    /** A guardian's lair tile, captured on first action; it leashes to this. */
+    homeX?: number;
+    homeY?: number;
   };
 }
 
