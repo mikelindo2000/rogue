@@ -39,6 +39,7 @@ export class MusicService {
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly loading = new Map<string, Promise<AudioBuffer | null>>();
   private readonly warned = new Set<string>();
+  private resumePromise: Promise<void> | null = null;
   /** Guards against a fast A→B→A switch resolving stale loads out of order. */
   private switchToken = 0;
 
@@ -64,7 +65,7 @@ export class MusicService {
 
   unlock(): void {
     if (this.unlocked) {
-      void this.ctx?.resume?.().catch(() => {});
+      this.resumeAndSwitch();
       return;
     }
     const ctx = ensureAudioContext();
@@ -78,14 +79,34 @@ export class MusicService {
       this.master.gain.value = this.effectiveGain();
       this.master.connect(ctx.destination);
       this.unlocked = true;
-      void ctx.resume?.().catch(() => {});
-      // Start whatever context the game already selected while locked.
-      if (this.desiredId) this.switchTo(this.desiredId);
+      this.resumeAndSwitch();
     } catch {
       this.ctx = null;
       this.master = null;
       this.unlocked = true;
     }
+  }
+
+  private resumeAndSwitch(): void {
+    const ctx = this.ctx;
+    if (!ctx?.resume) {
+      this.switchToDesiredIfNeeded();
+      return;
+    }
+    this.resumePromise = ctx.resume()
+      .then(() => {
+        this.resumePromise = null;
+        this.switchToDesiredIfNeeded();
+      })
+      .catch(() => {
+        this.resumePromise = null;
+      });
+  }
+
+  private switchToDesiredIfNeeded(): void {
+    if (this.desiredId === this.current?.id) return;
+    if (this.desiredId === null && this.current === null) return;
+    this.switchTo(this.desiredId);
   }
 
   // --- context selection -------------------------------------------------
@@ -94,7 +115,12 @@ export class MusicService {
   setContext(id: MusicContextId | null): void {
     if (id === this.desiredId) return;
     this.desiredId = id;
-    if (this.unlocked) this.switchTo(id);
+    if (!this.unlocked) return;
+    if (this.resumePromise || this.ctx?.state === 'suspended') {
+      this.resumeAndSwitch();
+      return;
+    }
+    this.switchTo(id);
   }
 
   private switchTo(id: MusicContextId | null): void {
@@ -115,6 +141,10 @@ export class MusicService {
     const ctx = this.ctx;
     const master = this.master;
     if (!ctx || !master) return;
+    if (this.resumePromise || ctx.state === 'suspended') {
+      this.resumeAndSwitch();
+      return;
+    }
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.loop = true;

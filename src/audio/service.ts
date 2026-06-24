@@ -32,6 +32,8 @@ export class AudioService implements SoundSink {
   private readonly loading = new Map<string, Promise<AudioBuffer | null>>();
   private readonly lastPlayed = new Map<string, number>();
   private readonly warned = new Set<string>();
+  private readonly pendingEvents: SoundEvent[] = [];
+  private resumePromise: Promise<void> | null = null;
   private activeVoices = 0;
   /** Live voice count per asset id, for per-asset maxVoices enforcement. */
   private readonly assetVoices = new Map<string, number>();
@@ -56,12 +58,13 @@ export class AudioService implements SoundSink {
   unlock(): void {
     if (this.unlocked) {
       // A suspended context (tab backgrounded) can be resumed here too.
-      void this.ctx?.resume?.().catch(() => {});
+      this.resumeAndFlush();
       return;
     }
     const ctx = ensureAudioContext();
     if (!ctx) {
       this.unlocked = true; // nothing to play, but don't keep retrying
+      this.pendingEvents.length = 0;
       return;
     }
     try {
@@ -70,14 +73,31 @@ export class AudioService implements SoundSink {
       this.master.gain.value = this.effectiveGain();
       this.master.connect(this.ctx.destination);
       this.unlocked = true;
-      void this.ctx.resume?.().catch(() => {});
+      this.resumeAndFlush();
       this.preloadCore();
     } catch {
       // Web Audio unavailable/blocked — stay a silent no-op.
       this.ctx = null;
       this.master = null;
       this.unlocked = true;
+      this.pendingEvents.length = 0;
     }
+  }
+
+  private resumeAndFlush(): void {
+    const ctx = this.ctx;
+    if (!ctx?.resume) {
+      this.flushPendingEvents();
+      return;
+    }
+    this.resumePromise = ctx.resume()
+      .then(() => {
+        this.resumePromise = null;
+        this.flushPendingEvents();
+      })
+      .catch(() => {
+        this.resumePromise = null;
+      });
   }
 
   private preloadCore(): void {
@@ -135,7 +155,20 @@ export class AudioService implements SoundSink {
 
   /** SoundSink. Resolve the event to an asset and play it; never throws. */
   emit(event: SoundEvent): void {
-    if (!this.unlocked || !this.ctx || !this.master) return;
+    if (!this.unlocked) {
+      this.queuePending(event);
+      return;
+    }
+    if (!this.ctx || !this.master) return;
+    if (this.resumePromise || this.ctx.state === 'suspended') {
+      this.queuePending(event);
+      if (!this.resumePromise) this.resumeAndFlush();
+      return;
+    }
+    this.playEvent(event);
+  }
+
+  private playEvent(event: SoundEvent): void {
     const asset = resolveCue(event);
     if (!asset) return;
     try {
@@ -143,6 +176,17 @@ export class AudioService implements SoundSink {
     } catch {
       /* presentation only — never disrupt gameplay */
     }
+  }
+
+  private queuePending(event: SoundEvent): void {
+    this.pendingEvents.push(event);
+    if (this.pendingEvents.length > 24) this.pendingEvents.shift();
+  }
+
+  private flushPendingEvents(): void {
+    if (!this.ctx || !this.master || this.resumePromise || this.ctx.state === 'suspended') return;
+    const events = this.pendingEvents.splice(0);
+    for (const event of events) this.playEvent(event);
   }
 
   /** Play a one-off sample for the settings "test sound" button. */

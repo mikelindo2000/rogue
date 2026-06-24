@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AudioService, createAudioService } from './service';
+import { __resetAudioContextForTest } from './context';
 
 // In the test environment there is no Web Audio implementation, so the service
 // is an inert no-op. These tests cover the parts that must work regardless:
@@ -45,5 +46,83 @@ describe('AudioService never throws into gameplay', () => {
     expect(a.isUnlocked).toBe(true);
     expect(() => a.emit({ type: 'map.secretReveal' })).not.toThrow();
     expect(() => a.test()).not.toThrow();
+  });
+});
+
+describe('AudioService unlock timing', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    __resetAudioContextForTest();
+  });
+
+  it('flushes events emitted while the first gesture is still resuming audio', async () => {
+    __resetAudioContextForTest();
+    let resolveResume!: () => void;
+    let starts = 0;
+
+    class FakeAudioContext {
+      state: AudioContextState = 'suspended';
+      currentTime = 0;
+      destination = {};
+
+      createGain() {
+        const node = {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+        };
+        return node;
+      }
+
+      createBufferSource() {
+        const node = {
+          buffer: null,
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+          start: vi.fn(() => { starts++; }),
+          onended: null,
+        };
+        return node;
+      }
+
+      resume() {
+        return new Promise<void>(resolve => {
+          resolveResume = () => {
+            this.state = 'running';
+            resolve();
+          };
+        });
+      }
+
+      async decodeAudioData() {
+        return {} as AudioBuffer;
+      }
+    }
+
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(1),
+    })));
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+    expect(audio.isUnlocked).toBe(true);
+    (audio as unknown as { buffers: Map<string, AudioBuffer> }).buffers.set('sfx/item-pickup-01.mp3', {} as AudioBuffer);
+
+    audio.emit({ type: 'item.pickup', kind: 'gear' });
+    expect(starts).toBe(0);
+    expect((audio as unknown as { pendingEvents: unknown[] }).pendingEvents).toHaveLength(1);
+
+    resolveResume();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(starts).toBe(1);
   });
 });
