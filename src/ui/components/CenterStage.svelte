@@ -2,6 +2,7 @@
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
+  import EffectLayerHost from './EffectLayerHost.svelte';
   import { getDungeonStyle } from '../../theme';
   import { pickRandomBg, backgroundUrl } from '../backgrounds';
 
@@ -40,20 +41,17 @@
     <img src={backgroundUrl(currentBg)} class="bg-image" class:fade-in={isTransitioning} alt="" />
   </div>
 
+  <!-- Atmosphere between the background art and the canvas (e.g. floor fog). -->
+  <EffectLayerHost effects={ui.visualEffects} target="stage-backdrop" />
+
   <!-- Intrinsic size is set imperatively by GameUI.paint() to board × tile size
        (it owns the backing store so resizes land before paints). These static
        attributes are just the pre-first-paint default (classic 46×29 × 20). -->
   <canvas id="gameCanvas" width="920" height="580"></canvas>
 
   <div class="vignette" aria-hidden="true"></div>
-  <div
-    class="survival-wash"
-    class:hunger={ui.survivalWarningTone === 'hunger'}
-    class:health={ui.survivalWarningTone === 'health'}
-    class:both={ui.survivalWarningTone === 'both'}
-    style:--survival-intensity={ui.survivalWarningIntensity}
-    aria-hidden="true"
-  ></div>
+  <!-- Danger washes / above-board atmosphere (survival warning lives here). -->
+  <EffectLayerHost effects={ui.visualEffects} target="stage-overlay" />
 
   {#if ui.stairsNearby}
     <div class="stairs-pill">
@@ -133,61 +131,6 @@
     pointer-events: none;
     z-index: 2;
     background: radial-gradient(130% 120% at 52% 46%, transparent 46%, rgba(0, 0, 0, 0.6));
-  }
-  .survival-wash {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    opacity: 0;
-    --survival-wash: transparent;
-    --survival-grain: transparent;
-    --survival-rim: transparent;
-    --survival-pulse-min: 0;
-    --survival-pulse-max: 0;
-    background:
-      radial-gradient(circle at 50% 45%, transparent 34%, var(--survival-wash) 100%),
-      linear-gradient(90deg, var(--survival-rim), transparent 18%, transparent 82%, var(--survival-rim)),
-      repeating-linear-gradient(135deg, transparent 0 8px, var(--survival-grain) 8px 9px);
-    mix-blend-mode: screen;
-    animation: survival-pulse 3s var(--ease) infinite;
-  }
-  .survival-wash.hunger {
-    --survival-wash: rgba(206, 130, 48, calc(0.18 * var(--survival-intensity)));
-    --survival-grain: rgba(236, 176, 83, calc(0.12 * var(--survival-intensity)));
-    --survival-rim: rgba(224, 162, 63, calc(0.1 * var(--survival-intensity)));
-    --survival-pulse-min: calc(0.24 * var(--survival-intensity));
-    --survival-pulse-max: calc(0.5 * var(--survival-intensity));
-  }
-  .survival-wash.health {
-    --survival-wash: rgba(196, 48, 42, calc(0.18 * var(--survival-intensity)));
-    --survival-grain: rgba(235, 92, 74, calc(0.09 * var(--survival-intensity)));
-    --survival-rim: rgba(217, 84, 74, calc(0.13 * var(--survival-intensity)));
-    --survival-pulse-min: calc(0.22 * var(--survival-intensity));
-    --survival-pulse-max: calc(0.54 * var(--survival-intensity));
-    animation-duration: 2.25s;
-  }
-  .survival-wash.both {
-    --survival-wash: rgba(132, 45, 114, calc(0.22 * var(--survival-intensity)));
-    --survival-grain: rgba(224, 162, 63, calc(0.11 * var(--survival-intensity)));
-    --survival-rim: rgba(217, 84, 74, calc(0.15 * var(--survival-intensity)));
-    --survival-pulse-min: calc(0.28 * var(--survival-intensity));
-    --survival-pulse-max: calc(0.64 * var(--survival-intensity));
-    animation-duration: 1.65s;
-  }
-  @keyframes survival-pulse {
-    0%, 100% {
-      opacity: var(--survival-pulse-min);
-    }
-    45% {
-      opacity: var(--survival-pulse-max);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .survival-wash {
-      animation: none;
-      opacity: var(--survival-pulse-min);
-    }
   }
   .stairs-pill {
     position: absolute;

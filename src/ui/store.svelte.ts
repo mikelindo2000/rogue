@@ -8,6 +8,7 @@
 import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
 import type { HungerTone, SurvivalWarningTone } from './format';
+import type { VisualEffectInstance } from './visualEffects';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
 import type { BoardSizeId } from '../boards';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
@@ -145,6 +146,9 @@ export interface UIState {
   hungerTone: HungerTone;
   survivalWarningTone: SurvivalWarningTone;
   survivalWarningIntensity: number;
+  /** Active declarative visual-effect layers for this frame (see
+   *  src/ui/visualEffects.ts). Rendered by EffectLayerHost on each target. */
+  visualEffects: VisualEffectInstance[];
   // consumables
   food: number;
   foodMax: number;
@@ -217,6 +221,7 @@ export const ui = $state<UIState>({
   hungerTone: 'ok',
   survivalWarningTone: 'none',
   survivalWarningIntensity: 0,
+  visualEffects: [],
   food: 0,
   foodMax: 4,
   equipment: [],

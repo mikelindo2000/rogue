@@ -2,3 +2,4 @@
    The redesigned UI is component-scoped (Svelte); only global tokens, fonts, and
    base resets live here. Per-component styling lives in each .svelte file. */
 @import './ui/styles/global.css';
+@import './ui/styles/effects.css';

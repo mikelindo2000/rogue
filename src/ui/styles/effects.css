@@ -1,0 +1,142 @@
+/* Visual-effect layer recipes. One class per effect kind; instances are placed
+   and parameterized by src/ui/visualEffects.ts via --fx-* custom properties.
+   See design/planning/visual_effect_layers_plan.md. */
+
+/* ── Hosts & base layer ────────────────────────────────────────────────── */
+
+.effect-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* z-index is per target so a single host shape can slot into different stacks:
+   - stage-backdrop sits above the rotating bg image, below the canvas (z 1)
+   - stage-overlay sits above the canvas/vignette (matches the old wash, z 2)
+   - chrome sits behind rail/top-bar content (which gets z-index: 1) */
+.effect-host[data-target='stage-backdrop'] {
+  z-index: 0;
+}
+.effect-host[data-target='stage-overlay'] {
+  z-index: 2;
+}
+.effect-host[data-target='chrome'] {
+  z-index: 0;
+}
+
+.effect-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--fx-opacity, 1);
+  mix-blend-mode: var(--fx-blend, normal);
+}
+
+/* ── Survival warning (migrated from CenterStage's .survival-wash) ──────── */
+
+.fx-survival-hunger,
+.fx-survival-health,
+.fx-survival-both {
+  opacity: 0;
+  --survival-wash: transparent;
+  --survival-grain: transparent;
+  --survival-rim: transparent;
+  --survival-pulse-min: 0;
+  --survival-pulse-max: 0;
+  background:
+    radial-gradient(circle at 50% 45%, transparent 34%, var(--survival-wash) 100%),
+    linear-gradient(90deg, var(--survival-rim), transparent 18%, transparent 82%, var(--survival-rim)),
+    repeating-linear-gradient(135deg, transparent 0 8px, var(--survival-grain) 8px 9px);
+  mix-blend-mode: screen;
+  animation: survival-pulse 3s var(--ease) infinite;
+}
+
+.fx-survival-hunger {
+  --survival-wash: rgba(206, 130, 48, calc(0.18 * var(--fx-intensity)));
+  --survival-grain: rgba(236, 176, 83, calc(0.12 * var(--fx-intensity)));
+  --survival-rim: rgba(224, 162, 63, calc(0.1 * var(--fx-intensity)));
+  --survival-pulse-min: calc(0.24 * var(--fx-intensity));
+  --survival-pulse-max: calc(0.5 * var(--fx-intensity));
+}
+.fx-survival-health {
+  --survival-wash: rgba(196, 48, 42, calc(0.18 * var(--fx-intensity)));
+  --survival-grain: rgba(235, 92, 74, calc(0.09 * var(--fx-intensity)));
+  --survival-rim: rgba(217, 84, 74, calc(0.13 * var(--fx-intensity)));
+  --survival-pulse-min: calc(0.22 * var(--fx-intensity));
+  --survival-pulse-max: calc(0.54 * var(--fx-intensity));
+  animation-duration: 2.25s;
+}
+.fx-survival-both {
+  --survival-wash: rgba(132, 45, 114, calc(0.22 * var(--fx-intensity)));
+  --survival-grain: rgba(224, 162, 63, calc(0.11 * var(--fx-intensity)));
+  --survival-rim: rgba(217, 84, 74, calc(0.15 * var(--fx-intensity)));
+  --survival-pulse-min: calc(0.28 * var(--fx-intensity));
+  --survival-pulse-max: calc(0.64 * var(--fx-intensity));
+  animation-duration: 1.65s;
+}
+
+@keyframes survival-pulse {
+  0%,
+  100% {
+    opacity: var(--survival-pulse-min);
+  }
+  45% {
+    opacity: var(--survival-pulse-max);
+  }
+}
+
+/* ── Green floor fog ───────────────────────────────────────────────────── */
+
+.fx-green-fog {
+  --fx-color-a: rgba(70, 150, 78, 0.5);
+  --fx-color-b: rgba(120, 190, 96, 0.32);
+  --fx-color-c: rgba(40, 90, 55, 0.42);
+  opacity: calc(var(--fx-opacity, 0.5) * var(--fx-intensity, 1));
+  background:
+    radial-gradient(60% 50% at 22% 32%, var(--fx-color-a), transparent 70%),
+    radial-gradient(55% 45% at 78% 64%, var(--fx-color-b), transparent 72%),
+    radial-gradient(70% 60% at 50% 88%, var(--fx-color-c), transparent 78%),
+    linear-gradient(120deg, rgba(60, 130, 70, 0.18), transparent 60%);
+  background-size: 180% 180%, 200% 200%, 160% 160%, 100% 100%;
+  mix-blend-mode: screen;
+  animation: green-fog-drift 26s ease-in-out infinite alternate;
+}
+
+/* Chrome fog is a faint tint, not a drifting cloud: softer, slower, soft-light
+   so it reads over solid panels without hurting label contrast. */
+.effect-host[data-target='chrome'] .fx-green-fog {
+  mix-blend-mode: soft-light;
+  animation-duration: 40s;
+}
+
+@keyframes green-fog-drift {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      50% 100%,
+      0% 0%;
+  }
+  100% {
+    background-position:
+      30% 20%,
+      70% 80%,
+      55% 70%,
+      0% 0%;
+  }
+}
+
+/* ── Reduced motion: drop drift/pulse, keep a static low-alpha effect. ──── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-survival-hunger,
+  .fx-survival-health,
+  .fx-survival-both {
+    animation: none;
+    opacity: var(--survival-pulse-min);
+  }
+  .fx-green-fog {
+    animation: none;
+  }
+}

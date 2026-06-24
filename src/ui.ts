@@ -10,6 +10,7 @@ import {
   type LogLineView,
 } from './ui/store.svelte';
 import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from './ui/format';
+import { visualEffectLayers } from './ui/visualEffects';
 import { buildEquipmentView } from './ui/equipmentView';
 import {
   buildInventoryComparisons,
@@ -1312,6 +1313,15 @@ export class GameUI {
     });
     ui.survivalWarningTone = survival.tone;
     ui.survivalWarningIntensity = survival.intensity;
+    // Declarative layer list for the effect hosts. The survival warning fields
+    // above stay populated for Vitals' localized pulse during the migration.
+    ui.visualEffects = visualEffectLayers({
+      floor: dungeonFloor,
+      hp: ui.hp,
+      maxHp: ui.maxHp,
+      hunger: player.hunger,
+      hungerFatigued,
+    });
 
     ui.food = player.inventory.food;
     ui.foodMax = cfg.playerMaxFood;

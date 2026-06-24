@@ -1,0 +1,147 @@
+/* Declarative visual-effects registry. Pure data → presentation mapping, no DOM
+   and no runes, so it can be unit tested and reused freely (mirrors format.ts).
+
+   Components render the ordered list this produces; they do not decide whether
+   the player is hungry, dying, or standing on a foggy floor. The survival layer
+   is derived from survivalWarningView() in format.ts so thresholds live in one
+   place. */
+
+import { survivalWarningView, type SurvivalWarningTone } from './format';
+
+/** Where an effect renders. See the plan's stacking order:
+ *  - `chrome`         — behind content in the top bar and side rails
+ *  - `stage-backdrop` — between the rotating background image and the canvas
+ *  - `stage-overlay`  — above the canvas (where the survival wash lives) */
+export type VisualEffectTarget = 'chrome' | 'stage-backdrop' | 'stage-overlay';
+
+export type VisualEffectKind =
+  | 'survival-hunger'
+  | 'survival-health'
+  | 'survival-both'
+  | 'floor-green-fog';
+
+export interface VisualEffectInstance {
+  /** Stable key for Svelte's keyed each; unique within the active list. */
+  id: string;
+  kind: VisualEffectKind;
+  target: VisualEffectTarget;
+  /** Paint order within a target — lower renders first (behind). */
+  layer: number;
+  /** 0–1 strength, drives CSS alpha/pulse via `--fx-intensity`. */
+  intensity: number;
+  /** CSS class carrying the effect recipe (from effects.css). */
+  className: string;
+  /** CSS custom properties merged onto the layer element. Only `--*` keys are
+   *  emitted by visualEffectStyle(); values come from this registry, never user
+   *  input. */
+  vars?: Record<string, string | number>;
+}
+
+export interface VisualEffectInput {
+  floor: number;
+  hp: number;
+  maxHp: number;
+  hunger: number;
+  hungerFatigued: number;
+}
+
+/** Paint layers, low → high. Atmosphere sits behind danger signaling. */
+const LAYER = {
+  floorFog: 10,
+  survival: 20,
+} as const;
+
+/** Maps the survival warning tone to its effect kind/class. `none` has no
+ *  layer. Health pulses faster, both fastest — encoded in the CSS classes. */
+const SURVIVAL_KIND: Record<
+  Exclude<SurvivalWarningTone, 'none'>,
+  VisualEffectKind
+> = {
+  hunger: 'survival-hunger',
+  health: 'survival-health',
+  both: 'survival-both',
+};
+
+/** Floor → atmosphere rules. Keyed by floor number for V1; a future pass may
+ *  move this into theme.ts so palette and atmosphere share a registry. Keep the
+ *  table pure so it stays trivially testable. */
+interface FloorEffectRule {
+  id: string;
+  floors: number[];
+  kind: VisualEffectKind;
+  /** Per-target opacity for the shared recipe — stage fog reads stronger than
+   *  the faint chrome tint. */
+  targets: { target: VisualEffectTarget; layer: number; opacity: number }[];
+}
+
+const FLOOR_EFFECTS: FloorEffectRule[] = [
+  {
+    // The Whispering Mire (11) and The Fungal Warrens (13) — dank green floors.
+    id: 'verdant-fog',
+    floors: [11, 13],
+    kind: 'floor-green-fog',
+    targets: [
+      { target: 'stage-backdrop', layer: LAYER.floorFog, opacity: 0.5 },
+      { target: 'chrome', layer: LAYER.floorFog, opacity: 0.12 },
+    ],
+  },
+];
+
+/** The CSS class for an effect kind (single source for class naming). */
+function classFor(kind: VisualEffectKind): string {
+  return kind === 'floor-green-fog' ? 'fx-green-fog' : `fx-${kind}`;
+}
+
+/** Build the ordered list of currently active visual effects for this frame. */
+export function visualEffectLayers(input: VisualEffectInput): VisualEffectInstance[] {
+  const effects: VisualEffectInstance[] = [];
+
+  // Floor atmosphere (rendered behind the survival warning).
+  for (const rule of FLOOR_EFFECTS) {
+    if (!rule.floors.includes(input.floor)) continue;
+    for (const t of rule.targets) {
+      effects.push({
+        id: `${rule.id}-${t.target}`,
+        kind: rule.kind,
+        target: t.target,
+        layer: t.layer,
+        intensity: 1,
+        className: classFor(rule.kind),
+        vars: { '--fx-intensity': 1, '--fx-opacity': t.opacity },
+      });
+    }
+  }
+
+  // Survival warning — reuses format.ts thresholds as the single source of truth.
+  const survival = survivalWarningView({
+    hp: input.hp,
+    maxHp: input.maxHp,
+    hunger: input.hunger,
+    hungerFatigued: input.hungerFatigued,
+  });
+  if (survival.tone !== 'none') {
+    const kind = SURVIVAL_KIND[survival.tone];
+    effects.push({
+      id: 'survival',
+      kind,
+      target: 'stage-overlay',
+      layer: LAYER.survival,
+      intensity: survival.intensity,
+      className: classFor(kind),
+      vars: { '--fx-intensity': survival.intensity },
+    });
+  }
+
+  return effects;
+}
+
+/** Serialize an effect's CSS custom properties into a `style` string. Only
+ *  `--*` keys are emitted; values originate in this registry, so the output is
+ *  safe to bind into Svelte's `style` attribute. */
+export function visualEffectStyle(effect: VisualEffectInstance): string {
+  if (!effect.vars) return '';
+  return Object.entries(effect.vars)
+    .filter(([key]) => key.startsWith('--'))
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('; ');
+}
