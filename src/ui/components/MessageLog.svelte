@@ -21,7 +21,7 @@
       {/snippet}
     </SectionLabel>
   </header>
-  <div class="body" bind:this={body}>
+  <div class="log-body" bind:this={body}>
     {#each ui.logs as line (line.n)}
       <LogLine {line} />
     {/each}
@@ -45,7 +45,7 @@
     background: var(--accent);
     box-shadow: 0 0 6px var(--accent-glow);
   }
-  .body {
+  .log-body {
     flex: 1;
     overflow-y: auto;
     padding: 0 14px 14px;

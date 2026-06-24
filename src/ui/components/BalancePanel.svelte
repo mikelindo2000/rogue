@@ -34,7 +34,7 @@
 </script>
 
 <Modal open={ui.balancePanelOpen} title="Balance Report — dev" onClose={close}>
-  <div class="body">
+  <div class="balance-body">
     {#if report}
       <div class="summary">
         <div class="chip">
@@ -107,7 +107,7 @@
 </Modal>
 
 <style>
-  .body {
+  .balance-body {
     display: flex;
     flex-direction: column;
     gap: 12px;

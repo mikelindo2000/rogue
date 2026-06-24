@@ -58,7 +58,7 @@
 </script>
 
 <Modal open={ui.compendiumOpen} title="Bestiary" onClose={close}>
-  <div class="body">
+  <div class="compendium-body">
     <div class="search">
       <input
         type="text"
@@ -99,7 +99,7 @@
 />
 
 <style>
-  .body {
+  .compendium-body {
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -161,7 +161,7 @@
   }
 
   @media (max-width: 680px) {
-    .body {
+    .compendium-body {
       width: 100%;
       padding: 12px;
     }

@@ -190,7 +190,7 @@ describe('loadout hub — gear', () => {
     flushSync();
     const active = document.activeElement as HTMLElement;
     expect(active).not.toBe(document.body);
-    expect(active.closest('.body')).not.toBeNull();
+    expect(active.closest('.inv-modal-body')).not.toBeNull();
   });
 });
 

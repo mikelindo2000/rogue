@@ -252,7 +252,7 @@
 
   function handleKeyboard(event: KeyboardEvent) {
     if (!ui.inventoryOpen || ui.settingsOpen || ui.shortcutsOpen || ui.compendiumOpen || ui.balancePanelOpen) return;
-    const bodyEl = spineEl?.closest('.body');
+    const bodyEl = spineEl?.closest('.inv-modal-body');
     if (!bodyEl) return;
 
     let target = event.target as HTMLElement | null;
@@ -397,7 +397,7 @@
 </script>
 
 <Modal open={ui.inventoryOpen} {title} onClose={close}>
-  <div class="body">
+  <div class="inv-modal-body">
     <!-- Column 1: spine -->
     <nav class="spine" bind:this={spineEl} aria-label="Equipment slots and pack" onfocusin={() => activeCol = 0}>
       {#each groups as g (g.key)}
@@ -575,7 +575,7 @@
 </Modal>
 
 <style>
-  .body {
+  .inv-modal-body {
     display: grid;
     grid-template-columns: minmax(190px, 220px) minmax(280px, 360px) minmax(250px, 1fr);
     width: min(84vw, 1000px);
@@ -919,7 +919,7 @@
   }
 
   @media (max-width: 1040px) {
-    .body {
+    .inv-modal-body {
       grid-template-columns: 1fr;
       width: 100%;
       height: auto;

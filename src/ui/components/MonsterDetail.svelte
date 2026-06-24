@@ -29,7 +29,7 @@
 
 <Modal open={monster !== null} title={monster?.name ?? ''} onClose={onClose}>
   {#if monster}
-    <div class="body">
+    <div class="monster-detail-body">
       {#if artUrl}
         <div
           class="art-bg"
@@ -82,7 +82,7 @@
 </Modal>
 
 <style>
-  .body {
+  .monster-detail-body {
     position: relative;
     display: flex;
     flex-direction: column;
@@ -91,7 +91,7 @@
     width: min(70vw, 520px);
     overflow: hidden;
   }
-  .body::after {
+  .monster-detail-body::after {
     content: '';
     position: absolute;
     inset: 0;
