@@ -366,6 +366,19 @@ describe('savegame validation', () => {
     expect(parsed?.trapEffects?.confusedTurns).toBe(0);
   });
 
+  it('round-trips active trap confusion through save validation and restore', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    engine.trapEffects.confusedTurns = 3;
+
+    const parsed = validateSaveGame(engine.snapshot());
+    expect(parsed?.trapEffects?.confusedTurns).toBe(3);
+
+    const restored = newEngine();
+    expect(restored.restore(parsed!)).toBe(true);
+    expect(restored.trapEffects.confusedTurns).toBe(3);
+  });
+
   it('migrates a legacy repair_scroll floor item to a typed Scroll of Repair', () => {
     const engine = newEngine();
     engine.initGame(SEED);

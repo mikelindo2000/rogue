@@ -660,6 +660,22 @@ describe('GameEngine hidden traps', () => {
     expect(engine.logs).toContain('Your senses clear.');
   });
 
+  it('debug placement helper arms a visible adjacent poison dart trap', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+
+    expect(engine.debugPlacePoisonDartTrap()).toBe(true);
+
+    expect(engine.traps).toContainEqual(expect.objectContaining({
+      kind: 'dart',
+      x: 3,
+      y: 2,
+      revealed: true,
+      armed: true,
+    }));
+    expect(engine.logs).toContain('Debug: poison dart trap placed east.');
+  });
+
   it('teleport trap moves the player away from monsters and armed traps', () => {
     const engine = makeRunner();
     engine.map = makeEmptyMap(engine);
