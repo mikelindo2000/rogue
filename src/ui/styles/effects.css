@@ -53,11 +53,11 @@
 }
 
 .fx-survival-hunger {
-  --survival-wash: rgba(206, 130, 48, calc(0.18 * var(--fx-intensity)));
-  --survival-grain: rgba(236, 176, 83, calc(0.12 * var(--fx-intensity)));
-  --survival-rim: rgba(224, 162, 63, calc(0.1 * var(--fx-intensity)));
-  --survival-pulse-min: calc(0.24 * var(--fx-intensity));
-  --survival-pulse-max: calc(0.5 * var(--fx-intensity));
+  --survival-wash: rgba(105, 165, 45, calc(0.35 * var(--fx-intensity)));
+  --survival-grain: rgba(125, 185, 55, calc(0.24 * var(--fx-intensity)));
+  --survival-rim: rgba(115, 175, 50, calc(0.25 * var(--fx-intensity)));
+  --survival-pulse-min: calc(0.35 * var(--fx-intensity));
+  --survival-pulse-max: calc(0.85 * var(--fx-intensity));
 }
 .fx-survival-health {
   --survival-wash: rgba(196, 48, 42, calc(0.18 * var(--fx-intensity)));
