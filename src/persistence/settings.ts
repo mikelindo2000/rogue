@@ -10,10 +10,14 @@
  */
 
 import { defineStore, resolveBackend } from './store';
+import type { BoardSizeId } from '../boards';
+import { DEFAULT_BOARD_SIZE } from '../boards';
 
 export interface Settings {
   playerName: string;
   lastClass: string;
+  /** Board size applied to the NEXT new game (in-progress runs keep their own). */
+  boardSize: BoardSizeId;
   audio: {
     muted: boolean;
     volume: number;
@@ -26,6 +30,7 @@ export interface Settings {
 export const SETTINGS_DEFAULTS: Settings = {
   playerName: 'The Wretch',
   lastClass: 'Rogue',
+  boardSize: DEFAULT_BOARD_SIZE,
   audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
 };
 

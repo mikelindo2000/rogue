@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.audioVolume = settings.audio.volume;
   ui.musicMuted = settings.audio.musicMuted;
   ui.musicVolume = settings.audio.musicVolume;
+  ui.boardSize = settings.boardSize;
 
   const ui_ = new GameUI('gameCanvas');
   const engine = new GameEngine(ui_, audio);
@@ -120,6 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const save = loadSaveGame();
   if (!save || !engine.restore(save)) {
+    // Fresh run: honour the chosen board size (a restored run keeps its own,
+    // set inside engine.restore).
+    engine.setBoardSize(settings.boardSize);
     engine.initGame();
     // Persist the fresh run immediately so a stale prior save can't be restored
     // if the tab is killed within the autosave debounce window.
@@ -190,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.endRunSummary = null;
       ui.endRunComparison = null;
       ui.endRunCopyStatus = '';
+      // Pick up any board-size change made since this run started.
+      engine.setBoardSize(ui.boardSize);
       engine.initGame();
       engine.draw();
     }
@@ -244,6 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.musicVolume = volume;
     music.setVolume(volume);
     updateSettings({ audio: { musicVolume: volume } });
+  };
+  actions.setBoardSize = (id) => {
+    // Applies to the NEXT new game; the current run keeps its dimensions until
+    // the player starts over (see the restart action below).
+    ui.boardSize = id;
+    updateSettings({ boardSize: id });
   };
   actions.testSound = () => {
     audio.unlock();

@@ -672,6 +672,74 @@ describe('GameEngine run movement', () => {
   });
 });
 
+describe('GameEngine board size', () => {
+  it('defaults to the classic 46x29 board', () => {
+    const engine = new GameEngine(makeUi() as any);
+    expect(engine.COLS).toBe(46);
+    expect(engine.ROWS).toBe(29);
+    expect(engine.boardSizeId).toBe('classic');
+  });
+
+  it('resizes the board and generates a matching map for a new game', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.setBoardSize('huge');
+    expect(engine.COLS).toBe(80);
+    expect(engine.ROWS).toBe(42);
+
+    engine.initGame(123);
+    expect(engine.map.length).toBe(42);
+    expect(engine.map[0].length).toBe(80);
+    // Player starts in-bounds and walkable on the larger board.
+    expect(isWalkable(engine.map[engine.player.y][engine.player.x])).toBe(true);
+  });
+
+  it('round-trips board size through snapshot/restore and adopts the saved dimensions', () => {
+    const a = new GameEngine(makeUi() as any);
+    a.setBoardSize('large');
+    a.initGame(7);
+    const save = a.snapshot();
+    expect(save.boardSize).toBe('large');
+
+    // A fresh engine (defaulting to classic) must adopt the saved size on restore.
+    const b = new GameEngine(makeUi() as any);
+    expect(b.COLS).toBe(46);
+    b.restore(save);
+    expect(b.boardSizeId).toBe('large');
+    expect(b.COLS).toBe(64);
+    expect(b.ROWS).toBe(36);
+    expect(b.map.length).toBe(36);
+    expect(b.map[0].length).toBe(64);
+  });
+
+  it('keeps the run board size on every floor when descending', () => {
+    const engine = new GameEngine(makeUi() as any);
+    engine.setBoardSize('huge');
+    engine.initGame(5);
+    // Each new floor regenerates at the run's size, not the default.
+    for (let f = 2; f <= 8; f++) {
+      engine.dungeonFloor = f;
+      engine.generateFloor();
+      expect(engine.map.length, `floor ${f} rows`).toBe(42);
+      expect(engine.map[0].length, `floor ${f} cols`).toBe(80);
+      expect(isWalkable(engine.map[engine.player.y][engine.player.x]), `floor ${f} player`).toBe(true);
+    }
+  });
+
+  it('restores an old save without a board size as classic', () => {
+    const a = new GameEngine(makeUi() as any);
+    a.initGame(9);
+    const save = a.snapshot();
+    delete (save as { boardSize?: unknown }).boardSize; // pre-feature save shape
+
+    const b = new GameEngine(makeUi() as any);
+    b.setBoardSize('huge'); // even if the engine was nudged to another size
+    b.restore(save);
+    expect(b.boardSizeId).toBe('classic');
+    expect(b.COLS).toBe(46);
+    expect(b.ROWS).toBe(29);
+  });
+});
+
 describe('GameEngine inventory commands', () => {
   it('does not let use actions equip gear', () => {
     const engine = new GameEngine(makeUi() as any);

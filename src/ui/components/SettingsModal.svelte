@@ -3,6 +3,9 @@
   import Icon from './primitives/Icon.svelte';
   import type { IconName } from '../icons';
   import { ui, actions } from '../store.svelte';
+  import { BOARD_SIZES, type BoardSizeId } from '../../boards';
+
+  const BOARD_OPTIONS: BoardSizeId[] = ['classic', 'large', 'huge'];
 
   type SectionId = 'audio' | 'gameplay' | 'display';
   interface Section {
@@ -18,7 +21,7 @@
   const SECTIONS: Section[] = [
     { id: 'audio', label: 'Audio', icon: 'volume', hint: 'Sound effects & music' },
     { id: 'gameplay', label: 'Gameplay', icon: 'sword', hint: 'Difficulty & rules', soon: true },
-    { id: 'display', label: 'Display', icon: 'sliders', hint: 'Theme & visuals', soon: true },
+    { id: 'display', label: 'Display', icon: 'sliders', hint: 'Board & visuals' },
   ];
 
   let active = $state<SectionId>('audio');
@@ -60,6 +63,18 @@
 
   function toggleMusicMute() {
     actions.setMusicMuted(!ui.musicMuted);
+  }
+
+  // Roving arrow-key selection for the board-size radiogroup (keyboard-first).
+  function onBoardKey(e: KeyboardEvent) {
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+    const i = BOARD_OPTIONS.indexOf(ui.boardSize);
+    const dir = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+    const next = BOARD_OPTIONS[(i + dir + BOARD_OPTIONS.length) % BOARD_OPTIONS.length];
+    actions.setBoardSize(next);
+    const buttons = (e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button');
+    buttons[BOARD_OPTIONS.indexOf(next)]?.focus();
   }
 </script>
 
@@ -183,6 +198,40 @@
               oninput={onMusicVolumeInput}
             />
             <span class="vol-value tnum">{musicVolumePct}%</span>
+          </div>
+        </div>
+      {:else if active === 'display'}
+        <header class="panel-head">
+          <h3>Display</h3>
+          <p>How big the dungeon is. Larger boards have more, roomier rooms and render zoomed out, with smaller tiles on screen.</p>
+        </header>
+
+        <p class="group-label">Board size</p>
+
+        <div class="field board-field">
+          <div class="field-text">
+            <span class="field-label">Dungeon size</span>
+            <span class="field-desc">Applies when you start a new run — your current dungeon keeps its size.</span>
+          </div>
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <!-- tabindex -1: the group is not a tab stop itself; focus rovers across
+               the radios (tabindex 0/-1 below). Present to satisfy the a11y rule. -->
+          <div class="board-options" role="radiogroup" aria-label="Board size" tabindex="-1" onkeydown={onBoardKey}>
+            {#each BOARD_OPTIONS as id (id)}
+              <button
+                class="board-option"
+                class:active={ui.boardSize === id}
+                type="button"
+                role="radio"
+                aria-checked={ui.boardSize === id}
+                tabindex={ui.boardSize === id ? 0 : -1}
+                onclick={() => actions.setBoardSize(id)}
+              >
+                <span class="board-name">{BOARD_SIZES[id].label}</span>
+                <span class="board-dims tnum">{BOARD_SIZES[id].cols}×{BOARD_SIZES[id].rows}</span>
+                <span class="board-hint">{BOARD_SIZES[id].hint}</span>
+              </button>
+            {/each}
           </div>
         </div>
       {/if}
@@ -425,6 +474,60 @@
     background: var(--accent);
     border: 2px solid var(--surface-app);
     cursor: pointer;
+  }
+
+  /* --- board size picker --- */
+  .board-field {
+    align-items: flex-start;
+  }
+  .board-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 280px;
+    max-width: 340px;
+  }
+  .board-option {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-md);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+  .board-option:hover {
+    background: var(--surface-card);
+    color: var(--text-bright);
+  }
+  .board-option.active {
+    background: var(--accent-surface);
+    border-color: var(--accent-border);
+    color: var(--text-bright);
+  }
+  .board-name {
+    font: 600 var(--fs-body) var(--font-display);
+    letter-spacing: var(--tracking-tight);
+  }
+  .board-option.active .board-name {
+    color: var(--accent);
+  }
+  .board-dims {
+    align-self: center;
+    font: 600 var(--fs-xs) var(--font-display);
+    color: var(--text-label);
+  }
+  .board-hint {
+    grid-column: 1 / -1;
+    font: 500 var(--fs-xs) var(--font-ui);
+    color: var(--text-dim);
   }
 
   /* --- button --- */

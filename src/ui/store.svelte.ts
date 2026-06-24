@@ -9,6 +9,7 @@ import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { IconName } from './icons';
 import type { HungerTone, SurvivalWarningTone } from './format';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
+import type { BoardSizeId } from '../boards';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 import type { RunSummaryV1 } from '../runStats';
 import type { BrowserRecords, RunRecordComparison } from '../persistence/runHistory';
@@ -182,6 +183,8 @@ export interface UIState {
   audioVolume: number; // 0..1
   musicMuted: boolean;
   musicVolume: number; // 0..1
+  // board size for the next new game (mirrors persisted settings.boardSize)
+  boardSize: BoardSizeId;
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
   // end-run stats and browser-local records
@@ -244,6 +247,7 @@ export const ui = $state<UIState>({
   audioVolume: 1,
   musicMuted: false,
   musicVolume: 0.4,
+  boardSize: 'classic',
   discovery: emptyDiscovery(),
   endRunSummary: null,
   endRunRecords: null,
@@ -273,6 +277,7 @@ export interface UIActions {
   setAudioVolume(volume: number): void;
   setMusicMuted(muted: boolean): void;
   setMusicVolume(volume: number): void;
+  setBoardSize(id: BoardSizeId): void;
   testSound(): void;
   copyEndRunSummary(): void;
   clearRunHistory(): void;
@@ -306,6 +311,7 @@ export const actions: UIActions = {
   setAudioVolume: () => {},
   setMusicMuted: () => {},
   setMusicVolume: () => {},
+  setBoardSize: () => {},
   testSound: () => {},
   copyEndRunSummary: () => {},
   clearRunHistory: () => {},

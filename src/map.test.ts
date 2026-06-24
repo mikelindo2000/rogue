@@ -6,6 +6,7 @@ import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
 import { SCROLLS, isScrollImplemented } from './scrolls';
 import type { ScrollType } from './types';
+import { BOARD_SIZES, type BoardConfig } from './boards';
 
 // Engine dimensions (see Engine.COLS / Engine.ROWS in src/engine.ts).
 const COLS = 46;
@@ -725,6 +726,123 @@ describe('maze cells', () => {
         for (const rect of lvl.mazeRects) {
           expect(lvl.items.some(it => inRect(rect, it.x, it.y)), `floor ${floor} seed ${seed}: item in maze`).toBe(false);
           expect(lvl.monsters.some(m => inRect(rect, m.x, m.y)), `floor ${floor} seed ${seed}: monster in maze`).toBe(false);
+        }
+      }
+    }
+  });
+});
+
+describe('board sizes', () => {
+  const genBoard = (b: BoardConfig, floor: number, seed: number): Level =>
+    generateLevel(floor, 5, b.cols, b.rows, makeRng(seed), {
+      gridCols: b.gridCols,
+      gridRows: b.gridRows,
+      roomMaxW: b.roomMaxW,
+      roomMaxH: b.roomMaxH,
+    });
+
+  /** Widest room interior found on the map, recovered from corner glyphs. */
+  const widestRoom = (map: string[][]): number => {
+    let widest = 0;
+    for (let t = 0; t < map.length; t++) {
+      for (let l = 0; l < map[t].length; l++) {
+        if (map[t][l] !== TILE.CORNER_TL) continue;
+        let r = l + 1;
+        while (r < map[t].length && map[t][r] !== TILE.CORNER_TR) r++;
+        if (map[t][r] === TILE.CORNER_TR) widest = Math.max(widest, r - l - 1);
+      }
+    }
+    return widest;
+  };
+
+  for (const id of ['classic', 'large', 'huge'] as const) {
+    const b = BOARD_SIZES[id];
+
+    it(`${id}: generates valid, fully-connected floors at ${b.cols}x${b.rows} (seeds 1..30, floors 3/10/17)`, () => {
+      for (const floor of [3, 10, 17]) {
+        for (let seed = 1; seed <= 30; seed++) {
+          const lvl = genBoard(b, floor, seed);
+          // Map matches the requested dimensions.
+          expect(lvl.map.length).toBe(b.rows);
+          expect(lvl.map[0].length).toBe(b.cols);
+          // Player start and down stairs are in-bounds, walkable, and connected.
+          expect(isWalkable(lvl.map[lvl.playerY][lvl.playerX]), `${id} f${floor} s${seed} start`).toBe(true);
+          expect(lvl.stairsDownX).toBeGreaterThanOrEqual(0);
+          expect(
+            reachable(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsDownX, lvl.stairsDownY),
+            `${id} f${floor} s${seed}: stairs unreachable`
+          ).toBe(true);
+          // Nothing spawns out of bounds.
+          for (const e of [...lvl.monsters, ...lvl.items]) {
+            expect(e.x >= 0 && e.x < b.cols && e.y >= 0 && e.y < b.rows, `${id} f${floor} s${seed}: oob entity`).toBe(true);
+          }
+        }
+      }
+    });
+
+    it(`${id}: keeps at least ${b.gridCols * b.gridRows - 5} real rooms and respects the room width cap`, () => {
+      for (let seed = 1; seed <= 30; seed++) {
+        const lvl = genBoard(b, 8, seed);
+        expect(widestRoom(lvl.map)).toBeLessThanOrEqual(b.roomMaxW);
+      }
+    });
+  }
+
+  /** Tallest room interior found on the map, recovered from corner glyphs. */
+  const tallestRoom = (map: string[][]): number => {
+    let tallest = 0;
+    for (let t = 0; t < map.length; t++) {
+      for (let l = 0; l < map[t].length; l++) {
+        if (map[t][l] !== TILE.CORNER_TL) continue;
+        let b = t + 1;
+        while (b < map.length && map[b][l] !== TILE.CORNER_BL) b++;
+        if (map[b]?.[l] === TILE.CORNER_BL) tallest = Math.max(tallest, b - t - 1);
+      }
+    }
+    return tallest;
+  };
+
+  it('larger boards can produce wider rooms than classic', () => {
+    const widestAcross = (b: BoardConfig): number => {
+      let w = 0;
+      for (let seed = 1; seed <= 60; seed++) w = Math.max(w, widestRoom(genBoard(b, 8, seed).map));
+      return w;
+    };
+    const classic = widestAcross(BOARD_SIZES.classic);
+    const huge = widestAcross(BOARD_SIZES.huge);
+    expect(huge).toBeGreaterThan(classic);
+  });
+
+  it('large and huge produce taller rooms than classic can (room-size gain is real)', () => {
+    const tallestAcross = (b: BoardConfig): number => {
+      let h = 0;
+      for (let seed = 1; seed <= 60; seed++) h = Math.max(h, tallestRoom(genBoard(b, 8, seed).map));
+      return h;
+    };
+    // classic interiors cap at roomMaxH = 6; large/huge lift that to 8, so each
+    // must exceed the classic ceiling — otherwise the bigger preset is pointless.
+    expect(tallestAcross(BOARD_SIZES.large)).toBeGreaterThan(BOARD_SIZES.classic.roomMaxH);
+    expect(tallestAcross(BOARD_SIZES.huge)).toBeGreaterThan(BOARD_SIZES.classic.roomMaxH);
+  });
+
+  it('every preset stays connected and enclosed (no floor tile touches raw void)', () => {
+    for (const id of ['large', 'huge'] as const) {
+      const b = BOARD_SIZES[id];
+      const allowed = new Set<string>([
+        TILE.FLOOR, TILE.WALL_H, TILE.WALL_V, TILE.DOOR, TILE.SECRET_DOOR,
+        TILE.CORRIDOR, TILE.STAIRS_UP, TILE.STAIRS_DOWN,
+      ]);
+      for (let seed = 1; seed <= 20; seed++) {
+        const { map } = genBoard(b, 7, seed);
+        for (let r = 0; r < b.rows; r++) {
+          for (let c = 0; c < b.cols; c++) {
+            if (map[r][c] !== TILE.FLOOR) continue;
+            for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+              const nx = c + dx, ny = r + dy;
+              if (ny < 0 || ny >= b.rows || nx < 0 || nx >= b.cols) continue;
+              expect(allowed.has(map[ny][nx]), `${id} s${seed}: floor (${c},${r}) touches '${map[ny][nx]}'`).toBe(true);
+            }
+          }
         }
       }
     }

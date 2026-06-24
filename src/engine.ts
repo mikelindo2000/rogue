@@ -1,6 +1,7 @@
 import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
+import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
 import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
@@ -115,8 +116,12 @@ export class GameEngine {
     strengthDrained: 0,
   };
 
-  public readonly COLS = 46;
-  public readonly ROWS = 29;
+  // Board dimensions follow the chosen board size (see boards.ts). Mutable
+  // because a new game (or a restored save) may pick a different size; every
+  // consumer reads this.COLS/this.ROWS, never literals. Defaults to classic.
+  public COLS = BOARD_SIZES[DEFAULT_BOARD_SIZE].cols;
+  public ROWS = BOARD_SIZES[DEFAULT_BOARD_SIZE].rows;
+  private board: BoardConfig = BOARD_SIZES[DEFAULT_BOARD_SIZE];
   public readonly TILE_SIZE = 20;
 
   /** Seed and RNG for the current run; reproducible when seeded explicitly. */
@@ -156,6 +161,22 @@ export class GameEngine {
     this.rng = makeRng(randomSeed());
     this.discovery = loadDiscovery();
     this.ui.syncDiscovery(this.discovery);
+  }
+
+  /**
+   * Choose the board size for the NEXT new game. Safe to call only between runs
+   * (before initGame): it resizes COLS/ROWS, which an in-progress run's grids
+   * are built against. A restored run sets this from the save instead.
+   */
+  public setBoardSize(id: BoardSizeId) {
+    this.board = resolveBoardSize(id);
+    this.COLS = this.board.cols;
+    this.ROWS = this.board.rows;
+  }
+
+  /** The active board size id (for persisting into a save). */
+  public get boardSizeId(): BoardSizeId {
+    return this.board.id;
   }
 
   public initGame(seed: number = randomSeed()) {
@@ -206,6 +227,10 @@ export class GameEngine {
   public generateFloor() {
     const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng, {
       trapdoorAllowed: !this.trapdoorGeneratedThisRun,
+      gridCols: this.board.gridCols,
+      gridRows: this.board.gridRows,
+      roomMaxW: this.board.roomMaxW,
+      roomMaxH: this.board.roomMaxH,
     });
     this.map = levelData.map;
     this.dark = levelData.dark;
@@ -2091,6 +2116,7 @@ export class GameEngine {
     return {
       seed: this.seed,
       rngState: this.rng.getState(),
+      boardSize: this.board.id,
       player: structuredClone(this.player),
       statusEffects: { ...this.statusEffects },
       dungeonFloor: this.dungeonFloor,
@@ -2127,6 +2153,9 @@ export class GameEngine {
     try {
       this.seed = save.seed;
       this.rng = makeRng(save.seed, save.rngState);
+      // Adopt the run's board size BEFORE restoring grids so COLS/ROWS match the
+      // saved map. Old saves (no boardSize) resolve to classic 46x29.
+      this.setBoardSize(resolveBoardSize(save.boardSize).id);
       this.player = structuredClone(save.player);
       normalizeAllGearHealth(this.player);
       // Backfill the scrolls bucket for saves written before scrolls existed.

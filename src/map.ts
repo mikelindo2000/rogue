@@ -465,7 +465,15 @@ export function generateLevel(
   cols: number,
   rows: number,
   rng: RNG,
-  opts: { trapdoorAllowed?: boolean } = {}
+  opts: {
+    trapdoorAllowed?: boolean;
+    // Board-size overrides (see boards.ts). Default to the classic BALANCE.map
+    // values, so existing callers/tests are unaffected.
+    gridCols?: number;
+    gridRows?: number;
+    roomMaxW?: number;
+    roomMaxH?: number;
+  } = {}
 ): {
   map: string[][];
   dark: boolean[][];
@@ -494,8 +502,10 @@ export function generateLevel(
   const items: Item[] = [];
 
   const { map: M } = BALANCE;
-  const GCOLS = M.gridCols;
-  const GROWS = M.gridRows;
+  const GCOLS = opts.gridCols ?? M.gridCols;
+  const GROWS = opts.gridRows ?? M.gridRows;
+  const roomMaxW = opts.roomMaxW ?? M.roomMaxW;
+  const roomMaxH = opts.roomMaxH ?? M.roomMaxH;
   const cellCount = GCOLS * GROWS;
 
   // Boundaries that tile the whole board into GCOLS x GROWS cells. The trailing
@@ -575,8 +585,8 @@ export function generateLevel(
       // Interior (floor) dimensions, capped to the region after walls. A size
       // mode biases the roll: large rooms hug the cell's max interior, small
       // rooms hug the minimum, both staying within [roomMin, cell max].
-      const maxIW = Math.min(M.roomMaxW, regionW - 2);
-      const maxIH = Math.min(M.roomMaxH, regionH - 2);
+      const maxIW = Math.min(roomMaxW, regionW - 2);
+      const maxIH = Math.min(roomMaxH, regionH - 2);
       let loW: number = M.roomMinW;
       let hiW: number = maxIW;
       let loH: number = M.roomMinH;

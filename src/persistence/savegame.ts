@@ -8,6 +8,7 @@
 
 import { ARMOR_SLOTS, type Player, type Monster, type Item, type StatusEffects, type TrapEffects, type TrapState } from '../types';
 import type { FloorState } from '../engine';
+import type { BoardSizeId } from '../boards';
 import { SCROLL_TYPES, WAND_TYPES } from '../itemVisuals';
 import { TRAP_KINDS } from '../traps';
 import { normalizeAllGearHealth } from '../gearHealth';
@@ -67,6 +68,10 @@ function migrateLegacyScrollItems(items: unknown[]): void {
 export interface SaveGameV2 {
   seed: number;
   rngState: number;
+  /** Board size for this run (see boards.ts). Optional: saves written before
+   *  configurable board sizes lack it and restore resolves to classic 46x29,
+   *  which matches their stored grid dimensions. */
+  boardSize?: BoardSizeId;
   player: Player;
   dungeonFloor: number;
   turn: number;

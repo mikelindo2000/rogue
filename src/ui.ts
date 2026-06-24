@@ -207,6 +207,15 @@ export class GameUI {
     const t = ts ?? this.nowMs();
     this.fx = this.fx.filter(f => t - f.start < f.life);
 
+    // Size the backing store to the board before painting. Done imperatively
+    // (not via a Svelte binding) so the resize — which clears the canvas — always
+    // happens BEFORE the paint, never after it. Guarded so same-size frames don't
+    // clear: assigning canvas.width/height clears even when the value is unchanged.
+    const w = s.cols * s.tileSize;
+    const h = s.rows * s.tileSize;
+    if (this.canvas.width !== w) this.canvas.width = w;
+    if (this.canvas.height !== h) this.canvas.height = h;
+
     const style = getDungeonStyle(s.dungeonFloor);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.imageSmoothingEnabled = false;

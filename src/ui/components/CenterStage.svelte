@@ -43,6 +43,9 @@
     <img src={backgroundUrl(currentBg)} class="bg-image" class:fade-in={isTransitioning} alt="" />
   </div>
 
+  <!-- Intrinsic size is set imperatively by GameUI.paint() to board × tile size
+       (it owns the backing store so resizes land before paints). These static
+       attributes are just the pre-first-paint default (classic 46×29 × 20). -->
   <canvas id="gameCanvas" width="920" height="580"></canvas>
 
   <div class="vignette" aria-hidden="true"></div>
