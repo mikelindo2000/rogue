@@ -14,6 +14,7 @@ import type { BoardSizeId } from '../boards';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 import type { RunSummaryV1 } from '../runStats';
 import type { BrowserRecords, RunRecordComparison } from '../persistence/runHistory';
+import type { ShortcutInfo } from '../keyboard';
 
 /** One selectable option in an equipment slot's picker. */
 export interface EquipOption {
@@ -181,6 +182,13 @@ export interface UIState {
   /** Dev-only balance report overlay (⌘/Ctrl+B). */
   balancePanelOpen: boolean;
   settingsOpen: boolean;
+  /** Keyboard-shortcuts help modal (opened with `?` or the footer affordance). */
+  shortcutsOpen: boolean;
+  /** First-run How-to-Play gate, shown over the board on a brand-new visit. */
+  introOpen: boolean;
+  /** Published once at startup from the KeyboardManager — the single source of
+   *  truth the shortcuts modal and How-to-Play guide render from. */
+  shortcuts: ShortcutInfo[];
   // audio settings (mirrors persisted settings.audio; bound by the settings modal)
   audioMuted: boolean;
   audioVolume: number; // 0..1
@@ -244,6 +252,9 @@ export const ui = $state<UIState>({
   potionMenuOpen: false,
   balancePanelOpen: false,
   settingsOpen: false,
+  shortcutsOpen: false,
+  introOpen: false,
+  shortcuts: [],
   audioMuted: false,
   audioVolume: 1,
   musicMuted: false,
@@ -276,6 +287,12 @@ export interface UIActions {
   setPotionMenuOpen(open: boolean): void;
   setBalancePanelOpen(open: boolean): void;
   setSettingsOpen(open: boolean): void;
+  setShortcutsOpen(open: boolean): void;
+  /** Dismiss the first-run intro gate: hides it, persists the seen flag, and
+   *  resumes game input. Wired in main.ts. */
+  dismissIntro(): void;
+  /** Play the pre-generated intro narration clip (no-op until wired). */
+  playIntroNarration(): void;
   setAudioMuted(muted: boolean): void;
   setAudioVolume(volume: number): void;
   setMusicMuted(muted: boolean): void;
@@ -311,6 +328,9 @@ export const actions: UIActions = {
   setPotionMenuOpen: () => {},
   setBalancePanelOpen: () => {},
   setSettingsOpen: () => {},
+  setShortcutsOpen: () => {},
+  dismissIntro: () => {},
+  playIntroNarration: () => {},
   setAudioMuted: () => {},
   setAudioVolume: () => {},
   setMusicMuted: () => {},

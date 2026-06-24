@@ -248,6 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (open) ui.potionMenuOpen = false;
     ui.settingsOpen = open;
   };
+  actions.setShortcutsOpen = (open) => {
+    if (open) ui.potionMenuOpen = false;
+    ui.shortcutsOpen = open;
+  };
   actions.setAudioMuted = (muted) => {
     ui.audioMuted = muted;
     audio.setMuted(muted);
@@ -458,6 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
     description: 'Toggle the balance report (dev)',
     context: 'game',
     ctrlOrMeta: true,
+    hidden: true,
     callback: () => {
       if (ui.balancePanelOpen || !overlayOpen()) {
         ui.balancePanelOpen = !ui.balancePanelOpen;
@@ -476,4 +481,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
   });
+
+  keyboard.register({
+    keys: ['?'],
+    description: 'Show all shortcuts',
+    context: 'game',
+    callback: () => {
+      // Allow closing from the key; only block opening it over another overlay.
+      if (ui.shortcutsOpen || !overlayOpen()) {
+        actions.setShortcutsOpen(!ui.shortcutsOpen);
+      }
+    },
+  });
+
+  // Publish the registered bindings so the shortcuts modal and How-to-Play guide
+  // render from one source of truth instead of a hand-maintained duplicate.
+  ui.shortcuts = keyboard.list();
 });

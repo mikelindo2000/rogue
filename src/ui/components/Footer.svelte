@@ -53,10 +53,10 @@
     <KeyCap>m</KeyCap>
     <span class="lbl">bestiary</span>
     </span>
-    <span class="hint right">
+    <button class="hint right as-button" type="button" onclick={() => actions.setShortcutsOpen(true)}>
     <KeyCap>?</KeyCap>
     <span class="lbl">all shortcuts</span>
-    </span>
+    </button>
   </div>
 
   <div class="mobile-controls" aria-label="Touch controls">
@@ -123,6 +123,17 @@
   }
   .hint.right {
     margin-left: auto;
+  }
+  .as-button {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+  .as-button:hover .lbl,
+  .as-button:focus-visible .lbl {
+    color: var(--text-bright);
   }
   .lbl {
     font: 500 var(--fs-sm) var(--font-ui);

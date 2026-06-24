@@ -12,6 +12,7 @@
   import InventoryModal from './components/InventoryModal.svelte';
   import BalancePanel from './components/BalancePanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
+  import ShortcutsModal from './components/ShortcutsModal.svelte';
   import EffectLayerHost from './components/EffectLayerHost.svelte';
   import { ui } from './store.svelte';
 </script>
@@ -46,6 +47,7 @@
 <InventoryModal />
 <BalancePanel />
 <SettingsModal />
+<ShortcutsModal />
 
 <style>
   .frame {

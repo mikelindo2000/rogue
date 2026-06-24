@@ -8,28 +8,84 @@ export interface KeyBinding {
    *  browser/OS chords like ⌘B. Shift is unaffected (it gates run-movement in
    *  the callback, not the key match). */
   ctrlOrMeta?: boolean;
+  /** Hide from the player-facing shortcuts list (e.g. dev-only chords). */
+  hidden?: boolean;
+}
+
+/** A registered binding, flattened for the help UI (see `KeyboardManager.list`). */
+export interface ShortcutInfo {
+  /** Display-cased keys (e.g. 'ArrowUp', not the normalized 'arrowup'). */
+  keys: string[];
+  description: string;
+  context: string;
+  ctrlOrMeta: boolean;
+}
+
+const KEY_LABELS: Record<string, string> = {
+  arrowup: '↑',
+  arrowdown: '↓',
+  arrowleft: '←',
+  arrowright: '→',
+  ' ': 'Space',
+  escape: 'Esc',
+  enter: '↵',
+};
+
+/** Map a raw key string to a compact, human-readable cap label. */
+export function formatKeyLabel(key: string): string {
+  const k = key.toLowerCase();
+  if (KEY_LABELS[k]) return KEY_LABELS[k];
+  if (key.length === 1) return key.toUpperCase();
+  return key;
 }
 
 export class KeyboardManager {
   private bindings: KeyBinding[] = [];
+  /** Original (display-cased) keys per binding, parallel to `bindings`. */
+  private displayKeys: string[][] = [];
   private activeContexts: Set<string> = new Set(['global', 'game']);
   private isSuspended: boolean = false;
+  private boundHandler = this.handleKeyDown.bind(this);
 
   constructor() {
-    window.addEventListener('keydown', this.handleKeyDown.bind(this));
+    // Guard for non-DOM environments (unit tests run under Node).
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', this.boundHandler);
+    }
   }
 
   /**
    * Register a new key binding.
    */
   public register(binding: KeyBinding) {
-    // Normalise keys to lowercase for comparison
+    // Normalise keys to lowercase for comparison, but keep the original casing
+    // for display in the shortcuts list.
     const normalizedKeys = binding.keys.map(k => k.toLowerCase());
     this.bindings.push({
       ...binding,
       keys: normalizedKeys,
       context: binding.context || 'game'
     });
+    this.displayKeys.push(binding.keys);
+  }
+
+  /**
+   * Snapshot of all player-facing bindings for the help UI, in registration
+   * order. Hidden (dev-only) bindings are omitted. This is the single source of
+   * truth the shortcuts modal and How-to-Play guide render from.
+   */
+  public list(): ShortcutInfo[] {
+    const out: ShortcutInfo[] = [];
+    this.bindings.forEach((b, i) => {
+      if (b.hidden) return;
+      out.push({
+        keys: this.displayKeys[i],
+        description: b.description,
+        context: b.context || 'game',
+        ctrlOrMeta: !!b.ctrlOrMeta,
+      });
+    });
+    return out;
   }
 
   /**
@@ -68,7 +124,9 @@ export class KeyboardManager {
    * Clean up window event listener.
    */
   public destroy() {
-    window.removeEventListener('keydown', this.handleKeyDown.bind(this));
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.boundHandler);
+    }
   }
 
   private handleKeyDown(e: KeyboardEvent) {
