@@ -2,12 +2,14 @@
   import { ui, actions } from '../store.svelte';
   import HowToPlay from './HowToPlay.svelte';
   import Icon from './primitives/Icon.svelte';
+  import { AUDIO_BASE } from '../../audio/manifest';
 
   // Pre-generated ElevenLabs narration of the warning, played only on demand.
   // Served from public/ at /audio/voice/. See design/implemented for the script.
-  const NARRATION_URL = '/audio/voice/intro-warning-01.mp3';
+  const NARRATION_URL = `${AUDIO_BASE}voice/intro-warning-01.mp3`;
 
   let enterButton = $state<HTMLButtonElement | null>(null);
+  let panelEl = $state<HTMLDivElement | null>(null);
   let narrating = $state(false);
   let narration: HTMLAudioElement | null = null;
 
@@ -18,7 +20,6 @@
     if (!narration) {
       narration = new Audio(NARRATION_URL);
       narration.addEventListener('ended', () => (narrating = false));
-      narration.addEventListener('pause', () => (narrating = false));
     }
     if (narrating) {
       narration.pause();
@@ -26,8 +27,11 @@
       narrating = false;
       return;
     }
+    // Set the toggle state synchronously so a fast second click (or dismiss)
+    // can't be overwritten by a late-resolving play() promise.
     narration.currentTime = 0;
-    void narration.play().then(() => (narrating = true)).catch(() => (narrating = false));
+    narrating = true;
+    narration.play().catch(() => (narrating = false));
   }
 
   function stopNarration() {
@@ -49,12 +53,36 @@
 
   function onKeydown(e: KeyboardEvent) {
     if (!ui.introOpen) return;
-    // The obvious "continue" keys dismiss the gate. Game input is suspended
-    // underneath (main.ts), so other keys are harmless no-ops here.
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+    // The shortcuts modal can open over the gate; let it own the keyboard while
+    // it's up (it traps focus and handles its own Escape).
+    if (ui.shortcutsOpen) return;
+
+    // Escape skips the gate. Enter/Space are intentionally NOT hijacked here so
+    // they activate whichever button is focused (e.g. "Hear the warning"); the
+    // Enter button is focused on open, so Enter/Space still dismiss by default.
+    if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
       actions.dismissIntro();
+      return;
+    }
+    // Trap Tab within the gate's buttons so focus can't fall into the suspended
+    // game UI behind this aria-modal dialog.
+    if (e.key === 'Tab') {
+      const items = panelEl
+        ? Array.from(panelEl.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
+        : [];
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   }
 </script>
@@ -63,7 +91,7 @@
 
 {#if ui.introOpen}
   <div class="intro" role="dialog" aria-modal="true" aria-label="How to play" tabindex="-1">
-    <div class="panel">
+    <div class="panel" bind:this={panelEl}>
       <header class="head">
         <p class="eyebrow">Rogue: DungeonMaster</p>
         <h1>Enter, if you dare</h1>
@@ -93,6 +121,8 @@
     align-items: center;
     justify-content: center;
     padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
     background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(6px);
     outline: none;
