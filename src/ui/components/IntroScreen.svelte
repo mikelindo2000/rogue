@@ -1,12 +1,49 @@
 <script lang="ts">
   import { ui, actions } from '../store.svelte';
   import HowToPlay from './HowToPlay.svelte';
+  import Icon from './primitives/Icon.svelte';
+
+  // Pre-generated ElevenLabs narration of the warning, played only on demand.
+  // Served from public/ at /audio/voice/. See design/implemented for the script.
+  const NARRATION_URL = '/audio/voice/intro-warning-01.mp3';
 
   let enterButton = $state<HTMLButtonElement | null>(null);
+  let narrating = $state(false);
+  let narration: HTMLAudioElement | null = null;
+
+  function toggleNarration() {
+    // Lazily build the element on first use (also a user gesture → audio is
+    // allowed to play). It is deliberately independent of the SFX mute: hitting
+    // "hear the warning" is explicit intent.
+    if (!narration) {
+      narration = new Audio(NARRATION_URL);
+      narration.addEventListener('ended', () => (narrating = false));
+      narration.addEventListener('pause', () => (narrating = false));
+    }
+    if (narrating) {
+      narration.pause();
+      narration.currentTime = 0;
+      narrating = false;
+      return;
+    }
+    narration.currentTime = 0;
+    void narration.play().then(() => (narrating = true)).catch(() => (narrating = false));
+  }
+
+  function stopNarration() {
+    if (narration && !narration.paused) {
+      narration.pause();
+      narration.currentTime = 0;
+    }
+    narrating = false;
+  }
 
   $effect(() => {
     if (ui.introOpen) {
       requestAnimationFrame(() => enterButton?.focus());
+    } else {
+      // Gate dismissed — silence any in-progress narration.
+      stopNarration();
     }
   });
 
@@ -37,6 +74,10 @@
       <footer class="actions">
         <button bind:this={enterButton} class="primary" type="button" onclick={() => actions.dismissIntro()}>
           Enter the dungeon
+        </button>
+        <button class="ghost" type="button" aria-pressed={narrating} onclick={toggleNarration}>
+          <Icon name={narrating ? 'mute' : 'volume'} size={15} />
+          {narrating ? 'Stop the warning' : 'Hear the warning'}
         </button>
       </footer>
     </div>
@@ -110,6 +151,33 @@
   .primary:focus-visible {
     background: var(--accent-log-surface);
     border-color: var(--accent);
+  }
+  .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-md);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    font: 600 12px var(--font-display);
+    cursor: pointer;
+    transition:
+      background var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+  .ghost:hover,
+  .ghost:focus-visible {
+    color: var(--text-bright);
+    border-color: var(--border-strong);
+  }
+  .ghost[aria-pressed='true'] {
+    color: var(--text-bright);
+    border-color: var(--accent-border);
+    background: var(--accent-surface);
   }
 
   @media (max-width: 560px) {

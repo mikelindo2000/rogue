@@ -291,8 +291,6 @@ export interface UIActions {
   /** Dismiss the first-run intro gate: hides it, persists the seen flag, and
    *  resumes game input. Wired in main.ts. */
   dismissIntro(): void;
-  /** Play the pre-generated intro narration clip (no-op until wired). */
-  playIntroNarration(): void;
   setAudioMuted(muted: boolean): void;
   setAudioVolume(volume: number): void;
   setMusicMuted(muted: boolean): void;
@@ -330,7 +328,6 @@ export const actions: UIActions = {
   setSettingsOpen: () => {},
   setShortcutsOpen: () => {},
   dismissIntro: () => {},
-  playIntroNarration: () => {},
   setAudioMuted: () => {},
   setAudioVolume: () => {},
   setMusicMuted: () => {},
