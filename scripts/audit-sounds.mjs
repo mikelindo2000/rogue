@@ -20,7 +20,7 @@
  *   node scripts/audit-sounds.mjs --missing       # only missing files
  *   node scripts/audit-sounds.mjs --orphans       # only orphan files
  *   node scripts/audit-sounds.mjs --silent        # only silent-event warnings
- *   node scripts/audit-sounds.mjs --category=sfx  # sfx | music | voice
+ *   node scripts/audit-sounds.mjs --category=sfx  # sfx | monster-death | music | voice
  *   node scripts/audit-sounds.mjs --json
  *
  * See design/implemented/sound_asset_audit.md for the full workflow.
@@ -77,6 +77,15 @@ const { manifest, events } = await loadAudio();
 const { SOUND_ASSETS, MUSIC_TRACKS, VOICE_ASSETS, INTENTIONALLY_SILENT, resolveClipId } = manifest;
 const { SAMPLE_SOUND_EVENTS } = events;
 
+// Per-monster death cues get their own category for symmetry with the image
+// audit's "Monster Death Scenes"; everything else is generic sfx. Both live in
+// public/audio/sfx/, so orphan detection aggregates per directory (below).
+const isMonsterDeath = id => id.startsWith('death-monster-');
+const sfxEntries = pred =>
+  Object.values(SOUND_ASSETS)
+    .filter(a => pred(a.id))
+    .flatMap(a => a.variants.map(v => ({ label: a.id, ...fromRel(v) })));
+
 // Build expected entries per category from the registries.
 const groups = [
   {
@@ -85,9 +94,15 @@ const groups = [
     dir: 'sfx',
     sourceOfTruth: 'src/audio/manifest.ts SOUND_ASSETS',
     designDoc: 'design/implemented/sound_effect_asset_prompts.md',
-    entries: Object.values(SOUND_ASSETS).flatMap(asset =>
-      asset.variants.map(v => ({ label: asset.id, ...fromRel(v) })),
-    ),
+    entries: sfxEntries(id => !isMonsterDeath(id)),
+  },
+  {
+    category: 'monster-death',
+    title: 'Monster Death SFX',
+    dir: 'sfx',
+    sourceOfTruth: 'src/audio/manifest.ts DEATH_BY_MONSTER (per MONSTER_DATABASE)',
+    designDoc: 'design/implemented/sound_effect_asset_prompts.md',
+    entries: sfxEntries(isMonsterDeath),
   },
   {
     category: 'music',
@@ -108,7 +123,7 @@ const groups = [
 ].filter(g => !onlyCategory || g.category === onlyCategory);
 
 if (onlyCategory && groups.length === 0) {
-  console.error(`Unknown category: ${onlyCategory} (expected sfx | music | voice)`);
+  console.error(`Unknown category: ${onlyCategory} (expected sfx | monster-death | music | voice)`);
   process.exit(2);
 }
 
@@ -120,12 +135,19 @@ const report = groups.map(g => {
 });
 
 // Orphans: files on disk in a manifest-tracked dir that nothing references.
+// Aggregate referenced files per directory first, since multiple categories can
+// share a dir (sfx + monster-death both live in sfx/).
 const orphansByDir = new Map();
 if (!onlyCategory) {
+  const referencedByDir = new Map();
   for (const g of groups) {
-    const referenced = new Set(g.entries.map(e => e.file));
-    const orphans = [...listFiles(g.dir)].filter(f => !referenced.has(f)).sort();
-    if (orphans.length) orphansByDir.set(g.dir, orphans);
+    const set = referencedByDir.get(g.dir) ?? new Set();
+    for (const e of g.entries) set.add(e.file);
+    referencedByDir.set(g.dir, set);
+  }
+  for (const [dir, referenced] of referencedByDir) {
+    const orphans = [...listFiles(dir)].filter(f => !referenced.has(f)).sort();
+    if (orphans.length) orphansByDir.set(dir, orphans);
   }
 }
 

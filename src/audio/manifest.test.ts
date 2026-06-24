@@ -4,10 +4,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   resolveClipId, resolveCue, SOUND_ASSETS, DEATH_BY_ARCHETYPE, MUSIC_TRACKS,
-  VOICE_ASSETS, voiceUrl, AUDIO_BASE,
+  VOICE_ASSETS, voiceUrl, AUDIO_BASE, DEATH_BY_MONSTER, monsterDeathClipId,
 } from './manifest';
 import { SAMPLE_SOUND_EVENTS } from './events';
 import type { SoundEvent } from './events';
+import { MONSTER_DATABASE } from '../config';
+import { monsterId } from '../discovery';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const audioPath = (rel: string) => join(repoRoot, 'public', 'audio', rel);
@@ -31,6 +33,37 @@ describe('death cue cascade', () => {
   it('falls through to the generic default for plain monsters', () => {
     expect(resolveClipId(death({ archetype: 'default' }))).toBe('death-default');
     expect(resolveClipId(death({ archetype: 'unknown-archetype' }))).toBe('death-default');
+  });
+
+  it('prefers the per-monster clip over the archetype clip', () => {
+    // brute archetype would give death-brute, but the monster id wins.
+    expect(resolveClipId(death({ monsterId: 'orc', archetype: 'brute' }))).toBe('death-monster-orc');
+    expect(resolveClipId(death({ monsterId: 'dragon-king', archetype: 'default', special: 'boss' })))
+      .toBe('death-monster-dragon-king');
+  });
+
+  it('falls back to archetype when the monster id is unknown', () => {
+    expect(resolveClipId(death({ monsterId: 'not-a-monster', archetype: 'brute' }))).toBe('death-brute');
+  });
+});
+
+describe('per-monster death coverage', () => {
+  it('maps every roster monster to a real, dedicated death asset', () => {
+    const gaps = MONSTER_DATABASE
+      .map(m => monsterId(m))
+      .filter(id => {
+        const clip = DEATH_BY_MONSTER[id];
+        return clip !== monsterDeathClipId(id) || !SOUND_ASSETS[clip];
+      });
+    expect(gaps, 'monsters missing a death-sound asset — run scripts/gen-monster-death-sfx.mjs').toEqual([]);
+  });
+});
+
+describe('wand zap', () => {
+  it('routes item.zap to a real cue (no longer silent)', () => {
+    const clip = resolveClipId({ type: 'item.zap', wandType: 'fire' });
+    expect(clip).toBe('item-zap');
+    expect(SOUND_ASSETS[clip as string]).toBeDefined();
   });
 });
 

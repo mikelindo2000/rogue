@@ -9,6 +9,9 @@
  */
 import type { SoundEvent, SoundEventType } from './events';
 import type { ArchetypeId } from '../ai/archetypes';
+import type { WandType } from '../types';
+import { MONSTER_DATABASE } from '../config';
+import { monsterId } from '../discovery';
 
 /** Grouping tag. Reserved for future per-channel mixing; not yet honored at
  *  runtime (global gain + per-asset volume is the only mixing today). */
@@ -84,7 +87,33 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'stairs-up': { id: 'stairs-up', variants: [sfx('stairs-up-01.mp3')], channel: 'ui', volume: 0.8 },
   'secret-reveal': { id: 'secret-reveal', variants: [sfx('secret-reveal-01.mp3')], channel: 'ui', volume: 0.85 },
   'movement-run': { id: 'movement-run', variants: [sfx('movement-run-01.mp3')], channel: 'ui', volume: 0.26, cooldownMs: 180, maxVoices: 1 },
+  // wand/staff zap — the kinetic/arcane discharge of zapping a wand. Generic
+  // today (one cue, 3 variants); per-effect cues can be added via ZAP_BY_WAND.
+  'item-zap': { id: 'item-zap', variants: [sfx('item-zap-01.mp3'), sfx('item-zap-02.mp3'), sfx('item-zap-03.mp3')], channel: 'item', volume: 0.7, cooldownMs: 80, maxVoices: 3 },
+  // Per-monster death cues — one dedicated death sound per roster monster, the
+  // most-specific tier of the death cascade. Derived from MONSTER_DATABASE so a
+  // new monster auto-registers its expected clip (the audit/guard then flags the
+  // missing file). Generate with scripts/gen-monster-death-sfx.mjs.
+  ...Object.fromEntries(
+    MONSTER_DATABASE.map(monster => {
+      const clip = monsterDeathClipId(monsterId(monster));
+      const isBoss = monster.special === 'boss';
+      const asset: SoundAsset = {
+        id: clip,
+        variants: [sfx(`${clip}-01.mp3`)],
+        channel: 'combat',
+        volume: isBoss ? 1 : 0.9,
+        ...(isBoss ? { priority: 10 } : {}),
+      };
+      return [clip, asset];
+    }),
+  ),
 };
+
+/** Clip id for a monster's dedicated death cue, e.g. `death-monster-orc`. */
+export function monsterDeathClipId(id: string): string {
+  return `death-monster-${id}`;
+}
 
 /**
  * Per-archetype death clips (the cascade's middle tier). Typed against the
@@ -101,13 +130,37 @@ export const DEATH_BY_ARCHETYPE: Partial<Record<ArchetypeId, string>> = {
   bat: 'death-bat',
 };
 
+/**
+ * Per-monster death clips (the cascade's most-specific tier). Derived from the
+ * roster so every monster maps to its dedicated `death-monster-<id>` cue; a new
+ * monster is covered automatically. Resolution still guards on the asset
+ * existing, so a not-yet-generated clip safely falls through to archetype.
+ */
+export const DEATH_BY_MONSTER: Record<string, string> = Object.fromEntries(
+  MONSTER_DATABASE.map(m => [monsterId(m), monsterDeathClipId(monsterId(m))]),
+);
+
 /** Resolve a death event's clip id via monsterId → archetype → special → generic. */
 function resolveDeathClip(event: Extract<SoundEvent, { type: 'combat.death' }>): string {
-  // (No per-monsterId overrides shipped yet; add them here when authored.)
+  const byMonster = DEATH_BY_MONSTER[event.monsterId];
+  if (byMonster && SOUND_ASSETS[byMonster]) return byMonster;
   const byArchetype = DEATH_BY_ARCHETYPE[event.archetype as ArchetypeId];
   if (byArchetype) return byArchetype;
   if (event.special === 'boss' || event.special === 'hero') return 'death-boss';
   return 'death-default';
+}
+
+/**
+ * Per-wand-effect zap clips (optional override tier). Empty today — every wand
+ * uses the generic `item-zap` cue. Add an entry here and the paired asset/file
+ * when authoring a per-effect zap (e.g. a distinct fire vs lightning discharge).
+ */
+export const ZAP_BY_WAND: Partial<Record<WandType, string>> = {};
+
+function resolveZapClip(event: Extract<SoundEvent, { type: 'item.zap' }>): string {
+  const byWand = ZAP_BY_WAND[event.wandType];
+  if (byWand && SOUND_ASSETS[byWand]) return byWand;
+  return 'item-zap';
 }
 
 /** Map a domain event to the clip id that should play, or null for silence. */
@@ -137,6 +190,7 @@ export function resolveClipId(event: SoundEvent): string | null {
     // 'scroll' reuses the potion consume cue as a stand-in until a dedicated
     // parchment/read clip is authored (see design/implemented/sound_effect_asset_prompts.md).
     case 'item.consume': return event.kind === 'food' ? 'consume-food' : 'consume-potion';
+    case 'item.zap': return resolveZapClip(event);
     case 'map.stairs': return event.dir === 'down' ? 'stairs-down' : 'stairs-up';
     case 'map.secretReveal': return 'secret-reveal';
     case 'movement.run': return event.steps > 1 ? 'movement-run' : null;

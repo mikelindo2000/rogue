@@ -111,6 +111,8 @@ public/audio/music/  <context>-<NN>.mp3             # e.g. explore-shallow-01.mp
 
 - Numeric suffix `-01`, `-02`, … allows multiple variants the service randomizes between.
 - Names map onto the manifest's resolution keys, **not** onto event names one-to-one:
+  - Per-monster death cues are `death-monster-<monsterId>-01.mp3` and map to the
+    `byMonster` table (the most-specific death tier).
   - Per-archetype death cues are `death-<archetypeId>-01.mp3` and map to the
     `byArchetype` table (see the cascade in `SOUND_EFFECTS_SYSTEM_PLAN.md`).
   - Boss/hero cues are `death-boss-01.mp3` and map to the `bySpecial` tier.
@@ -155,6 +157,25 @@ randomized by the service so a string of big hits doesn't repeat. Regenerate wit
 | `death-bat-01.mp3` | `bat` (Brown Bat) | 0.8 | 0.55 | Small bat death, high pitched squeak and fluttering wings stopping abruptly |
 | `death-boss-01.mp3` | `special: boss/hero` | 1.7 | 0.6 | Epic boss monster death, dramatic deep roar fading into a cinematic low boom, fantasy victory |
 
+### Death — per-monster (cascade's most-specific tier → `byMonster`)
+
+Every roster monster has a dedicated death cue, `death-monster-<monsterId>-01.mp3`,
+selected by `DEATH_BY_MONSTER` ahead of the per-archetype tier (see the cascade
+in `src/audio/manifest.ts`). The per-monster prompt catalogue lives in the
+generator, not this table, so the roster stays the single source:
+
+```bash
+node scripts/gen-monster-death-sfx.mjs --dry-run        # preview every prompt
+node scripts/gen-monster-death-sfx.mjs                  # generate missing clips
+node scripts/gen-monster-death-sfx.mjs --monster=orc --force
+```
+
+The script is idempotent (skips existing unless `--force`). When you add a
+monster, add a row to its `CATALOG` (the sound audit flags the missing file
+until you do — `node scripts/audit-sounds.mjs`). Durations run ~0.8–1.2s for
+regular monsters and ~1.4–1.7s for bosses (Dragon King, Marcus the Brave), at
+`prompt_influence` 0.5–0.6, all with the house suffix.
+
 ### Player vitals & progression
 
 | File | Event | Dur | Infl | Prompt (before suffix) |
@@ -193,6 +214,14 @@ randomized by the service so a string of big hits doesn't repeat. Regenerate wit
 | `item-gold-01.mp3` | `item.pickup` (gold) | 0.7 | 0.55 | A handful of gold coins scooped up with a bright jingling clink |
 | `consume-potion-01.mp3` | `item.consume` (potion) | 0.9 | 0.5 | Uncorking and gulping a magic potion, liquid glug with a soft magical shimmer |
 | `consume-food-01.mp3` | `item.consume` (food) | 0.8 | 0.5 | Eating dry rations, a few quick chewing bites and a satisfied swallow |
+| `item-zap-01.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A wand unleashing a crackling bolt of arcane energy, a sharp magical zap with a brief electric sizzle |
+| `item-zap-02.mp3` | `item.zap` (wand) | 0.8 | 0.55 | A magic staff discharging a focused beam of power, a whooshing arcane release with a glassy shimmer tail |
+| `item-zap-03.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A quick wand zap firing a spark of raw magic, a snapping crackle into a soft humming fizzle |
+
+`item.zap` uses one generic cue (`item-zap`, three variants the service
+randomizes) via `resolveZapClip`. Per-effect zaps (fire vs lightning) can be
+added later through `ZAP_BY_WAND` in the manifest plus their own files.
+Regenerate with `scripts/gen-zap-sfx.sh`.
 
 ### Map / navigation
 
