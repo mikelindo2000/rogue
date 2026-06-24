@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "audit:assets": "node scripts/audit-assets.mjs",
+    "audit:sounds": "node scripts/audit-sounds.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json && vitest run"
   },
   "devDependencies": {

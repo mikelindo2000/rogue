@@ -52,6 +52,46 @@ export type SoundEvent =
 
 export type SoundEventType = SoundEvent['type'];
 
+/**
+ * One representative event per type, for coverage tooling that needs a runtime
+ * list of every event (the union is erased at compile time). The mapped-type
+ * `satisfies` makes this exhaustive AND key-correct: adding a new event type to
+ * `SoundEvent` fails the build until a matching sample is added here, so the
+ * sound audit's silent-event check can never silently miss a new event.
+ *
+ * Pick a payload that exercises the cue path where one exists (e.g.
+ * `movement.run` with steps > 1), so a type only reads as "silent" when it
+ * genuinely has no clip for any payload.
+ */
+export const SAMPLE_SOUND_EVENTS = {
+  'combat.swing': { type: 'combat.swing', actor: 'player' },
+  'combat.hit': { type: 'combat.hit', actor: 'monster', target: 'player' },
+  'combat.heavyHit': { type: 'combat.heavyHit', damage: 20 },
+  'combat.miss': { type: 'combat.miss', actor: 'player' },
+  'combat.death': { type: 'combat.death', monsterId: 'orc', archetype: 'brute' },
+  'player.levelUp': { type: 'player.levelUp' },
+  'player.lowHealth': { type: 'player.lowHealth' },
+  'player.criticalHealth': { type: 'player.criticalHealth' },
+  'player.death': { type: 'player.death' },
+  'game.victory': { type: 'game.victory' },
+  'hunger.hungry': { type: 'hunger.hungry' },
+  'hunger.nearStarved': { type: 'hunger.nearStarved' },
+  'hunger.fatigued': { type: 'hunger.fatigued' },
+  'hunger.starving': { type: 'hunger.starving' },
+  'hunger.starveTick': { type: 'hunger.starveTick' },
+  'survival.dualWarning': { type: 'survival.dualWarning' },
+  'equipment.equipWeapon': { type: 'equipment.equipWeapon' },
+  'equipment.equipArmor': { type: 'equipment.equipArmor' },
+  'equipment.unequipArmor': { type: 'equipment.unequipArmor' },
+  'equipment.rejected': { type: 'equipment.rejected' },
+  'item.pickup': { type: 'item.pickup', kind: 'gold' },
+  'item.consume': { type: 'item.consume', kind: 'potion' },
+  'item.zap': { type: 'item.zap', wandType: 'fire' },
+  'map.stairs': { type: 'map.stairs', dir: 'down' },
+  'map.secretReveal': { type: 'map.secretReveal' },
+  'movement.run': { type: 'movement.run', steps: 2 },
+} as const satisfies { [K in SoundEventType]: Extract<SoundEvent, { type: K }> };
+
 /** The dependency the engine receives. Default is a no-op so tests and
  *  non-browser contexts pay nothing and import no audio APIs. */
 export interface SoundSink {

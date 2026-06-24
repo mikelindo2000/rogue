@@ -1,0 +1,92 @@
+# Sound Asset Audit
+
+A single command that takes an **event/cue → audio-file inventory** of the game
+and reports any referenced clip that is missing its file, any audio file nothing
+references, and any gameplay event that fires with no sound.
+
+```bash
+npm run audit:sounds           # full inventory + gap report (exit 1 if files missing)
+node scripts/audit-sounds.mjs  # same thing
+```
+
+It mirrors the image audit (`design/implemented/asset_image_audit.md`), but the
+audio side already had a typed source of truth, so the script reads that instead
+of rebuilding one.
+
+## Source of truth
+
+[src/audio/manifest.ts](../../src/audio/manifest.ts) is the registry the game
+plays from — engine code emits typed `SoundEvent`s and the manifest resolves
+them to assets; it never names a raw path. The audit checks three registries
+against `public/audio/`:
+
+| Category | Directory | Registry |
+| --- | --- | --- |
+| Sound effects | `public/audio/sfx/` | `SOUND_ASSETS` (incl. `DEATH_BY_ARCHETYPE` cascade) |
+| Music beds | `public/audio/music/` | `MUSIC_TRACKS` |
+| Voice narration | `public/audio/voice/` | `VOICE_ASSETS` |
+
+Because it reads those same registries (loaded via Vite's SSR loader), adding a
+clip variant, music context, or voice line automatically appears in the audit —
+no second list to maintain.
+
+## What it reports
+
+- **missing** — a file the manifest references but that is absent on disk. These
+  are real gaps and make the script exit non-zero, so it works as a CI / pre-deploy
+  gate (alongside the guard tests in `src/audio/manifest.test.ts`).
+- **orphan** — a file under `public/audio/<dir>/` that no registry references
+  (usually stale art from a rename). Informational.
+- **silent events** — a defined `SoundEvent` type that routes to no clip (e.g.
+  `item.zap`: wand zaps are currently silent). Surfaced as **warnings** today;
+  the plan is to author cues for all of them and eventually promote these to
+  errors. A genuinely-intentional silence is marked, not warned (below).
+
+## Marking an event intentionally silent
+
+Some events may be silent on purpose. List them in `INTENTIONALLY_SILENT` in the
+manifest with a reason; they drop out of the warning list and show under
+"intentionally silent" instead:
+
+```ts
+// src/audio/manifest.ts
+export const INTENTIONALLY_SILENT: Partial<Record<SoundEventType, string>> = {
+  'movement.run': 'single-step runs stay silent by design',
+};
+```
+
+Leave a not-yet-authored cue OUT of this map so it keeps showing as a gap.
+
+### How silent detection stays in sync
+
+The audit needs a runtime list of every event type (the `SoundEvent` union is
+erased at compile time). `SAMPLE_SOUND_EVENTS` in
+[src/audio/events.ts](../../src/audio/events.ts) holds one representative event
+per type, guarded by `as const satisfies { [K in SoundEventType]: ... }` — so
+adding a new event type to the union **fails the build** until a sample is added,
+and the audit can never silently miss a new event. Each sample uses a payload
+that exercises the cue path where one exists (e.g. `movement.run` with
+`steps: 2`), so a type only reads as silent when it truly has no clip.
+
+## Flags
+
+```bash
+node scripts/audit-sounds.mjs --missing            # only the gaps
+node scripts/audit-sounds.mjs --orphans            # only unreferenced files
+node scripts/audit-sounds.mjs --silent             # only silent-event warnings
+node scripts/audit-sounds.mjs --category=sfx       # sfx | music | voice
+node scripts/audit-sounds.mjs --json               # machine-readable
+```
+
+## Filling a gap
+
+Recipes (ElevenLabs prompts, models, durations) live in `design/implemented/`:
+
+- SFX — `sound_effect_asset_prompts.md` (house suffix + per-clip prompts).
+  `scripts/gen-combat-rumble-sfx.sh` is the one scripted generator (the rumble
+  variants); most SFX are authored manually against the prompt catalogue.
+- Music — `music_generation.md`
+- Voice — `intro_narration_prompt.md`
+
+Write the new file to the slug-stable path the registry expects, then re-run the
+audit to confirm it's wired up.

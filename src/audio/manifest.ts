@@ -7,7 +7,7 @@
  * monster-specific clips via a most-specific-wins cascade:
  *   monsterId -> archetype -> special -> generic
  */
-import type { SoundEvent } from './events';
+import type { SoundEvent, SoundEventType } from './events';
 import type { ArchetypeId } from '../ai/archetypes';
 
 /** Grouping tag. Reserved for future per-channel mixing; not yet honored at
@@ -163,4 +163,40 @@ export const MUSIC_TRACKS: Record<MusicContextId, string> = {
   safe: 'music/safe-01.mp3',
   gameover: 'music/gameover-01.mp3',
   victory: 'music/victory-credits-01.mp3',
+};
+
+// --- voice narration ----------------------------------------------------
+
+export interface VoiceAsset {
+  id: string;
+  /** File relative to AUDIO_BASE (e.g. `voice/intro-warning-01.mp3`). */
+  file: string;
+}
+
+/**
+ * Pre-generated ElevenLabs narration clips, played on explicit user intent
+ * (not the SFX bus). UI reads `voiceUrl(id)` rather than naming a path, so the
+ * audit and guard test track these like sfx/music. Recipe:
+ * design/implemented/intro_narration_prompt.md.
+ */
+export const VOICE_ASSETS: Record<string, VoiceAsset> = {
+  'intro-warning': { id: 'intro-warning', file: 'voice/intro-warning-01.mp3' },
+};
+
+/** Web path for a voice clip, e.g. `/audio/voice/intro-warning-01.mp3`. */
+export function voiceUrl(id: keyof typeof VOICE_ASSETS): string {
+  return `${AUDIO_BASE}${VOICE_ASSETS[id].file}`;
+}
+
+// --- silent-event registry ----------------------------------------------
+
+/**
+ * Event types that are deliberately silent — they fire but route to no clip on
+ * purpose. The audit (`scripts/audit-sounds.mjs`) treats a no-clip event as a
+ * warning UNLESS it is listed here with a reason. Add an entry when silence is
+ * an intentional design choice; leave a not-yet-authored cue OUT so it keeps
+ * showing as a gap to fill. The value is the rationale, shown in the report.
+ */
+export const INTENTIONALLY_SILENT: Partial<Record<SoundEventType, string>> = {
+  // (none yet — e.g. 'item.zap' is an unfilled gap, intentionally omitted)
 };

@@ -2,11 +2,12 @@
   import { ui, actions } from '../store.svelte';
   import HowToPlay from './HowToPlay.svelte';
   import Icon from './primitives/Icon.svelte';
-  import { AUDIO_BASE } from '../../audio/manifest';
+  import { voiceUrl } from '../../audio/manifest';
 
   // Pre-generated ElevenLabs narration of the warning, played only on demand.
-  // Served from public/ at /audio/voice/. See design/implemented for the script.
-  const NARRATION_URL = `${AUDIO_BASE}voice/intro-warning-01.mp3`;
+  // Resolved from the VOICE_ASSETS registry so the sound audit tracks it. See
+  // design/implemented/intro_narration_prompt.md.
+  const NARRATION_URL = voiceUrl('intro-warning');
 
   let enterButton = $state<HTMLButtonElement | null>(null);
   let panelEl = $state<HTMLDivElement | null>(null);

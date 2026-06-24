@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { resolveClipId, resolveCue, SOUND_ASSETS, DEATH_BY_ARCHETYPE, MUSIC_TRACKS } from './manifest';
+import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  resolveClipId, resolveCue, SOUND_ASSETS, DEATH_BY_ARCHETYPE, MUSIC_TRACKS,
+  VOICE_ASSETS, voiceUrl, AUDIO_BASE,
+} from './manifest';
+import { SAMPLE_SOUND_EVENTS } from './events';
 import type { SoundEvent } from './events';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const audioPath = (rel: string) => join(repoRoot, 'public', 'audio', rel);
 
 const death = (over: Partial<Extract<SoundEvent, { type: 'combat.death' }>>): SoundEvent => ({
   type: 'combat.death', monsterId: 'x', archetype: 'default', ...over,
@@ -83,5 +93,43 @@ describe('manifest integrity', () => {
       expect(file, ctx).toMatch(/^music\/.+\.mp3$/);
     }
     expect(MUSIC_TRACKS.victory).toBe('music/victory-credits-01.mp3');
+  });
+});
+
+/*
+ * Guard: every audio file the manifest references must exist on disk. The
+ * resolution tests above prove routing is correct; these prove the clip a route
+ * lands on is actually shippable. `node scripts/audit-sounds.mjs` is the same
+ * check with a fuller report (orphans + silent-event warnings).
+ */
+describe('audio files on disk', () => {
+  it('every SFX variant exists', () => {
+    const missing = Object.values(SOUND_ASSETS)
+      .flatMap(a => a.variants)
+      .filter(rel => !existsSync(audioPath(rel)));
+    expect(missing, 'missing sfx — see design/implemented/sound_effect_asset_prompts.md').toEqual([]);
+  });
+
+  it('every music bed exists', () => {
+    const missing = Object.values(MUSIC_TRACKS).filter(rel => !existsSync(audioPath(rel)));
+    expect(missing, 'missing music — see design/implemented/music_generation.md').toEqual([]);
+  });
+
+  it('every voice clip exists and voiceUrl resolves under AUDIO_BASE', () => {
+    const missing = Object.values(VOICE_ASSETS).filter(a => !existsSync(audioPath(a.file)));
+    expect(missing, 'missing voice — see design/implemented/intro_narration_prompt.md').toEqual([]);
+    expect(voiceUrl('intro-warning')).toBe(`${AUDIO_BASE}voice/intro-warning-01.mp3`);
+  });
+});
+
+describe('sample event catalogue', () => {
+  it('has a sample for every event type and resolution never throws', () => {
+    // `as const satisfies` already enforces exhaustiveness at compile time;
+    // this keeps the invariant loud at runtime and exercises every route.
+    const keys = Object.keys(SAMPLE_SOUND_EVENTS);
+    expect(keys.length).toBeGreaterThanOrEqual(26);
+    for (const sample of Object.values(SAMPLE_SOUND_EVENTS)) {
+      expect(() => resolveClipId(sample as SoundEvent)).not.toThrow();
+    }
   });
 });
