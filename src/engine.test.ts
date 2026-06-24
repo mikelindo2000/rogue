@@ -5,7 +5,7 @@ import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
 import { RecordingSink } from './audio/events';
 
-const makeUi = () => ({
+const makeUi = (overrides: Record<string, unknown> = {}) => ({
   renderLogs: () => {},
   resetLog: () => {},
   updateDropdowns: () => {},
@@ -21,6 +21,7 @@ const makeUi = () => ({
   fxDive: () => {},
   fxWhiff: () => {},
   fxMonsterDodge: () => {},
+  ...overrides,
 });
 
 const makeBoss = (name = 'Marcus the Brave'): Monster => ({
@@ -61,8 +62,8 @@ describe('GameEngine startup logs', () => {
 const makeEmptyMap = (engine: GameEngine) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
 
-const makeRunner = (sound?: RecordingSink) => {
-  const engine = new GameEngine(makeUi() as any, sound);
+const makeRunner = (sound?: RecordingSink, ui = makeUi()) => {
+  const engine = new GameEngine(ui as any, sound);
   engine.map = makeEmptyMap(engine);
   engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
@@ -191,8 +192,8 @@ describe('GameEngine boss victory conditions', () => {
 
 describe('GameEngine amulet escape endgame', () => {
   // Place up-stairs one tile to the player's right on a small carved floor.
-  const makeEscapeStage = (floor: number, sound?: RecordingSink) => {
-    const engine = makeRunner(sound);
+  const makeEscapeStage = (floor: number, sound?: RecordingSink, ui = makeUi()) => {
+    const engine = makeRunner(sound, ui);
     engine.dungeonFloor = floor;
     carveRow(engine, 2, 2, 4, TILE.FLOOR);
     engine.map[2][4] = TILE.STAIRS_UP;
@@ -212,6 +213,21 @@ describe('GameEngine amulet escape endgame', () => {
     expect(engine.finalRunSummary?.outcome).toBe('won');
     expect(engine.logs.join('\n')).toContain('You have WON');
     expect(sound.types()).toContain('game.victory');
+  });
+
+  it('draws after escape so the UI bridge observes the win state', () => {
+    const renders: unknown[][] = [];
+    const ui = makeUi({
+      render: (...args: unknown[]) => renders.push(args),
+    });
+    const engine = makeEscapeStage(1, undefined, ui);
+    engine.hasAmulet = true;
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(renders.length).toBeGreaterThan(0);
+    const lastRender = renders[renders.length - 1];
+    expect(lastRender[lastRender.length - 1]).toBe(true);
   });
 
   it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {

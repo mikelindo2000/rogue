@@ -864,6 +864,7 @@ export class GameEngine {
     this.recordWinTurn();
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    this.draw();
     this.autosave();
   }
 

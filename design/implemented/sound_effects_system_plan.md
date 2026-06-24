@@ -358,8 +358,10 @@ Design notes that differ from one-shot SFX:
   of the SFX volume, so players can silence music but keep combat cues.
 - **Single-voice lifecycle.** At most one track plays at a time. Track changes
   crossfade (e.g. 1–2s) rather than hard-cut; never stack two music loops.
-- **Seamless looping.** Generate with looping enabled and verify the loop point; a
-  3-minute bed that clicks on repeat is worse than silence.
+- **Loop handling.** The ElevenLabs music endpoint does not provide a loop flag.
+  Treat music as a long bed that the runtime loops and crossfades; if a true
+  gapless loop becomes necessary, make that an explicit post-processing step and
+  verify the loop point before shipping.
 - **Context selection, not per-turn churn.** Music switches on coarse state changes
   (floor depth band, entering a boss room, run end), debounced so rapid floor changes
   don't thrash tracks. This is the "different lifecycle rules" the non-goals allude to.
