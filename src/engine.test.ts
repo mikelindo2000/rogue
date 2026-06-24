@@ -985,6 +985,61 @@ describe('GameEngine dropInventoryRef', () => {
     expect(engine.player.inventory.weapons[engine.player.equipped.mainHand]?.name).toBe('Steel Mace');
   });
 
+  it('leaves an off-hand shield reference intact when dropping a weapon', () => {
+    const engine = makeRunner();
+    engine.player.inventory.weapons.push({ name: 'Iron Sword', type: '1h_sword', dmg: 5 });
+    engine.player.inventory.shield.push({ name: 'Oak Shield', def: 3, maxDef: 3 });
+    engine.player.equipped.offHand = 'shield:1';
+
+    const ok = engine.dropInventoryRef({ kind: 'weapon', index: 1 });
+
+    expect(ok).toBe(true);
+    // The weapon splice must not touch a shield-typed off-hand reference.
+    expect(engine.player.equipped.offHand).toBe('shield:1');
+    expect(engine.player.inventory.shield[1]?.name).toBe('Oak Shield');
+  });
+
+  it('leaves an off-hand weapon reference intact when dropping a shield', () => {
+    const engine = makeRunner();
+    engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3 });
+    engine.player.inventory.shield.push({ name: 'Oak Shield', def: 3, maxDef: 3 });
+    engine.player.equipped.offHand = 'weapon:1';
+
+    const ok = engine.dropInventoryRef({ kind: 'shield', index: 1 });
+
+    expect(ok).toBe(true);
+    // The shield splice must not touch a weapon-typed off-hand reference.
+    expect(engine.player.equipped.offHand).toBe('weapon:1');
+    expect(engine.player.inventory.weapons[1]?.name).toBe('Steel Dagger');
+  });
+
+  it('does not disturb other armor slots when dropping from one slot', () => {
+    const engine = makeRunner();
+    engine.player.inventory.helm.push({ name: 'Bronze Helm', def: 1, maxDef: 1 });
+    engine.player.inventory.helm.push({ name: 'Iron Helm', def: 2, maxDef: 2 });
+    engine.player.equipped.helm = 2; // Iron Helm
+    engine.player.equipped.chest = 1; // unrelated slot
+
+    const ok = engine.dropInventoryRef({ kind: 'armor', slot: 'helm', index: 1 });
+
+    expect(ok).toBe(true);
+    // Helm index shifts 2 -> 1; the chest slot's index is untouched.
+    expect(engine.player.inventory.helm[engine.player.equipped.helm]?.name).toBe('Iron Helm');
+    expect(engine.player.equipped.chest).toBe(1);
+  });
+
+  it('refuses to drop the index-0 "None" armor sentinel', () => {
+    const engine = makeRunner();
+    const turnBefore = engine.turn;
+
+    const ok = engine.dropInventoryRef({ kind: 'armor', slot: 'helm', index: 0 });
+
+    expect(ok).toBe(false);
+    expect(engine.player.inventory.helm[0]?.name).toBe('None');
+    expect(engine.items).toHaveLength(0);
+    expect(engine.turn).toBe(turnBefore);
+  });
+
   it('refuses to drop equipped gear', () => {
     const engine = makeRunner();
     engine.player.inventory.weapons.push({ name: 'Iron Sword', type: '1h_sword', dmg: 5 });

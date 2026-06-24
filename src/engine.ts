@@ -2094,6 +2094,7 @@ export class GameEngine {
         };
       }
       case 'armor': {
+        if (ref.index === 0) return null; // index 0 is the "None" sentinel
         if (this.player.equipped[ref.slot] === ref.index) return null;
         const a = inv[ref.slot][ref.index];
         if (!a) return null;
