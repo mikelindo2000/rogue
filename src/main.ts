@@ -200,6 +200,23 @@ document.addEventListener('DOMContentLoaded', () => {
       engine.draw();
     }
   };
+  // Abandon the current run and start fresh from the settings — the way to apply
+  // a board-size change mid-run. Unlike restart() this works even while alive, so
+  // the SettingsModal gates it behind an explicit confirm.
+  actions.startNewGame = () => {
+    suppressedEndedRunId = null;
+    ui.endRunSummary = null;
+    ui.endRunComparison = null;
+    ui.endRunCopyStatus = '';
+    ui.settingsOpen = false;
+    engine.setBoardSize(ui.boardSize);
+    engine.initGame();
+    // Persist the fresh run immediately so a tab-kill can't restore the
+    // abandoned one (mirrors the cold-start path).
+    flushSave();
+    engine.draw();
+    updateMusic();
+  };
   actions.setCompendiumOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
     ui.compendiumOpen = open;

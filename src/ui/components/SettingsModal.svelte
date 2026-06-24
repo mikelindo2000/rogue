@@ -25,15 +25,27 @@
   ];
 
   let active = $state<SectionId>('audio');
+  // Two-step guard for the destructive "start new game" action so a stray click
+  // can't abandon a run.
+  let confirmingNewGame = $state(false);
   const volumePct = $derived(Math.round(ui.audioVolume * 100));
   const musicVolumePct = $derived(Math.round(ui.musicVolume * 100));
 
   function close() {
+    confirmingNewGame = false;
     actions.setSettingsOpen(false);
   }
 
   function selectSection(s: Section) {
-    if (!s.soon) active = s.id;
+    if (!s.soon) {
+      active = s.id;
+      confirmingNewGame = false;
+    }
+  }
+
+  function startNewGame() {
+    confirmingNewGame = false;
+    actions.startNewGame();
   }
 
   // Arrow keys move between enabled sections, Rogue-style list navigation.
@@ -233,6 +245,24 @@
               </button>
             {/each}
           </div>
+        </div>
+
+        <p class="group-label">New game</p>
+
+        <div class="field">
+          <div class="field-text">
+            <span class="field-label">Start a new game</span>
+            <span class="field-desc">Begins a fresh run with the selected board size. This abandons your current dungeon.</span>
+          </div>
+          {#if confirmingNewGame}
+            <div class="confirm">
+              <span class="confirm-text">Abandon current run?</span>
+              <button class="btn btn-danger" type="button" onclick={startNewGame}>Start new game</button>
+              <button class="btn btn-ghost" type="button" onclick={() => (confirmingNewGame = false)}>Cancel</button>
+            </div>
+          {:else}
+            <button class="btn" type="button" onclick={() => (confirmingNewGame = true)}>New game…</button>
+          {/if}
         </div>
       {/if}
     </section>
@@ -552,6 +582,33 @@
     color: var(--text-faint);
     border-color: var(--border-slot);
     background: var(--surface-inset);
+  }
+  .confirm {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .confirm-text {
+    font: 600 var(--fs-xs) var(--font-display);
+    color: var(--text-muted);
+  }
+  .btn-danger {
+    border-color: var(--danger-border, #7f1d1d);
+    background: var(--danger-surface, rgba(127, 29, 29, 0.25));
+  }
+  .btn-danger:hover:not(:disabled) {
+    border-color: var(--danger, #ef4444);
+    background: var(--danger-surface, rgba(127, 29, 29, 0.4));
+  }
+  .btn-ghost {
+    border-color: var(--border-slot);
+    background: transparent;
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-card);
+    border-color: var(--border);
   }
 
   @media (max-width: 680px) {

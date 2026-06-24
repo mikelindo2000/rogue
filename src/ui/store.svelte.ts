@@ -267,6 +267,8 @@ export interface UIActions {
   usePotion(idx: number): void;
   eat(): void;
   restart(): void;
+  /** Abandon the current run and start a fresh game (applies the board size). */
+  startNewGame(): void;
   setCompendiumOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
   setInventoryFilterKind(kind: InventoryFilterKind): void;
@@ -301,6 +303,7 @@ export const actions: UIActions = {
   usePotion: () => {},
   eat: () => {},
   restart: () => {},
+  startNewGame: () => {},
   setCompendiumOpen: () => {},
   setInventoryOpen: () => {},
   setInventoryFilterKind: () => {},
