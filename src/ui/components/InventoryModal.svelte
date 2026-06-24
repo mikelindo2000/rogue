@@ -545,8 +545,8 @@
     width: min(84vw, 1000px);
     max-width: 100%;
     box-sizing: border-box;
-    min-height: 440px;
-    max-height: 72vh;
+    height: 72vh;
+    min-height: 480px;
   }
 
   .spine {
@@ -886,6 +886,7 @@
     .body {
       grid-template-columns: 1fr;
       width: min(100%, 460px);
+      height: auto;
       max-height: none;
     }
     .spine {
