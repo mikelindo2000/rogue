@@ -138,6 +138,15 @@ describe('settings store', () => {
     expect(next.audio).toEqual({ muted: false, volume: 0.9, musicMuted: true, musicVolume: 0.4 });
   });
 
+  it('updateSettings persists the selected board size as the next-run default', () => {
+    const backend = new MemoryStorage();
+
+    const next = updateSettings({ boardSize: 'huge' }, backend);
+
+    expect(next.boardSize).toBe('huge');
+    expect(loadSettings(backend).boardSize).toBe('huge');
+  });
+
   it('updateSettings changing playerName keeps audio intact', () => {
     const backend = new MemoryStorage();
     saveSettings(
