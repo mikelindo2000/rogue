@@ -40,7 +40,7 @@
   --text-icon: #b8b0a5;         /* default (common) icon stroke */
   --text-label: #847c72;        /* vitals labels, monster level */
   --text-dim: #777066;          /* hint labels, faded log */
-  --text-dimmer: #686157;       /* uppercase section labels, units */
+  --text-dimmer: #aa906b;       /* uppercase section labels, units */
   --text-faint: #524d46;        /* "Empty" slot text */
   --text-faintest: #454039;     /* log gutter numbers, empty icons */
 
