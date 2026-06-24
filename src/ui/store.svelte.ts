@@ -6,6 +6,7 @@
    subscriptions are needed. `actions` is wired by main.ts to call engine methods. */
 
 import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
+import type { GearVerdict } from './gearCompare';
 import type { IconName } from './icons';
 import type { HungerTone, SurvivalWarningTone } from './format';
 import type { VisualEffectInstance } from './visualEffects';
@@ -25,6 +26,23 @@ export interface EquipOption {
   selected: boolean;
   disabled?: boolean;
   reason?: string;
+  /** How this option compares to what's equipped in the slot (undefined for the
+   *  equipped option itself and for non-comparable empties). */
+  verdict?: GearVerdict;
+  /** Candidate dominates the equipped item on every axis ("clearly better"). */
+  strictlyBetter?: boolean;
+  /** This is the single strongest option for the slot. */
+  isBest?: boolean;
+  /** Durability bar for defensive options. */
+  health?: GearHealthView;
+}
+
+/** A glanceable "better gear is in your pack" hint for a HUD slot. */
+export interface SlotUpgradeHint {
+  /** The best pack candidate is strictly better than what's worn. */
+  strict: boolean;
+  bestName: string;
+  bestStat: string;
 }
 
 export interface GearHealthView {
@@ -47,6 +65,8 @@ export interface EquipSlotView {
   availableCount: number;
   availableLabel: string;
   hasUpgrade: boolean;
+  /** Populated when a strictly-/generally-better item sits in the pack. */
+  upgrade?: SlotUpgradeHint;
   options: EquipOption[];
   health?: GearHealthView;
 }
@@ -66,6 +86,11 @@ export interface InventoryCell {
   equipped?: boolean;
   actions: InventoryActionView[];
   health?: GearHealthView;
+  /** Gear-only: how this item compares to what's equipped in its slot. */
+  verdict?: GearVerdict;
+  strictlyBetter?: boolean;
+  /** This is the single strongest option for its slot. */
+  isBest?: boolean;
 }
 
 export interface InventoryTooltipStat {
@@ -178,6 +203,9 @@ export interface UIState {
   inventoryOpen: boolean;
   inventoryFilterKind: InventoryFilterKind;
   selectedInventoryRef: InventoryRef | null;
+  /** Which equipment slot the loadout hub is focused on (null = the pack/grid
+   *  view). Set when the hub is opened from a HUD slot. */
+  selectedEquipSlot: EquipSlot | null;
   potionMenuOpen: boolean;
   /** Dev-only balance report overlay (⌘/Ctrl+B). */
   balancePanelOpen: boolean;
@@ -249,6 +277,7 @@ export const ui = $state<UIState>({
   inventoryOpen: false,
   inventoryFilterKind: 'all',
   selectedInventoryRef: null,
+  selectedEquipSlot: null,
   potionMenuOpen: false,
   balancePanelOpen: false,
   settingsOpen: false,
@@ -300,6 +329,8 @@ export interface UIActions {
   copyEndRunSummary(): void;
   clearRunHistory(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
+  /** Open the loadout hub focused on an equipment slot (or null for the pack). */
+  selectEquipSlot(slot: EquipSlot | null): void;
   inventoryAction(ref: InventoryRef, action: InventoryAction): void;
   /** Draw a wand for aiming (or fire it immediately if self-targeted). */
   beginZap(ref: InventoryRef & { kind: 'wand' }): void;
@@ -337,6 +368,7 @@ export const actions: UIActions = {
   copyEndRunSummary: () => {},
   clearRunHistory: () => {},
   selectInventoryItem: () => {},
+  selectEquipSlot: () => {},
   inventoryAction: () => {},
   beginZap: () => {},
   zapInDirection: () => {},
