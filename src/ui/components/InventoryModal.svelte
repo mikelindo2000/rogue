@@ -36,6 +36,7 @@
   let activeKey = $state<string>('');
   let selectedKey = $state<string>('');
   let activeCol = $state<number>(1);
+  let userSelectedSpine = $state<boolean>(false);
 
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
@@ -115,6 +116,7 @@
     if (activeKey === key) return;
     activeKey = key;
     selectedKey = '';
+    userSelectedSpine = true;
     // Default the candidate highlight to the first real candidate, else the
     // equipped row (so the detail pane always has something to show). `entries`
     // recomputes after activeKey settles, hence the tick.
@@ -171,6 +173,25 @@
     else if (colIdx === 1) selectedKey = key;
   }
 
+  function findClosestVerticalButton(buttons: HTMLButtonElement[], referenceEl: HTMLElement): HTMLButtonElement {
+    const refRect = referenceEl.getBoundingClientRect();
+    const refY = refRect.top + refRect.height / 2;
+
+    let closestBtn = buttons[0];
+    let minDiff = Infinity;
+
+    for (const btn of buttons) {
+      const rect = btn.getBoundingClientRect();
+      const btnY = rect.top + rect.height / 2;
+      const diff = Math.abs(btnY - refY);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestBtn = btn;
+      }
+    }
+    return closestBtn;
+  }
+
   function focusColumn(index: number, direction: 1 | -1 = 1, visited = new Set<number>()) {
     const cols = [spineEl, listEl, detailEl];
     const target = cols[index];
@@ -185,9 +206,22 @@
       }
       return;
     }
-    // Prefer the already-selected row in the list column.
-    const selectedBtn = buttons.find((b) => b.dataset.nav === selectedKey) ?? buttons.find((b) => b.dataset.nav === activeKey);
-    const btn = selectedBtn ?? buttons[0];
+    
+    let btn: HTMLButtonElement | null = null;
+    if (index === 0 && !userSelectedSpine) {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && listEl?.contains(activeEl)) {
+        btn = findClosestVerticalButton(buttons, activeEl);
+        userSelectedSpine = true;
+      }
+    }
+
+    if (!btn) {
+      // Prefer the already-selected row in the list column.
+      const selectedBtn = buttons.find((b) => b.dataset.nav === selectedKey) ?? buttons.find((b) => b.dataset.nav === activeKey);
+      btn = selectedBtn ?? buttons[0];
+    }
+
     btn.focus();
     activeCol = index;
     applySelection(btn, index);

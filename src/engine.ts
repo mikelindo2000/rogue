@@ -1047,7 +1047,7 @@ export class GameEngine {
   public playerAttack(monster: Monster) {
     recordAttack(this.stats);
     // Focus the combat portrait on whoever we're swinging at.
-    this.ui.combatFocusId = monsterId(monster);
+    this.ui.combatFocusMonster = monster;
     this.sound.emit({ type: 'combat.swing', actor: 'player' });
     const mainWep = this.player.inventory.weapons[this.player.equipped.mainHand];
     if (mainWep) {
@@ -1075,7 +1075,7 @@ export class GameEngine {
    * the win path, which spends it here (matching the legacy melee behavior).
    */
   private handleMonsterDeath(monster: Monster) {
-    if (this.ui.combatFocusId === monsterId(monster)) this.ui.combatFocusId = null;
+    if (this.ui.combatFocusMonster === monster) this.ui.combatFocusMonster = null;
     this.addLog(`The ${monster.name} dies!`);
     this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
     this.sound.emit({

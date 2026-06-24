@@ -321,4 +321,86 @@ describe('loadout hub — keyboard navigation and focus highlighting', () => {
       listEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     }).not.toThrow();
   });
+
+  it('focuses the spine row closest vertically when transitioning left without previous user selection', async () => {
+    // Open the hub with chest options and multiple spine categories to test vertical alignment
+    openHub({
+      items: [betterChestCell()],
+      equipment: [
+        chestSlot(),
+        {
+          slot: 'helm',
+          label: 'Head',
+          icon: 'helm',
+          itemName: 'Leather Cap',
+          statLabel: 'DEF 1',
+          rarityColor: '#fff',
+          empty: false,
+          artUrl: '',
+          availableCount: 0,
+          availableLabel: '0 items available',
+          hasUpgrade: false,
+          options: [],
+        }
+      ]
+    });
+    await tick();
+    await tick();
+    flushSync();
+
+    const firstRow = candidateRow();
+    firstRow.focus();
+
+    // Spine has 2 rows: Chest (top) and Head (bottom).
+    const spineRows = Array.from(document.querySelectorAll('.spine-row')) as HTMLElement[];
+    expect(spineRows.length).toBeGreaterThanOrEqual(2);
+
+    // Mock bounding client rects to simulate vertical coordinates in happy-dom:
+    // Row 0 (Chest): midpoint = 120
+    // Row 1 (Head): midpoint = 220
+    vi.spyOn(spineRows[0], 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      height: 40,
+      bottom: 140,
+      left: 10,
+      right: 100,
+      width: 90,
+      x: 10,
+      y: 100,
+      toJSON: () => {}
+    });
+    vi.spyOn(spineRows[1], 'getBoundingClientRect').mockReturnValue({
+      top: 200,
+      height: 40,
+      bottom: 240,
+      left: 10,
+      right: 100,
+      width: 90,
+      x: 10,
+      y: 200,
+      toJSON: () => {}
+    });
+
+    // Mock candidate row: midpoint = 230. It is vertically closest to Row 1 (Head).
+    vi.spyOn(firstRow, 'getBoundingClientRect').mockReturnValue({
+      top: 210,
+      height: 40,
+      bottom: 250,
+      left: 110,
+      right: 300,
+      width: 190,
+      x: 110,
+      y: 210,
+      toJSON: () => {}
+    });
+
+    // Press ArrowLeft to focus Column 0
+    firstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+
+    // Verifies it targeted Row 1 (Head) rather than default Row 0 (Chest)
+    expect(document.activeElement).toBe(spineRows[1]);
+  });
 });

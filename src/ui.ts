@@ -39,6 +39,7 @@ import {
   type PlayerPalette,
 } from './render/avatar';
 import { snapshotDiscovery, monsterId, type DiscoveryState } from './discovery';
+import { portraitSizePx, pickPortraitCorner, portraitsEqual } from './ui/combatPortrait';
 import { escapeHtml } from './ui/monsterMention';
 import { enrichLogMessageHtml } from './ui/logMessage';
 import { appendLogLine } from './ui/logHistory';
@@ -163,10 +164,11 @@ export class GameUI {
 
   /** Latest board snapshot, repainted by the animation loop. */
   private scene: Scene | null = null;
-  /** Bestiary id of the monster the player most recently struck. Set by the
-   *  engine on each player attack; picks which adjacent foe the combat portrait
-   *  focuses on. Cleared when that monster dies. */
-  public combatFocusId: string | null = null;
+  /** The monster the player most recently struck (held by reference so two
+   *  monsters of the same type stay distinct). Set by the engine on each player
+   *  attack; picks which adjacent foe the combat portrait focuses on. Cleared
+   *  when that monster dies or a new run starts. */
+  public combatFocusMonster: Monster | null = null;
   /** Last portrait pushed to the store, for change-detection so the rAF repaint
    *  path doesn't thrash store reactivity every frame. */
   private lastPortrait: CombatPortrait | null = null;
@@ -1661,6 +1663,10 @@ export class GameUI {
   public resetLog() {
     ui.logs = [];
     this.logSeq = 0;
+    // Don't let a focus/portrait from the finished run leak into the next one.
+    this.combatFocusMonster = null;
+    this.lastPortrait = null;
+    ui.combatPortrait = null;
   }
 
   /** Turn the engine's rolling log buffer into an accumulating, numbered UI
@@ -1743,9 +1749,10 @@ export class GameUI {
 
   /** Build the combat portrait for this turn, or null when not in melee or no
    *  board corner is clear of drawn map. "Fighting" = a hostile monster is
-   *  adjacent to the player; focus prefers the last-attacked foe (combatFocusId),
-   *  else the nearest adjacent one. The chosen corner's oval footprint is
-   *  guaranteed not to overlap any drawn room/corridor tile, monster, or item. */
+   *  adjacent to the player; focus prefers the last-attacked foe
+   *  (combatFocusMonster, by reference), else the nearest adjacent one. The
+   *  chosen corner's oval footprint is guaranteed not to overlap any drawn
+   *  room/corridor tile, monster, or item. */
   private computeCombatPortrait(
     map: string[][],
     explored: boolean[][],
@@ -1764,9 +1771,11 @@ export class GameUI {
     );
     if (adjacent.length === 0) return null;
 
-    // 2. Focus: the last-attacked monster if it's still adjacent, else nearest.
+    // 2. Focus: the exact last-attacked monster if it's still adjacent, else the
+    //    nearest adjacent one (reference identity keeps same-type foes distinct).
     let focus =
-      (this.combatFocusId && adjacent.find(m => monsterId(m) === this.combatFocusId)) || null;
+      (this.combatFocusMonster && adjacent.includes(this.combatFocusMonster) &&
+        this.combatFocusMonster) || null;
     if (!focus) {
       let bestDist = Infinity;
       for (const m of adjacent) {
@@ -1779,12 +1788,30 @@ export class GameUI {
     }
     if (!focus) return null;
 
-    // 3. Size the oval off the rendered tile size so it scales with the board.
+    // 3. Size the oval off the rendered tile size so it scales with the board,
+    //    then pick a corner whose footprint is clear of drawn map / entities.
     const tileSize = this.computeTileSize(cols, rows);
-    const sizePx = Math.max(96, Math.min(200, Math.round(Math.min(cols, rows) * tileSize * 0.28)));
+    const sizePx = portraitSizePx(cols, rows, tileSize);
 
-    // 4. Pick a corner whose footprint is clear of drawn map / entities.
-    const corner = this.pickFreeCorner(map, explored, visible, monsters, items, player, cols, rows, tileSize, sizePx);
+    const blockedTiles = new Set<number>();
+    for (const m of monsters) {
+      if (visible[m.y]?.[m.x]) blockedTiles.add(m.y * cols + m.x);
+    }
+    for (const it of items) {
+      if (explored[it.y]?.[it.x]) blockedTiles.add(it.y * cols + it.x);
+    }
+
+    const corner = pickPortraitCorner({
+      map,
+      explored,
+      blockedTiles,
+      playerX: player.x,
+      playerY: player.y,
+      cols,
+      rows,
+      tileSize,
+      sizePx,
+    });
     if (!corner) return null;
 
     return {
@@ -1797,87 +1824,4 @@ export class GameUI {
       sizePx,
     };
   }
-
-  /** Find a board corner where the portrait's oval footprint covers only empty
-   *  (unexplored or VOID) tiles. Corners are tried farthest-from-player first so
-   *  the portrait sits away from the action. Returns null if every corner is
-   *  blocked. A tile is "drawn map" when it is explored and not VOID — the same
-   *  gate paint() uses — and tiles holding a visible monster/item also block. */
-  private pickFreeCorner(
-    map: string[][],
-    explored: boolean[][],
-    visible: boolean[][],
-    monsters: Monster[],
-    items: Item[],
-    player: Player,
-    cols: number,
-    rows: number,
-    tileSize: number,
-    sizePx: number
-  ): CombatPortrait['corner'] | null {
-    // Oval footprint in tiles, plus a one-tile breathing margin.
-    const span = Math.ceil(sizePx / tileSize) + 1;
-    const w = Math.min(span, cols);
-    const h = Math.min(span, rows);
-
-    // Tiles occupied by a visible monster or an explored item block placement.
-    const blockedTiles = new Set<number>();
-    for (const m of monsters) {
-      if (visible[m.y]?.[m.x]) blockedTiles.add(m.y * cols + m.x);
-    }
-    for (const it of items) {
-      if (explored[it.y]?.[it.x]) blockedTiles.add(it.y * cols + it.x);
-    }
-
-    type Corner = { id: CombatPortrait['corner']; c0: number; r0: number; ax: number; ay: number };
-    const corners: Corner[] = [
-      { id: 'tl', c0: 0, r0: 0, ax: 0, ay: 0 },
-      { id: 'tr', c0: cols - w, r0: 0, ax: cols - 1, ay: 0 },
-      { id: 'bl', c0: 0, r0: rows - h, ax: 0, ay: rows - 1 },
-      { id: 'br', c0: cols - w, r0: rows - h, ax: cols - 1, ay: rows - 1 },
-    ];
-    // Farthest corner from the player first.
-    corners.sort(
-      (a, b) =>
-        Math.max(Math.abs(b.ax - player.x), Math.abs(b.ay - player.y)) -
-        Math.max(Math.abs(a.ax - player.x), Math.abs(a.ay - player.y))
-    );
-
-    const rx = w / 2;
-    const ry = h / 2;
-    for (const corner of corners) {
-      let blocked = false;
-      for (let dr = 0; dr < h && !blocked; dr++) {
-        for (let dc = 0; dc < w; dc++) {
-          // Inscribed-ellipse test: ignore tiles outside the oval so the square
-          // corner's outer tiles don't false-positive.
-          const nx = (dc + 0.5 - rx) / rx;
-          const ny = (dr + 0.5 - ry) / ry;
-          if (nx * nx + ny * ny > 1) continue;
-          const c = corner.c0 + dc;
-          const r = corner.r0 + dr;
-          const drawn = explored[r]?.[c] && map[r]?.[c] !== TILE.VOID;
-          if (drawn || blockedTiles.has(r * cols + c)) {
-            blocked = true;
-            break;
-          }
-        }
-      }
-      if (!blocked) return corner.id;
-    }
-    return null;
-  }
-}
-
-/** Cheap structural equality for the combat-portrait change check. */
-function portraitsEqual(a: CombatPortrait | null, b: CombatPortrait | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (
-    a.id === b.id &&
-    a.corner === b.corner &&
-    a.sizePx === b.sizePx &&
-    a.hp === b.hp &&
-    a.maxHp === b.maxHp
-  );
 }
