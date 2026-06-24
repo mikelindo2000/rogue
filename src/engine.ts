@@ -1161,6 +1161,7 @@ export class GameEngine {
       if (pickedUp) {
         this.items.splice(idx, 1);
         this.ui.updateDropdowns(this.player);
+        this.updateUI();
         const kind =
           item.type === 'gold' ? 'gold' :
           item.type === 'food' ? 'food' :

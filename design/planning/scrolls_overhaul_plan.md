@@ -50,6 +50,26 @@ Unimplemented effects are gated out of the spawn pool (`IMPLEMENTED_SCROLLS` in
 `src/scrolls.ts`), so the player never finds a scroll that does nothing; flip a
 type on there as its effect lands.
 
+### Update (2026-06-23): scroll-spawn philosophy + drop support
+
+The follow-on **Scroll Consistency and Drop Items** plan
+(`scroll_consistency_and_drop_items_plan.md`) has shipped. It re-frames how this
+overhaul's catalog is *spawned* now that scroll names are visible:
+
+- **Identified names are the current design.** There is no unidentified-scroll /
+  BUC / curse system yet; the scroll line is tuned to feel fair under visible
+  names rather than as a hidden-label identification puzzle.
+- **Harmful/dud scrolls are intentionally rare.** Spawn weighting moved from a
+  flat rarity derivation to an explicit per-role, per-floor-band table
+  (`SCROLL_TUNING` in `src/scrolls.ts`). `sleep`, `create_monster`,
+  `aggravate_monsters`, and `blank_paper` stay eligible but are kept to a small
+  share of spawns (tests hold risky+dud under ~15% of seeded samples per band).
+- **Drop is the support feature** that lets visible low-value and situational
+  scrolls coexist with a deliberate pack: `engine.dropInventoryRef()` plus a
+  `Drop` inventory action and a modal `d` mnemonic. This unblocks the Phase 3
+  `scare_monster` floor-placement design (still deferred) and a future
+  `blank_paper` writing/crafting use.
+
 ## Purpose
 
 Make scrolls behave like real Rogue scrolls: objects found in the dungeon, carried

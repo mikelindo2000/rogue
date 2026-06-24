@@ -1,5 +1,25 @@
 # Scroll Consistency and Drop Items Plan
 
+## Status (2026-06-23): Shipped
+
+Phases 1–3 are implemented, tested, and committed on `v2`; Phase 4 docs are
+updated. Specifically:
+
+- **Phase 1 — Scroll spawn tuning:** `SCROLL_TUNING` role/band table in
+  `src/scrolls.ts`; `pickScrollForFloor` uses band weights; `src/scrolls.test.ts`
+  asserts the table is exhaustive over `IMPLEMENTED_SCROLLS` and that risky+dud
+  stay rare.
+- **Phase 2 — Drop engine:** `GameEngine.dropInventoryRef()` plus floor-item
+  conversion and equipped-index fix-ups; covered by `src/engine.test.ts`
+  (food/potion/scroll/wand/gear, rejections, re-pickup, index preservation).
+- **Phase 3 — Drop UI + keyboard:** `Drop` action on every carried cell, modal
+  `d` mnemonic, routed through `performInventoryAction`. A new Svelte
+  component-test harness (`src/ui/components/InventoryModal.test.ts`, happy-dom)
+  exercises it.
+- **Phase 4 — Follow-up docs:** `scrolls_overhaul_plan.md` status updated. Blank
+  Paper use and `scare_monster` floor placement remain deliberately deferred (see
+  B5 / Phase 4 below).
+
 ## Implementation Revisions (2026-06-23)
 
 These notes reconcile the plan with the actual `v2` codebase before

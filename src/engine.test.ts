@@ -21,6 +21,7 @@ const makeUi = (overrides: Record<string, unknown> = {}) => ({
   fxDive: () => {},
   fxWhiff: () => {},
   fxMonsterDodge: () => {},
+  getStyledItemName: (name: string) => name,
   ...overrides,
 });
 
@@ -847,6 +848,30 @@ describe('GameEngine board size', () => {
 });
 
 describe('GameEngine inventory commands', () => {
+  it('publishes armor pickup to inventory UI immediately', () => {
+    let dropdownPlayer = null as unknown;
+    let statsCalls = 0;
+    const engine = makeRunner(undefined, makeUi({
+      updateDropdowns: (player: unknown) => { dropdownPlayer = player; },
+      updateStats: () => { statsCalls++; },
+    }));
+    engine.items = [{
+      type: 'gear',
+      x: 2,
+      y: 2,
+      symbol: ']',
+      color: '#ccc',
+      data: { name: 'Chainmail', category: 'chest', def: 4, maxDef: 4, rarity: 'common' },
+    }];
+
+    engine.checkItems();
+
+    expect(engine.player.inventory.chest.at(-1)?.name).toBe('Chainmail');
+    expect(engine.items).toHaveLength(0);
+    expect(dropdownPlayer).toBe(engine.player);
+    expect(statsCalls).toBe(1);
+  });
+
   it('does not let use actions equip gear', () => {
     const engine = new GameEngine(makeUi() as any);
     engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
