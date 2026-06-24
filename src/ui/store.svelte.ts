@@ -169,6 +169,9 @@ export interface UIState {
   // run state
   gameOver: boolean;
   gameWon: boolean;
+  /** True once the Amulet of Ballard is claimed — drives the HUD objective badge
+   *  reminding the player to escape to Floor 1. */
+  hasAmulet: boolean;
   // overlays
   compendiumOpen: boolean;
   inventoryOpen: boolean;
@@ -236,6 +239,7 @@ export const ui = $state<UIState>({
   mapRows: 29,
   gameOver: false,
   gameWon: false,
+  hasAmulet: false,
   compendiumOpen: false,
   inventoryOpen: false,
   inventoryFilterKind: 'all',

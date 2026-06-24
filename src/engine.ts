@@ -61,6 +61,12 @@ import {
   type DiscoveryState,
 } from './discovery';
 
+/** While the Amulet of Ballard is carried, regenerate each floor the player
+ *  re-enters on the climb back to the surface, so the escape is a fresh gauntlet
+ *  rather than a walk through already-cleared levels. Set to false for a calm
+ *  victory-lap ascent instead. */
+const AMULET_REGENERATES_ASCENT = true;
+
 export interface FloorState {
   map: string[][];
   explored: boolean[][];
@@ -91,6 +97,10 @@ export class GameEngine {
   public dungeonFloor: number = 1;
   public gameOver: boolean = false;
   public gameWon: boolean = false;
+  /** Set once the Floor-20 bosses are slain and the Amulet of Ballard is
+   *  seized. The run is won only when the player then escapes up the Floor-1
+   *  stairs while carrying it. */
+  public hasAmulet: boolean = false;
   public logs: string[] = [];
   /** Turns elapsed this run — surfaced in the HUD; no effect on game logic. */
   public turn: number = 0;
@@ -189,6 +199,7 @@ export class GameEngine {
     this.turn = 0;
     this.gameOver = false;
     this.gameWon = false;
+    this.hasAmulet = false;
     this.statusEffects = {
       vigorTurns: 0,
       midasTurns: 0,
@@ -812,6 +823,14 @@ export class GameEngine {
   }
 
   private travelStairs(delta: 1 | -1) {
+    // The up-stairs on Floor 1 are the way out of the dungeon. Climbing them
+    // with the Amulet of Ballard wins the run; without it there's nowhere to go.
+    if (delta === -1 && this.dungeonFloor === 1) {
+      if (this.hasAmulet) this.winByEscape();
+      else this.addLog("The stairs lead up to the surface, but you've no reason to flee yet.");
+      return;
+    }
+
     const targetFloor = this.dungeonFloor + delta;
     if (targetFloor < 1 || targetFloor > 20) return;
 
@@ -820,10 +839,28 @@ export class GameEngine {
     recordStairs(this.stats, this.dungeonFloor, delta);
     this.sound.emit({ type: 'map.stairs', dir: delta > 0 ? 'down' : 'up' });
 
+    // Carrying the Amulet, the dungeon turns hostile again: each floor the
+    // player re-enters on the way up is regenerated fresh (as in original
+    // Rogue), so the ascent is a real gauntlet rather than an empty walk back.
+    if (AMULET_REGENERATES_ASCENT && delta === -1 && this.hasAmulet) {
+      this.floorStates.delete(targetFloor);
+    }
+
     // Log the transition before loading the floor, so any messages the
     // generator emits (e.g. the floor-20 boss announcement) read in order.
     this.addLog(`${delta > 0 ? 'Descended' : 'Ascended'} to Floor ${this.dungeonFloor}!`);
     this.loadFloorForTravel(delta);
+    this.ui.updateDropdowns(this.player);
+    this.updateUI();
+    this.autosave();
+  }
+
+  /** Win the run by escaping the dungeon with the Amulet of Ballard. */
+  private winByEscape() {
+    this.gameWon = true;
+    this.addLog("You climb into daylight clutching the Amulet of Ballard. You have WON! Press 'R' to restart.");
+    this.sound.emit({ type: 'map.stairs', dir: 'up' });
+    this.recordWinTurn();
     this.ui.updateDropdowns(this.player);
     this.updateUI();
     this.autosave();
@@ -1001,25 +1038,31 @@ export class GameEngine {
       const requiredBosses = requiredBossNamesForFloor(this.dungeonFloor);
       const anyRequiredBossesLeft = this.monsters.some(m => m !== monster && requiredBosses.has(m.name));
       if (requiredBosses.has(monster.name) && !anyRequiredBossesLeft) {
-        this.gameWon = true;
-        this.addLog("ALL BOSSES DEFEATED! You have won the game! Press 'R' to restart.");
+        this.hasAmulet = true;
+        this.addLog("Amid the hoard gleams the Amulet of Ballard! You seize it.");
+        this.addLog("Now ESCAPE — climb back to the surface (Floor 1) to win.");
+        this.sound.emit({ type: 'player.levelUp' });
       }
     }
     recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
     this.dropMonsterGold(monster);
     this.monsters = this.monsters.filter(m => m !== monster);
-    if (this.gameWon) {
-      this.turn++;
-      recordVitals(this.stats, this.player.hp, this.player.hunger);
-      recordStatusTurn(this.stats, {
-        vigor: this.statusEffects.vigorTurns > 0,
-        midas: this.statusEffects.midasTurns > 0,
-        strength: this.statusEffects.strengthTurns > 0,
-        invisible: this.statusEffects.invisTurns > 0,
-        armored: this.statusEffects.armorTurns > 0,
-      });
-      this.finalizeRun('won');
-    }
+    if (this.gameWon) this.recordWinTurn();
+  }
+
+  /** Advance the turn counter and capture end-of-run stats, then finalize the
+   *  run as a win. Shared by every victory path. */
+  private recordWinTurn() {
+    this.turn++;
+    recordVitals(this.stats, this.player.hp, this.player.hunger);
+    recordStatusTurn(this.stats, {
+      vigor: this.statusEffects.vigorTurns > 0,
+      midas: this.statusEffects.midasTurns > 0,
+      strength: this.statusEffects.strengthTurns > 0,
+      invisible: this.statusEffects.invisTurns > 0,
+      armored: this.statusEffects.armorTurns > 0,
+    });
+    this.finalizeRun('won');
   }
 
   public checkItems() {
@@ -2101,7 +2144,7 @@ export class GameEngine {
 
   public updateUI() {
     const totalDef = getTotalDef(this.player, this.statusEffects);
-    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects);
+    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects, this.hasAmulet);
   }
 
   public draw() {
@@ -2156,6 +2199,7 @@ export class GameEngine {
       turn: this.turn,
       gameOver: this.gameOver,
       gameWon: this.gameWon,
+      hasAmulet: this.hasAmulet,
       logs: [...this.logs],
       map: this.map.map(r => [...r]),
       explored: this.explored.map(r => [...r]),
@@ -2200,6 +2244,7 @@ export class GameEngine {
       this.turn = save.turn;
       this.gameOver = save.gameOver;
       this.gameWon = save.gameWon;
+      this.hasAmulet = save.hasAmulet ?? false;
       this.logs = [...save.logs];
       this.map = save.map.map(r => [...r]);
       this.explored = save.explored.map(r => [...r]);

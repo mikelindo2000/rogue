@@ -11,6 +11,15 @@
       <div class="floor-meta">Floor {ui.floor} / {ui.floorMax}</div>
       <div class="floor-name">{ui.floorName}</div>
     </div>
+    {#if ui.hasAmulet}
+      <div class="amulet" title="Escape to Floor 1 to win">
+        <span class="amulet-gem" aria-hidden="true">✦</span>
+        <div class="amulet-text">
+          <div class="amulet-name">Amulet of Ballard</div>
+          <div class="amulet-goal">Escape to Floor 1</div>
+        </div>
+      </div>
+    {/if}
   </div>
   <div class="right">
     <StatChip icon="coin" iconStroke="var(--accent-strong)" value={ui.gold} unit="gold" />
@@ -74,6 +83,44 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .amulet {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 8px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--accent-border);
+    background: var(--accent-surface);
+    animation: amulet-pulse 2.4s var(--ease) infinite;
+  }
+  .amulet-gem {
+    font-size: 16px;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .amulet-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .amulet-name {
+    font: 600 12px var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .amulet-goal {
+    font: 600 8.5px var(--font-display);
+    letter-spacing: var(--tracking-caps-wide);
+    text-transform: uppercase;
+    color: var(--text-dimmer);
+    white-space: nowrap;
+  }
+  @keyframes amulet-pulse {
+    0%, 100% { border-color: var(--accent-border); }
+    50% { border-color: var(--accent); }
   }
   .right {
     display: flex;

@@ -138,17 +138,23 @@ describe('GameEngine boss victory conditions', () => {
     expect(engine.monsters).toHaveLength(0);
   });
 
-  it('wins only after the last floor-20 boss dies', () => {
+  it('awards the Amulet (but does not win) after the last floor-20 boss dies', () => {
     const engine = makeBossKiller(20);
     const dragon = makeBoss('Dragon King');
     const marcus = makeBoss('Marcus the Brave');
     engine.monsters = [dragon, marcus];
 
     engine.playerAttack(dragon);
+    expect(engine.hasAmulet).toBe(false);
     expect(engine.gameWon).toBe(false);
 
     engine.playerAttack(marcus);
-    expect(engine.gameWon).toBe(true);
+    // Slaying the final boss claims the Amulet of Ballard; the run is won only
+    // once the player escapes back up the Floor-1 stairs with it.
+    expect(engine.hasAmulet).toBe(true);
+    expect(engine.gameWon).toBe(false);
+    expect(engine.finalRunSummary).toBeNull();
+    expect(engine.logs.join('\n')).toContain('Amulet of Ballard');
   });
 
   it('does not let an unrelated floor-20 boss tag satisfy the finale', () => {
@@ -161,10 +167,10 @@ describe('GameEngine boss victory conditions', () => {
     expect(engine.gameWon).toBe(false);
   });
 
-  it('creates a victory summary only for the real final boss condition', () => {
+  it('does not create a victory summary from the boss kill alone', () => {
     const early = makeBossKiller(1);
     early.playerAttack(makeBoss());
-    expect(early.gameWon).toBe(false);
+    expect(early.hasAmulet).toBe(false);
     expect(early.finalRunSummary).toBeNull();
 
     const finale = makeBossKiller(20);
@@ -174,10 +180,89 @@ describe('GameEngine boss victory conditions', () => {
     finale.playerAttack(dragon);
     expect(finale.finalRunSummary).toBeNull();
 
+    // The final boss kill claims the Amulet but does not end the run; the
+    // victory summary is produced later, on the escape to Floor 1.
     finale.playerAttack(marcus);
-    expect(finale.finalRunSummary?.outcome).toBe('won');
-    expect(finale.finalRunSummary?.bossesDefeated).toBe(2);
-    expect(finale.finalRunSummary?.turns).toBe(1);
+    expect(finale.hasAmulet).toBe(true);
+    expect(finale.gameWon).toBe(false);
+    expect(finale.finalRunSummary).toBeNull();
+  });
+});
+
+describe('GameEngine amulet escape endgame', () => {
+  // Place up-stairs one tile to the player's right on a small carved floor.
+  const makeEscapeStage = (floor: number) => {
+    const engine = makeRunner();
+    engine.dungeonFloor = floor;
+    carveRow(engine, 2, 2, 4, TILE.FLOOR);
+    engine.map[2][4] = TILE.STAIRS_UP;
+    engine.player.x = 3;
+    engine.player.y = 2;
+    return engine;
+  };
+
+  it('wins by escaping up the Floor-1 stairs while carrying the Amulet', () => {
+    const engine = makeEscapeStage(1);
+    engine.hasAmulet = true;
+
+    engine.handlePlayerMove(1, 0); // step onto the up-stairs
+
+    expect(engine.gameWon).toBe(true);
+    expect(engine.finalRunSummary?.outcome).toBe('won');
+    expect(engine.logs.join('\n')).toContain('You have WON');
+  });
+
+  it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {
+    // Guards against the world generator omitting Floor-1 up-stairs, which would
+    // make the win unreachable in actual play. Uses real level generation.
+    const engine = new GameEngine(makeUi() as any);
+    engine.initGame(4242);
+    expect(engine.dungeonFloor).toBe(1);
+    // Real generation must place an up-stair on Floor 1 — throws if missing.
+    findTile(engine, TILE.STAIRS_UP);
+
+    engine.monsters = [];
+    engine.items = [];
+    engine.traps = [];
+    engine.hasAmulet = true;
+
+    stepOffAndBackOnto(engine, TILE.STAIRS_UP);
+
+    expect(engine.gameWon).toBe(true);
+    expect(engine.finalRunSummary?.outcome).toBe('won');
+  });
+
+  it('does not win by reaching the Floor-1 stairs without the Amulet', () => {
+    const engine = makeEscapeStage(1);
+    engine.hasAmulet = false;
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(engine.gameWon).toBe(false);
+    expect(engine.finalRunSummary).toBeNull();
+    expect(engine.dungeonFloor).toBe(1);
+  });
+
+  it('regenerates each floor re-entered on the ascent while carrying the Amulet', () => {
+    // On Floor 3, ascend to Floor 2. A cached Floor-2 state would normally be
+    // restored verbatim; carrying the Amulet should discard it and regenerate.
+    const engine = makeEscapeStage(3);
+    engine.hasAmulet = true;
+    const sentinel = makeBoss('Cache Sentinel');
+    (engine as any).floorStates.set(2, {
+      map: engine.map.map((r) => [...r]),
+      explored: engine.explored.map((r) => [...r]),
+      dark: engine.dark.map((r) => [...r]),
+      monsters: [sentinel],
+      items: [],
+      traps: [],
+    });
+
+    engine.handlePlayerMove(1, 0); // step onto the up-stairs → ascend to Floor 2
+
+    expect(engine.dungeonFloor).toBe(2);
+    // The cached sentinel must be gone — the floor was regenerated, not restored.
+    expect(engine.monsters.some((m) => m.name === 'Cache Sentinel')).toBe(false);
   });
 });
 

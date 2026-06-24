@@ -670,12 +670,14 @@ export function generateLevel(
   let stairsUpY = -1;
   let stairsDownX = -1;
   let stairsDownY = -1;
-  if (dungeonFloor > 1) {
-    stairsUpX = startRoom.cx;
-    stairsUpY = startRoom.cy;
-    map[stairsUpY][stairsUpX] = TILE.STAIRS_UP;
-    assert(isWalkable(map[stairsUpY][stairsUpX]), `up stairs (${stairsUpX},${stairsUpY}) not walkable on floor ${dungeonFloor}`);
-  }
+  // Every floor gets up-stairs at the start-room center (where the player
+  // arrives, or spawns on Floor 1). On Floor 1 they double as the dungeon
+  // entrance and the surface exit: climbing them with the Amulet of Ballard
+  // wins the run, so the floor must carry the tile for the escape to be possible.
+  stairsUpX = startRoom.cx;
+  stairsUpY = startRoom.cy;
+  map[stairsUpY][stairsUpX] = TILE.STAIRS_UP;
+  assert(isWalkable(map[stairsUpY][stairsUpX]), `up stairs (${stairsUpX},${stairsUpY}) not walkable on floor ${dungeonFloor}`);
   if (dungeonFloor < 20) {
     stairsDownX = endRoom.cx;
     stairsDownY = endRoom.cy;

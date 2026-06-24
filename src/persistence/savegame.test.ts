@@ -304,6 +304,41 @@ describe('savegame validation', () => {
     expect(validateSaveGame(snap)).not.toBeNull();
   });
 
+  it('round-trips the claimed Amulet through snapshot and restore', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    engine.hasAmulet = true;
+
+    const snap = engine.snapshot();
+    expect(snap.hasAmulet).toBe(true);
+
+    const restored = newEngine();
+    expect(restored.restore(snap)).toBe(true);
+    expect(restored.hasAmulet).toBe(true);
+  });
+
+  it('restores a pre-amulet save (no hasAmulet field) with the Amulet unclaimed', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.hasAmulet;
+
+    expect(validateSaveGame(snap)).not.toBeNull();
+
+    const restored = newEngine();
+    expect(restored.restore(snap)).toBe(true);
+    expect(restored.hasAmulet).toBe(false);
+  });
+
+  it('rejects a save whose hasAmulet field is not a boolean', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    snap.hasAmulet = 'yes';
+
+    expect(validateSaveGame(snap)).toBeNull();
+  });
+
   it('accepts a save with no trap fields and backfills safe defaults', () => {
     const engine = newEngine();
     engine.initGame(SEED);

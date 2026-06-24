@@ -83,8 +83,8 @@ describe('generateLevel', () => {
     }
   });
 
-  it('places walkable up stairs on floors 2-20 (seeds 1..30)', () => {
-    for (let floor = 2; floor <= 20; floor += 6) {
+  it('places walkable up stairs on floors 1-20 (seeds 1..30)', () => {
+    for (let floor = 1; floor <= 20; floor += 6) {
       for (let seed = 1; seed <= 30; seed++) {
         const lvl = gen(floor, seed);
         expect(lvl.stairsUpX).toBeGreaterThanOrEqual(0);

@@ -1188,8 +1188,10 @@ export class GameUI {
     statusEffects: StatusEffects,
     totalDef: number,
     turn = 0,
-    trapEffects?: TrapEffects
+    trapEffects?: TrapEffects,
+    hasAmulet = false
   ) {
+    ui.hasAmulet = hasAmulet;
     ui.floor = dungeonFloor;
     ui.floorName = floorName(dungeonFloor);
     ui.gold = player.gold;

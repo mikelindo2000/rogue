@@ -77,6 +77,9 @@ export interface SaveGameV2 {
   turn: number;
   gameOver: boolean;
   gameWon: boolean;
+  /** Whether the Amulet of Ballard has been claimed. Optional: saves written
+   *  before the amulet endgame lack it and restore treats it as false. */
+  hasAmulet?: boolean;
   logs: string[];
   statusEffects: StatusEffects;
   map: string[][];
@@ -173,6 +176,9 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
 
   if (typeof raw.gameOver !== 'boolean') return null;
   if (typeof raw.gameWon !== 'boolean') return null;
+  // `hasAmulet` is optional (pre-amulet saves omit it); when present it must be
+  // a boolean. Restore coerces a missing value to false.
+  if (raw.hasAmulet !== undefined && typeof raw.hasAmulet !== 'boolean') return null;
   if (typeof raw.searchHintShown !== 'boolean') return null;
 
   if (!Array.isArray(raw.logs) || !raw.logs.every(l => typeof l === 'string')) return null;
