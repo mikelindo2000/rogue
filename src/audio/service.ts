@@ -30,6 +30,7 @@ export class AudioService implements SoundSink {
 
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly loading = new Map<string, Promise<AudioBuffer | null>>();
+  private readonly htmlFallbacks = new Map<string, HTMLAudioElement>();
   private readonly lastPlayed = new Map<string, number>();
   private readonly warned = new Set<string>();
   private readonly pendingEvents: SoundEvent[] = [];
@@ -41,6 +42,7 @@ export class AudioService implements SoundSink {
   constructor(config: AudioServiceConfig) {
     this.muted = config.muted;
     this.volume = clamp01(config.volume);
+    this.prewarmHtmlFallbacks();
   }
 
   // --- lifecycle ---------------------------------------------------------
@@ -106,6 +108,14 @@ export class AudioService implements SoundSink {
     }
   }
 
+  private prewarmHtmlFallbacks(): void {
+    if (typeof Audio === 'undefined') return;
+    for (const asset of Object.values(SOUND_ASSETS)) {
+      if (!asset.preload) continue;
+      for (const file of asset.variants) this.htmlFallbackFor(file);
+    }
+  }
+
   // --- settings ----------------------------------------------------------
 
   setMuted(muted: boolean): void {
@@ -161,9 +171,7 @@ export class AudioService implements SoundSink {
     }
     if (!this.ctx || !this.master) return;
     if (this.resumePromise || this.ctx.state === 'suspended') {
-      this.queuePending(event);
       if (!this.resumePromise) this.resumeAndFlush();
-      return;
     }
     this.playEvent(event);
   }
@@ -214,13 +222,64 @@ export class AudioService implements SoundSink {
 
     const buffer = this.buffers.get(file);
     if (!buffer) {
-      // Load then play once ready (first hit may be silent; subsequent hits cached).
-      void this.load(file).then(buf => {
-        if (buf) this.start(asset, buf);
-      });
+      if (!this.playHtmlFallback(asset, file)) {
+        void this.load(file).then(buf => {
+          if (buf) this.start(asset, buf);
+        });
+      } else {
+        // Keep warming the Web Audio buffer for future low-latency playback, but
+        // don't replay this event when decoding finishes.
+        void this.load(file);
+      }
       return;
     }
     this.start(asset, buffer);
+  }
+
+  private htmlFallbackFor(file: string): HTMLAudioElement | null {
+    if (typeof Audio === 'undefined') return null;
+    let audio = this.htmlFallbacks.get(file);
+    if (!audio) {
+      audio = new Audio(AUDIO_BASE + file);
+      audio.preload = 'auto';
+      this.htmlFallbacks.set(file, audio);
+      try {
+        audio.load();
+      } catch {
+        /* best-effort warmup */
+      }
+    }
+    return audio;
+  }
+
+  private playHtmlFallback(asset: SoundAsset, file: string): boolean {
+    if (this.muted) return true;
+    const assetActive = this.assetVoices.get(asset.id) ?? 0;
+    if (asset.maxVoices !== undefined && assetActive >= asset.maxVoices) return true;
+    const warm = this.htmlFallbackFor(file);
+    if (!warm) return false;
+    try {
+      const voice = warm.cloneNode(true) as HTMLAudioElement;
+      voice.volume = clamp01(this.effectiveGain() * (asset.volume ?? 1));
+      voice.currentTime = 0;
+      this.lastPlayed.set(asset.id, (this.ctx?.currentTime ?? 0) * 1000);
+      this.activeVoices++;
+      this.assetVoices.set(asset.id, assetActive + 1);
+      const cleanup = () => {
+        this.activeVoices = Math.max(0, this.activeVoices - 1);
+        this.assetVoices.set(asset.id, Math.max(0, (this.assetVoices.get(asset.id) ?? 1) - 1));
+      };
+      voice.onended = cleanup;
+      void voice.play().catch(() => {
+        cleanup();
+        void this.load(file).then(buf => {
+          if (buf) this.start(asset, buf);
+        });
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private start(asset: SoundAsset, buffer: AudioBuffer): void {

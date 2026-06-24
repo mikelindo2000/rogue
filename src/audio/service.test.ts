@@ -56,7 +56,7 @@ describe('AudioService unlock timing', () => {
     __resetAudioContextForTest();
   });
 
-  it('flushes events emitted while the first gesture is still resuming audio', async () => {
+  it('schedules events immediately while the first gesture is still resuming audio', async () => {
     __resetAudioContextForTest();
     let resolveResume!: () => void;
     let starts = 0;
@@ -117,12 +117,158 @@ describe('AudioService unlock timing', () => {
     (audio as unknown as { buffers: Map<string, AudioBuffer> }).buffers.set('sfx/item-pickup-01.mp3', {} as AudioBuffer);
 
     audio.emit({ type: 'item.pickup', kind: 'gear' });
-    expect(starts).toBe(0);
-    expect((audio as unknown as { pendingEvents: unknown[] }).pendingEvents).toHaveLength(1);
+    expect(starts).toBe(1);
+    expect((audio as unknown as { pendingEvents: unknown[] }).pendingEvents).toHaveLength(0);
 
     resolveResume();
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(starts).toBe(1);
+  });
+
+  it('uses an immediate HTML audio fallback while a Web Audio buffer is still decoding', async () => {
+    __resetAudioContextForTest();
+    let htmlPlays = 0;
+    let fetches = 0;
+
+    class FakeAudio {
+      preload = '';
+      volume = 1;
+      currentTime = 0;
+      constructor(public src = '') {}
+      load() {}
+      cloneNode() {
+        return new FakeAudio(this.src);
+      }
+      async play() {
+        htmlPlays++;
+      }
+    }
+
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 1;
+      destination = {};
+
+      createGain() {
+        const node = {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+        };
+        return node;
+      }
+
+      createBufferSource() {
+        const node = {
+          buffer: null,
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          onended: null,
+        };
+        return node;
+      }
+
+      async resume() {}
+
+      async decodeAudioData() {
+        return {} as AudioBuffer;
+      }
+    }
+
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      fetches++;
+      return {
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(1),
+      };
+    }));
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    audio.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: 3 });
+
+    expect(htmlPlays).toBe(1);
+    expect(fetches).toBeGreaterThan(0);
+  });
+
+  it('applies cooldowns to repeated HTML fallback plays while decoding', async () => {
+    __resetAudioContextForTest();
+    let htmlPlays = 0;
+
+    class FakeAudio {
+      preload = '';
+      volume = 1;
+      currentTime = 0;
+      constructor(public src = '') {}
+      load() {}
+      cloneNode() {
+        return new FakeAudio(this.src);
+      }
+      async play() {
+        htmlPlays++;
+      }
+    }
+
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 10;
+      destination = {};
+
+      createGain() {
+        const node = {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+        };
+        return node;
+      }
+
+      createBufferSource() {
+        const node = {
+          buffer: null,
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          onended: null,
+        };
+        return node;
+      }
+
+      async resume() {}
+
+      async decodeAudioData() {
+        return {} as AudioBuffer;
+      }
+    }
+
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(1),
+    })));
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    audio.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: 3 });
+    audio.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: 3 });
+
+    expect(htmlPlays).toBe(1);
   });
 });
