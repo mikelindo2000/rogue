@@ -23,15 +23,16 @@ curl -s -X POST "https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128"
 
 ## Per-track prompts
 
-- **`explore-shallow-01.mp3`** (floors 1–3, the opening bed) — warm, melodic
-  "Shire" pastoral:
-  > Warm pastoral Celtic folk instrumental in the style of a peaceful green
-  > shire. Gentle lilting tin whistle and pennywhistle melody over soft acoustic
-  > guitar, mandolin, and light fiddle, with a cozy rustic countryside feel.
-  > Hopeful, whimsical, and inviting, an easygoing 6/8 lilt, major key, soft and
-  > uplifting, evoking rolling hills and a snug village. Fully instrumental, no
-  > vocals, no drum hits, seamless gentle loop suitable as calm background music
-  > for the opening of a fantasy adventure.
+- **`explore-shallow-01.mp3`** (floors 1–3, the opening bed) — tense,
+  anticipatory "gathering storm":
+  > Tense, anticipatory dark-fantasy orchestral instrumental. A slow, brooding,
+  > patient build: low sustained strings and soft cello drones, a quiet pulsing
+  > bass heartbeat, distant muffled timpani, sparse lonely piano and harp notes
+  > hanging in cold air, faint ominous swells. Restrained and atmospheric, heavy
+  > with foreboding and suspense, like a storm gathering on the horizon that has
+  > not yet broken. Minor key, unresolved and uneasy, cinematic and spacious. No
+  > whistles, no cheerful folk, no fiddle jigs, no vocals, no big climax. Seamless
+  > looping background music for cautiously exploring a dangerous dungeon.
 
 Other beds (`explore-deep`, `boss`, `safe`, `gameover`, `victory-credits`) were
 part of the original audio drop; document their prompts here if/when regenerated.
