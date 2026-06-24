@@ -6,7 +6,7 @@
 // default, the equip path, and the upgrade badges are exercised end to end
 // against the live store wiring rather than a mock of it.
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { mount, unmount, flushSync } from 'svelte';
+import { mount, unmount, flushSync, tick } from 'svelte';
 import InventoryModal from './InventoryModal.svelte';
 import { ui, actions, type InventoryCell, type EquipSlotView } from '../store.svelte';
 import type { InventoryAction, InventoryRef } from '../../types';
@@ -171,5 +171,22 @@ describe('loadout hub — gear', () => {
     flushSync();
     row.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true }));
     expect(inventoryAction).toHaveBeenCalledWith(ARMOR_REF, 'equip');
+  });
+
+  it('keeps keyboard focus inside the hub after an equip removes the row', async () => {
+    // Equipping rebuilds the pack without the equipped item; the acted-on row
+    // leaves the DOM. The hub must re-anchor focus or arrow/Tab nav goes dead.
+    inventoryAction.mockImplementation(() => { ui.inventoryItems = []; });
+    openHub({ items: [betterChestCell()], equipment: [chestSlot()] });
+    const row = candidateRow();
+    row.click();
+    flushSync();
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    const active = document.activeElement as HTMLElement;
+    expect(active).not.toBe(document.body);
+    expect(active.closest('.body')).not.toBeNull();
   });
 });
