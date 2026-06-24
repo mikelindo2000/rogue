@@ -1066,6 +1066,40 @@ describe('monster gold drops', () => {
     expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
   });
 
+  it('the Dragon King boss drops no hoard (only the plain guardian Dragon does)', () => {
+    // Guards against a one-slug typo turning the endgame boss into a gold piñata:
+    // 'Dragon King' resolves to the default archetype, not 'guardian'.
+    const engine = makeRunner();
+    engine.dungeonFloor = 20;
+    setChanceRoll(engine, 0);
+    const king: Monster = {
+      x: 3, y: 2, symbol: 'D↑', name: 'Dragon King', hp: 1, maxHp: 1, atk: 1,
+      color: '#00ff00', minFloor: 20, special: 'boss', frozenTurns: 0,
+    };
+
+    kill(engine, king);
+
+    expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
+  });
+
+  it('the guardian hoard stays within ±variance of chests × hoardMultiplier', () => {
+    // roll 0 → range() min, roll 1 → range() max. Bounds: 1200×5 = 6000 ±10%.
+    const dragonAt = (roll: number) => {
+      const engine = makeRunner();
+      engine.dungeonFloor = 20;
+      setChanceRoll(engine, roll);
+      kill(engine, {
+        x: 3, y: 2, symbol: 'D', name: 'Dragon', hp: 1, maxHp: 1, atk: 1,
+        color: '#00ff00', minFloor: 20, frozenTurns: 0,
+      });
+      const pile = engine.items.find((i) => i.type === 'gold');
+      return pile && pile.type === 'gold' ? pile.amount : undefined;
+    };
+
+    expect(dragonAt(0)).toBe(5400); // 6000 × 0.9
+    expect(dragonAt(1)).toBe(6600); // 6000 × 1.1
+  });
+
   it('collecting a dropped pile credits its exact amount with no chest re-roll', () => {
     const engine = makeRunner();
     engine.dungeonFloor = 5;

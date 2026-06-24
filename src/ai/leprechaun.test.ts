@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeRng } from '../rng';
+import type { RNG } from '../rng';
 import type { Monster, Player } from '../types';
 import { resolveBehavior, archetypeOf, shapeForTemplate } from './archetypes';
 import { analyzeMonster } from './balance';
@@ -50,6 +51,43 @@ describe('Leprechaun', () => {
     expect(m.gold).toBe(stolen);
     expect(logs.join(' ')).toMatch(/steals \d+ gold/);
     expect(m.ai?.pendingBlink).toBe(true);
+  });
+
+  // A deterministic RNG over the stealGold draw order: chance() #1 is the
+  // ability-fire roll, chance() #2 is the save-vs-magic roll, then int() feeds
+  // GOLDCALC's `2 + int(...)`. Fresh per applyOnHitAbilities call.
+  function stealRng(opts: { fire: boolean; save: boolean; intVal: number }): RNG {
+    let chanceCalls = 0;
+    return {
+      seed: 0,
+      next: () => 0,
+      int: () => opts.intVal,
+      range: (min) => min,
+      chance: () => (++chanceCalls === 1 ? opts.fire : opts.save),
+      pick: <T>(a: readonly T[]) => a[0],
+      getState: () => 0,
+    };
+  }
+
+  it('accumulates stolen gold in its purse across hits, big on a failed save and small on a save', () => {
+    const b = resolveBehavior({ name: 'Leprechaun' });
+    const m = leprechaun();
+    const player = { gold: 1000, level: 1 } as Player;
+    // GOLDCALC = 2 + int(50+10*5) = 2 + 8 = 10 (intVal 8).
+    // Hit 1: fired, save FAILED → 5× = 50 grabbed.
+    applyOnHitAbilities(b, m, player, stealRng({ fire: true, save: false, intVal: 8 }), 5);
+    expect(player.gold).toBe(950);
+    expect(m.gold).toBe(50);
+
+    // Hit 2: fired, save SUCCEEDED → 1× = 10 grabbed, added to the purse.
+    applyOnHitAbilities(b, m, player, stealRng({ fire: true, save: true, intVal: 8 }), 5);
+    expect(player.gold).toBe(940);
+    expect(m.gold).toBe(60); // purse accumulates, never resets
+
+    // A non-firing hit changes nothing.
+    applyOnHitAbilities(b, m, player, stealRng({ fire: false, save: false, intVal: 8 }), 5);
+    expect(player.gold).toBe(940);
+    expect(m.gold).toBe(60);
   });
 
   it('does not blink when the player has no gold to steal', () => {

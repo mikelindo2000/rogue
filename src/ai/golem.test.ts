@@ -118,18 +118,22 @@ describe('Golem', () => {
     expect(m.ai?.state).toBe('hunting');
   });
 
-  it('leashes to its hoard: turns back home rather than chase past leashRange', () => {
+  it('leashes to its hoard: holds the line at the leash edge instead of chasing past it', () => {
     const b = resolveBehavior({ name: 'Golem' });
     const leash = b.movement.leashRange!;
+    const wake = b.movement.wakeRange!;
     // Already engaged and standing exactly at the leash edge, lair behind it.
     const m = mob('Golem', {
       x: leash,
       y: 7,
       ai: { state: 'hunting', cooldowns: {}, swipeToggle: false, homeX: 0, homeY: 7 },
     });
-    // Player just beyond, tempting it onward — it refuses and heads back home.
+    // Player just beyond the edge but not yet fled clear — it refuses to chase
+    // past the leash and holds position (guarding) rather than jittering home.
+    expect(m.x + 2).toBeLessThanOrEqual(wake + leash); // player still "in reach"
     const a = decide(m, { x: leash + 2, y: 7 }, b, { monsters: [m] });
-    expect(a).toEqual({ type: 'move', dx: -1, dy: 0 });
+    expect(a).toEqual({ type: 'wait' });
+    expect(m.ai?.state).toBe('hunting'); // still engaged, not re-dormant
   });
 
   it('returns to its lair and re-arms when the player flees far away', () => {

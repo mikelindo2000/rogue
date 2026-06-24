@@ -233,18 +233,21 @@ function decideMovement(ctx: BrainContext, dist: number): AIAction {
         else return { type: 'wait' };
       }
 
-      // Engaged: chase the player, but never past the leash, and give up once
-      // they've fled well clear — the hoard comes first.
-      const atLeashEdge = distHome >= leash;
+      // Engaged. While the player stays in reach, pursue — but never step past
+      // the leash: hold the line at its edge and guard rather than ping-ponging
+      // back toward home (which would jitter forever as the player kites the
+      // boundary). Only when the player has truly fled does the hoard win out.
       const playerFled = dist > wake + leash;
-      if (!atLeashEdge && !playerFled) {
-        const chase = stepToward(ctx, player.x, player.y);
-        if (chase.type === 'move') return chase;
-        return { type: 'wait' };
+      if (!playerFled) {
+        if (distHome < leash) {
+          const chase = stepToward(ctx, player.x, player.y);
+          if (chase.type === 'move') return chase;
+        }
+        return { type: 'wait' }; // at the leash edge (or blocked): hold the line
       }
 
-      // Out of leash or the player bolted: trudge back to the hoard, re-arming
-      // the dormant guard once we're standing on it again.
+      // The player bolted clear: trudge back to the hoard, re-arming the dormant
+      // guard once we're standing on it again.
       if (distHome > 0) {
         const back = stepToward(ctx, homeX, homeY);
         if (back.type === 'move') return back;
