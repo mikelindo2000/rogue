@@ -11,17 +11,17 @@
 
 :root {
   /* ---- Surfaces (darkest → lightest) ------------------------------------ */
-  --surface-page: #08090b;      /* page backdrop behind the app frame */
-  --surface-app: #0b0c0f;       /* the app frame */
-  --surface-bar: #0e1014;       /* top bar + footer */
-  --surface-rail: #0d0f13;      /* left + right rails */
-  --surface-map: #07080a;       /* center stage behind the canvas */
-  --surface-inset: #13151a;     /* chips, quick-bar buttons */
-  --surface-inset-2: #15171c;   /* icon tiles, bar tracks, avatar bg */
-  --surface-card: #101217;      /* equipment rows, inventory slots */
-  --surface-raised: #181b21;    /* keycaps */
-  --surface-popover: rgba(13, 15, 19, 0.94); /* floating menus / tooltips */
-  --surface-overlay: rgba(14, 16, 20, 0.8);  /* in-map pills (with blur) */
+  --surface-page: #0a0908;      /* page backdrop behind the app frame */
+  --surface-app: #0d0b0a;       /* the app frame */
+  --surface-bar: #12100e;       /* top bar + footer */
+  --surface-rail: #100e0d;      /* left + right rails */
+  --surface-map: #090807;       /* center stage behind the canvas */
+  --surface-inset: #181512;     /* chips, quick-bar buttons */
+  --surface-inset-2: #1a1714;   /* icon tiles, bar tracks, avatar bg */
+  --surface-card: #14110f;      /* equipment rows, inventory slots */
+  --surface-raised: #1d1915;    /* keycaps */
+  --surface-popover: rgba(16, 14, 13, 0.94); /* floating menus / tooltips */
+  --surface-overlay: rgba(18, 16, 14, 0.8);  /* in-map pills (with blur) */
 
   /* ---- Borders (subtle → strong) ---------------------------------------- */
   --border-subtle: #16191f;     /* intra-rail section dividers */
@@ -33,16 +33,16 @@
   --border-dashed: #1c2027;     /* empty inventory slot outline */
 
   /* ---- Text (brightest → faintest) -------------------------------------- */
-  --text-bright: #e9ebee;       /* primary headings, values */
-  --text: #c5cad1;              /* secondary body */
-  --text-keycap: #b8bdc4;       /* keycap glyphs */
-  --text-muted: #9aa0a8;        /* log body, secondary stats */
-  --text-icon: #aeb4bc;         /* default (common) icon stroke */
-  --text-label: #7a808a;        /* vitals labels, monster level */
-  --text-dim: #6e747e;          /* hint labels, faded log */
-  --text-dimmer: #5e646e;       /* uppercase section labels, units */
-  --text-faint: #4a4f57;        /* "Empty" slot text */
-  --text-faintest: #3c414a;     /* log gutter numbers, empty icons */
+  --text-bright: #eee9e1;       /* primary headings, values */
+  --text: #cec7bd;              /* secondary body */
+  --text-keycap: #c1baaf;       /* keycap glyphs */
+  --text-muted: #a49c91;        /* log body, secondary stats */
+  --text-icon: #b8b0a5;         /* default (common) icon stroke */
+  --text-label: #847c72;        /* vitals labels, monster level */
+  --text-dim: #777066;          /* hint labels, faded log */
+  --text-dimmer: #686157;       /* uppercase section labels, units */
+  --text-faint: #524d46;        /* "Empty" slot text */
+  --text-faintest: #454039;     /* log gutter numbers, empty icons */
 
   /* ---- Accent: amber / gold (primary brand) ----------------------------- */
   --accent: #e0a45a;            /* primary accent — logo, @, active highlights */
@@ -73,7 +73,7 @@
   /* ---- Health ----------------------------------------------------------- */
   --hp: #e6a266;               /* filled health segment */
   --hp-low: #d9743f;           /* last filled segment when wounded */
-  --hp-empty: #1c1f26;         /* empty health segment */
+  --hp-empty: #231f1a;         /* empty health segment */
 
   /* ---- Rarity (UI only — canvas uses RARITY_CONFIG) --------------------- */
   --rarity-common: #aeb4bc;
@@ -88,7 +88,7 @@
 
   /* ---- Typography ------------------------------------------------------- */
   --font-ui: 'Geist', system-ui, -apple-system, sans-serif;       /* body, item names */
-  --font-display: 'Space Grotesk', system-ui, sans-serif;          /* headings, numbers, labels */
+  --font-display: 'Caudex', Georgia, serif;                         /* headings, numbers, labels */
   --font-mono: 'Fira Code', 'SF Mono', Menlo, monospace;           /* canvas glyphs (game) */
 
   /* Font sizes observed in the design */

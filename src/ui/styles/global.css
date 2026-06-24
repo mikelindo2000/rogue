@@ -2,7 +2,7 @@
    Imported once by src/styles.css. Component-specific styling lives in each
    .svelte component's scoped <style> block; only truly global rules go here. */
 
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caudex:wght@400;700&family=Geist:wght@400;500;600;700&family=Fira+Code:wght@400;700&display=swap');
 @import './tokens.css';
 
 * {
