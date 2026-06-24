@@ -35,6 +35,7 @@
 
   let activeKey = $state<string>('');
   let selectedKey = $state<string>('');
+  let activeCol = $state<number>(1);
 
   function refKey(ref: InventoryRef): string {
     if (ref.kind === 'food') return 'food';
@@ -170,20 +171,25 @@
     else if (colIdx === 1) selectedKey = key;
   }
 
-  function focusColumn(index: number) {
+  function focusColumn(index: number, direction: 1 | -1 = 1, visited = new Set<number>()) {
     const cols = [spineEl, listEl, detailEl];
     const target = cols[index];
     if (!target) return;
+    visited.add(index);
     const buttons = navButtons(target);
     if (buttons.length === 0) {
-      // Nothing focusable here (e.g. empty detail) — skip onward.
-      if (index < 2) focusColumn(index + 1);
+      // Nothing focusable here — skip to next in specified direction.
+      const nextIndex = (index + direction + 3) % 3;
+      if (!visited.has(nextIndex)) {
+        focusColumn(nextIndex, direction, visited);
+      }
       return;
     }
     // Prefer the already-selected row in the list column.
     const selectedBtn = buttons.find((b) => b.dataset.nav === selectedKey) ?? buttons.find((b) => b.dataset.nav === activeKey);
     const btn = selectedBtn ?? buttons[0];
     btn.focus();
+    activeCol = index;
     applySelection(btn, index);
   }
 
@@ -211,40 +217,73 @@
   }
 
   function handleKeyboard(event: KeyboardEvent) {
-    if (!ui.inventoryOpen) return;
-    const target = event.target as HTMLElement | null;
+    if (!ui.inventoryOpen || ui.settingsOpen || ui.shortcutsOpen || ui.compendiumOpen || ui.balancePanelOpen) return;
     const bodyEl = spineEl?.closest('.body');
-    if (!target || !bodyEl?.contains(target)) return;
+    if (!bodyEl) return;
+
+    let target = event.target as HTMLElement | null;
+    if (!target || !bodyEl.contains(target)) {
+      const isNavKey = ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Tab'].includes(event.key);
+      if (isNavKey) {
+        focusColumn(activeCol);
+        target = document.activeElement as HTMLElement | null;
+      }
+    }
+    if (!target || !bodyEl.contains(target)) return;
 
     const colIdx = activeColumnIndex();
+    const activeEl = target;
 
     switch (event.key) {
       case 'ArrowDown':
+        if (colIdx === 2) break; // Ignore vertical navigation on horizontal actions
         handle(event);
         moveWithin(1);
         break;
       case 'ArrowUp':
+        if (colIdx === 2) break; // Ignore vertical navigation on horizontal actions
         handle(event);
         moveWithin(-1);
         break;
       case 'ArrowRight':
         handle(event);
-        focusColumn(Math.min(2, colIdx + 1));
-        break;
-      case 'Tab':
-        handle(event);
-        focusColumn(event.shiftKey ? Math.max(0, colIdx - 1) : Math.min(2, colIdx + 1));
+        if (colIdx === 0) {
+          focusColumn(1, 1);
+        } else if (colIdx === 1) {
+          focusColumn(2, 1);
+        } else if (colIdx === 2) {
+          const buttons = navButtons(detailEl);
+          const currentIdx = buttons.indexOf(activeEl as HTMLButtonElement);
+          if (currentIdx !== -1 && currentIdx < buttons.length - 1) {
+            buttons[currentIdx + 1].focus();
+          }
+        }
         break;
       case 'ArrowLeft':
         handle(event);
-        focusColumn(Math.max(0, colIdx - 1));
+        if (colIdx === 2) {
+          const buttons = navButtons(detailEl);
+          const currentIdx = buttons.indexOf(activeEl as HTMLButtonElement);
+          if (currentIdx > 0) {
+            buttons[currentIdx - 1].focus();
+          } else {
+            focusColumn(1, -1);
+          }
+        } else if (colIdx === 1) {
+          focusColumn(0, -1);
+        }
+        break;
+      case 'Tab':
+        handle(event);
+        const dir = event.shiftKey ? -1 : 1;
+        focusColumn((colIdx + dir + 3) % 3, dir);
         break;
       case 'Enter':
         handle(event);
         if (colIdx === 0) {
           focusColumn(1);
-        } else if (colIdx === 2 && target instanceof HTMLButtonElement) {
-          target.click();
+        } else if (colIdx === 2 && activeEl instanceof HTMLButtonElement) {
+          activeEl.click();
         } else if (selected?.kind === 'cell') {
           runDefault(selected.cell);
         }
@@ -303,7 +342,9 @@
         initial = entries.find((e) => e.key === wanted) ?? initial;
       }
       selectedKey = initial?.key ?? '';
-      tick().then(() => focusColumn(entries.length > 0 ? 1 : 0));
+      const initialCol = entries.length > 0 ? 1 : 0;
+      activeCol = initialCol;
+      tick().then(() => focusColumn(initialCol));
     });
   });
 
@@ -322,12 +363,14 @@
 <Modal open={ui.inventoryOpen} {title} onClose={close}>
   <div class="body">
     <!-- Column 1: spine -->
-    <nav class="spine" bind:this={spineEl} aria-label="Equipment slots and pack">
+    <nav class="spine" bind:this={spineEl} aria-label="Equipment slots and pack" onfocusin={() => activeCol = 0}>
       {#each groups as g (g.key)}
         {#if g.kind === 'slot'}
           <button
             class="spine-row"
             class:active={activeGroup?.key === g.key}
+            class:selected-focus={activeGroup?.key === g.key && activeCol === 0}
+            class:selected-inactive={activeGroup?.key === g.key && activeCol !== 0}
             data-nav={g.key}
             onclick={() => selectGroup(g.key)}
             aria-current={activeGroup?.key === g.key}
@@ -349,6 +392,8 @@
           <button
             class="spine-row"
             class:active={activeGroup?.key === g.key}
+            class:selected-focus={activeGroup?.key === g.key && activeCol === 0}
+            class:selected-inactive={activeGroup?.key === g.key && activeCol !== 0}
             data-nav={g.key}
             onclick={() => selectGroup(g.key)}
             aria-current={activeGroup?.key === g.key}
@@ -365,7 +410,7 @@
     </nav>
 
     <!-- Column 2: candidates -->
-    <div class="list" bind:this={listEl} aria-label="Candidates">
+    <div class="list" bind:this={listEl} aria-label="Candidates" onfocusin={() => activeCol = 1}>
       {#if entries.length === 0}
         <div class="empty-col">Nothing here.</div>
       {:else}
@@ -374,6 +419,8 @@
             <button
               class="row equipped"
               class:selected={selected?.key === entry.key}
+              class:selected-focus={selected?.key === entry.key && activeCol === 1}
+              class:selected-inactive={selected?.key === entry.key && activeCol !== 1}
               data-nav={entry.key}
               onclick={() => (selectedKey = entry.key)}
             >
@@ -395,6 +442,8 @@
             <button
               class="row"
               class:selected={selected?.key === entry.key}
+              class:selected-focus={selected?.key === entry.key && activeCol === 1}
+              class:selected-inactive={selected?.key === entry.key && activeCol !== 1}
               data-nav={entry.key}
               onclick={() => (selectedKey = entry.key)}
               aria-label="{entry.cell.label}{entry.cell.statLabel ? `, ${entry.cell.statLabel}` : ''}{entry.cell.health ? `, condition ${entry.cell.health.tone}` : ''}{entry.cell.strictlyBetter ? ', strictly better' : entry.cell.verdict ? `, ${entry.cell.verdict}` : ''}"
@@ -425,6 +474,7 @@
       bind:this={detailEl}
       aria-label="Details"
       style={selectedArt ? `--item-art: url("${selectedArt}")` : undefined}
+      onfocusin={() => activeCol = 2}
     >
       {#if selected?.kind === 'equipped'}
         <div class="hero">
@@ -526,6 +576,16 @@
     background: var(--surface-card);
     border-color: var(--border-slot);
   }
+  .spine-row.selected-focus {
+    background: var(--surface-card);
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+  }
+  .spine-row.selected-inactive {
+    background: var(--surface-card);
+    border-color: var(--border-strong) !important;
+    box-shadow: none !important;
+  }
   .spine-row:focus-visible {
     outline: none;
     border-color: var(--focus-ring);
@@ -599,6 +659,16 @@
   .row.selected {
     background: var(--surface-card);
     border-color: var(--border-slot);
+  }
+  .row.selected-focus {
+    background: var(--surface-card);
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow) !important;
+  }
+  .row.selected-inactive {
+    background: var(--surface-card);
+    border-color: var(--border-strong) !important;
+    box-shadow: none !important;
   }
   .row:focus-visible {
     outline: none;
@@ -789,10 +859,12 @@
     font: 700 11px var(--font-display);
   }
   .action:hover:not(:disabled),
+  .action:focus,
   .action:focus-visible {
     background: var(--accent-log-surface);
     border-color: var(--accent);
     outline: none;
+    box-shadow: 0 0 0 2px var(--accent-glow);
   }
   .action:disabled {
     cursor: default;

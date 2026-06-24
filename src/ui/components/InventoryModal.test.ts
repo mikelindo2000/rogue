@@ -193,3 +193,132 @@ describe('loadout hub — gear', () => {
     expect(active.closest('.body')).not.toBeNull();
   });
 });
+
+describe('loadout hub — keyboard navigation and focus highlighting', () => {
+  it('highlights the initial column selection correctly', async () => {
+    // With candidates, Column 1 is focused
+    openHub({ items: [scrollCell()] });
+    await tick();
+    await tick();
+    flushSync();
+    
+    const firstRow = candidateRow();
+    expect(firstRow.classList.contains('selected-focus')).toBe(true);
+    expect(firstRow.classList.contains('selected-inactive')).toBe(false);
+
+    // Spine has an active group but it is in inactive column (Column 0)
+    const spineRow = document.querySelector('.spine-row.active') as HTMLElement;
+    expect(spineRow.classList.contains('selected-focus')).toBe(false);
+    expect(spineRow.classList.contains('selected-inactive')).toBe(true);
+  });
+
+  it('updates selection classes when shifting focus to Column 0', async () => {
+    openHub({ items: [scrollCell()] });
+    await tick();
+    await tick();
+    flushSync();
+
+    const firstRow = candidateRow();
+    firstRow.focus();
+    
+    // Press ArrowLeft to focus Column 0
+    firstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+
+    // Now Column 0 is focused
+    const spineRow = document.querySelector('.spine-row.active') as HTMLElement;
+    expect(spineRow.classList.contains('selected-focus')).toBe(true);
+    expect(spineRow.classList.contains('selected-inactive')).toBe(false);
+
+    // Column 1 is inactive
+    expect(firstRow.classList.contains('selected-focus')).toBe(false);
+    expect(firstRow.classList.contains('selected-inactive')).toBe(true);
+  });
+
+  it('navigates to Column 2 (Actions) with ArrowRight and cycles buttons', async () => {
+    openHub({ items: [scrollCell()] });
+    await tick();
+    await tick();
+    flushSync();
+
+    const firstRow = candidateRow();
+    firstRow.focus();
+    
+    // Press ArrowRight to focus Column 2
+    firstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+
+    // Active element should be the first action button
+    const actions = actionButtons();
+    expect(document.activeElement).toBe(actions[0]);
+
+    // Press ArrowRight to move to the second action button (Drop)
+    actions[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(actions[1]);
+
+    // Press ArrowLeft to move back to the first action button (Read)
+    actions[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(actions[0]);
+
+    // Press ArrowLeft from the first action button to return to Column 1
+    actions[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(firstRow);
+  });
+
+  it('cycles columns with Tab and Shift+Tab', async () => {
+    openHub({ items: [scrollCell()] });
+    await tick();
+    await tick();
+    flushSync();
+
+    const firstRow = candidateRow();
+    firstRow.focus();
+
+    // Tab moves to Column 2
+    firstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(actionButtons()[0]);
+
+    // Tab again wraps to Column 0
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(document.querySelector('.spine-row.active'));
+
+    // Shift+Tab wraps back to Column 2
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+    expect(document.activeElement).toBe(actionButtons()[0]);
+  });
+
+  it('does not infinite loop or crash if all columns are empty', async () => {
+    openHub({ items: [], equipment: [] });
+    await tick();
+    await tick();
+    flushSync();
+    
+    expect(() => {
+      // Dispatch ArrowLeft on list element to trigger focus re-anchoring and focusColumn
+      const listEl = document.querySelector('.list') as HTMLElement;
+      listEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    }).not.toThrow();
+  });
+});
