@@ -106,6 +106,7 @@ Start with names stable enough for code, broad enough for asset iteration:
 | `player.lowHealth` | HP crosses the warning threshold (50%) downward |
 | `player.criticalHealth` | HP crosses the critical threshold (25%) downward |
 | `player.death` | game over |
+| `game.victory` | escaping up the Floor-1 stairs with the Amulet |
 | `hunger.hungry` | hunger crosses `BALANCE.player.hungerHungry` downward |
 | `hunger.fatigued` | hunger crosses `BALANCE.player.hungerFatigued` downward |
 | `hunger.starving` | hunger reaches 0 |
@@ -371,14 +372,15 @@ Suggested asset layout and a starting track set (final prompts live in the asset
 
 ```
 public/audio/music/
-  explore-shallow-01.webm   ~3:00 loop  — calm dungeon exploration, floors 1–3
-  explore-deep-01.webm      ~3:00 loop  — tense deeper dungeon, floors 4+
-  boss-01.webm              ~3:00 loop  — driving boss-encounter theme
-  safe-01.webm              ~3:00 loop  — warm respite/town theme
-  gameover-01.webm          ~3:00 loop  — somber game-over / victory bed
+  explore-shallow-01.mp3    ~3:00 loop  — calm dungeon exploration, floors 1–3
+  explore-deep-01.mp3       ~3:00 loop  — tense deeper dungeon, floors 4+
+  boss-01.mp3               ~3:00 loop  — driving boss-encounter theme
+  safe-01.mp3               ~3:00 loop  — warm respite/town theme
+  gameover-01.mp3           ~3:00 loop  — somber game-over bed
+  victory-credits-01.mp3    ~1:30 loop  — triumphant credits bed
 ```
 
-These five map to the contexts above; add or split tracks by editing the manifest and
+These six map to the contexts above; add or split tracks by editing the manifest and
 the music-selection rule, not the engine.
 
 ## Settings UI

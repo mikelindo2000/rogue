@@ -11,6 +11,11 @@ The selector mirrors the current end-game stats design: victory and death title
 rules choose a scenario, then the run id, seed, turns, and score choose one of
 six variants. This gives 54 possible first-view ending images.
 
+Victories now use one dedicated finale opener before the stats screen:
+`public/endings/victory-amulet-escape-1.png`. Deaths still use the scenario
+selector below, and victory scenario art remains available for stat/title
+expansion.
+
 ## Current Recipe
 
 - Model: `Runpod/FLUX.2-klein-4B-mflux-4bit`
@@ -102,3 +107,4 @@ the lower-right close prompt.
 | `death-default-4.png` | the dungeon claims another | 9151 | a dim burial-like chamber with scattered gear and a single cold beam from above |
 | `death-default-5.png` | the dungeon claims another | 9152 | shadowy dungeon walls closing around an abandoned shield, grim but beautiful fantasy mood |
 | `death-default-6.png` | the dungeon claims another | 9153 | a final lantern reflection on wet stone, the hero's cape disappearing into the dark |
+| `victory-amulet-escape-1.png` | victory finale opener | 9160 | the victorious hero stepping out of a cracked dungeon stairwell into sunrise while raising the glowing Amulet of Ballard, golden light spilling across smoke and ancient stone |

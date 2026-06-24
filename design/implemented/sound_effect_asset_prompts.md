@@ -154,6 +154,7 @@ influence is `prompt_influence`.
 | `player-criticalhealth-01.mp3` | `player.criticalHealth` | 0.9 | 0.5 | An urgent fast double heartbeat with a tense rising warning sting, near death |
 | `player-levelup-01.mp3` | `player.levelUp` | 1.1 | 0.5 | A warm rising chime of empowerment and triumph, magical level up, not too bright |
 | `player-death-01.mp3` | `player.death` | 1.5 | 0.55 | A somber low descending tone of defeat, the hero falls, game over, fading |
+| `victory-amulet-01.mp3` | `game.victory` | 1.6 | 0.58 | Triumphant magical amulet flare, warm golden chime rising into a short heroic resolve, stone stair echo and daylight shimmer |
 
 ### Hunger / survival
 
@@ -203,7 +204,7 @@ Music prompts append this **music suffix** for cohesion:
 — dark fantasy dungeon roguelike score, instrumental, looping bed, no vocals, moderate dynamics
 ```
 
-Five context beds (~180000 ms each), selected by coarse game state and crossfaded:
+Six context beds, selected by coarse game state and crossfaded:
 
 | File | Context | Prompt (before suffix) |
 | --- | --- | --- |
@@ -212,6 +213,7 @@ Five context beds (~180000 ms each), selected by coarse game state and crossfade
 | `boss-01.mp3` | boss encounter | Driving dark-fantasy boss battle, urgent low brass and pounding war drums, heroic and dangerous, propulsive |
 | `safe-01.mp3` | respite / safe | Warm gentle respite theme, soft harp and low strings, a moment of safety and relief, hopeful but subdued |
 | `gameover-01.mp3` | run end / game over | Somber elegiac game-over bed, slow mournful strings and a lone distant horn, fading to quiet |
+| `victory-credits-01.mp3` | victory credits | Earned victory credits theme after escaping a dangerous dungeon, warm low strings, gentle hand percussion, modest heroic brass, glimmering magical amulet motif, wistful but triumphant, suitable for rolling end credits |
 
 These map onto the `music` channel and the music-selection rule in the plan. Add or split
 beds by editing this table and the manifest, not the engine.
