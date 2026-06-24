@@ -6,7 +6,7 @@ import type { Monster } from './types';
 
 const makeUi = () => ({
   renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
-  syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, fxFreeze: () => {},
+  syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, mapRumble: () => {}, beginFloorTransition: () => {}, fxFreeze: () => {},
   fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {},
 });
 

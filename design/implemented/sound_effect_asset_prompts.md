@@ -132,6 +132,15 @@ influence is `prompt_influence`.
 | `combat-hit-01.mp3` | `combat.hit` (player→monster) | 0.8 | 0.6 | Quick visceral sword slash hitting flesh, short sharp impact, fantasy game combat hit |
 | `combat-miss-01.mp3` | `combat.miss` | 0.6 | 0.5 | A weapon whiffs through empty air and a foe nimbly dodges aside |
 | `player-hit-01.mp3` | `combat.hit` (monster→player) | 0.7 | 0.55 | A dull pained thud as the hero takes a blow, body impact with a short grunt |
+| `combat-rumble-01.mp3` | `combat.heavyHit` | 0.9 | 0.6 | Deep heavy weapon impact, a massive blow landing on flesh and bone with a low rolling rumble and stone shudder |
+| `combat-rumble-02.mp3` | `combat.heavyHit` | 1.0 | 0.6 | Bone-crunching heavy hit, thick low-frequency thud followed by a short cavern rumble and falling grit |
+| `combat-rumble-03.mp3` | `combat.heavyHit` | 0.9 | 0.6 | Powerful blunt impact, deep sub-bass boom with a brief rumbling aftershock through dungeon stone |
+| `combat-rumble-04.mp3` | `combat.heavyHit` | 1.0 | 0.6 | Massive crushing strike, heavy meaty smack into a low earthen rumble, dust and pebbles trembling |
+
+`combat.heavyHit` plays *in addition to* `combat.hit` on a heavy blow (see `isHeavyHit`
+in `src/combat.ts`) and is paired with the map screen-shake. The four variants are
+randomized by the service so a string of big hits doesn't repeat. Regenerate with
+`scripts/gen-combat-rumble-sfx.sh`.
 
 ### Death (per-archetype cascade → `byArchetype` / `bySpecial`)
 

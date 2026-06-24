@@ -20,6 +20,8 @@ const makeUi = () => ({
   resetLog: vi.fn(),
   fxStrike: vi.fn(),
   fxHit: vi.fn(),
+  mapRumble: vi.fn(),
+  beginFloorTransition: vi.fn(),
   fxFreeze: vi.fn(),
   fxDeath: vi.fn(),
   fxPlayerHit: vi.fn(),

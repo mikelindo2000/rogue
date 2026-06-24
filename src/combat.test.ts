@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeStrike, computeMonsterDamage } from './combat';
+import { computeStrike, computeMonsterDamage, isHeavyHit, rumbleStrength, HEAVY_HIT } from './combat';
 import { makeRng } from './rng';
 import { BALANCE } from './config';
 import { GearItem } from './types';
@@ -240,5 +240,47 @@ describe('computeMonsterDamage', () => {
       });
       expect(high).toBeLessThanOrEqual(low);
     }
+  });
+});
+
+describe('isHeavyHit', () => {
+  it('any blow at/above absDamage is heavy regardless of target size', () => {
+    expect(isHeavyHit(HEAVY_HIT.absDamage, 9999)).toBe(true);
+    expect(isHeavyHit(HEAVY_HIT.absDamage + 5, 9999)).toBe(true);
+  });
+
+  it('a blow under minDamage is never heavy, even on a tiny target', () => {
+    expect(isHeavyHit(HEAVY_HIT.minDamage - 1, 1)).toBe(false);
+  });
+
+  it('a mid blow is heavy only if it takes a big fraction of the target', () => {
+    // 6 dmg vs a 10-HP target = 60% → heavy; vs a 100-HP target → not.
+    expect(isHeavyHit(6, 10)).toBe(true);
+    expect(isHeavyHit(6, 100)).toBe(false);
+  });
+
+  it('exactly hpFraction of max HP (and >= minDamage) qualifies', () => {
+    expect(isHeavyHit(8, 16)).toBe(true); // 0.5 exactly
+  });
+});
+
+describe('rumbleStrength', () => {
+  it('is always within [0.45, 1]', () => {
+    for (const dmg of [1, 6, 12, 40, 999]) {
+      for (const maxHp of [1, 10, 100]) {
+        const s = rumbleStrength(dmg, maxHp);
+        expect(s).toBeGreaterThanOrEqual(0.45);
+        expect(s).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('saturates at 1 for blows at/above the absolute threshold', () => {
+    expect(rumbleStrength(HEAVY_HIT.absDamage, 9999)).toBe(1);
+    expect(rumbleStrength(HEAVY_HIT.absDamage * 3, 9999)).toBe(1);
+  });
+
+  it('bigger blows shake at least as hard as smaller ones', () => {
+    expect(rumbleStrength(10, 100)).toBeGreaterThanOrEqual(rumbleStrength(6, 100));
   });
 });

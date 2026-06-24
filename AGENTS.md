@@ -26,3 +26,23 @@ Rules:
 - **Adding a monster:** combat/death cues resolve by a cascade (`monsterId → archetype → special → generic`), so most monsters need no new asset. Only author a clip for a signature creature or a new archetype. When you do, follow the house guide, append the new asset's prompt to its table, regenerate with the recipe, and add a manifest entry — never add a one-off `emit` call per creature.
 - **Adding an event/cue:** add the `SoundEvent` in `src/audio/events.ts`, emit it from the relevant engine path, then add the asset + prompt row in the house guide and a manifest entry. Keep prompts in the guide so every clip stays reproducible.
 - The ElevenLabs API key lives in `~/.secrets` (`ELEVENLABS_API_KEY`); never echo or commit it.
+
+## Worktrees
+
+Building a feature in an isolated git worktree? See [`WORKTREES.md`](WORKTREES.md).
+Short version: `scripts/worktree-new.sh <branch> [base]` creates a sibling
+worktree, then `scripts/worktree-dev.sh` installs deps and serves it on a free
+port. The repo pins port 3000 with `strictPort`, so always start dev servers via
+that script (or set `PORT`) when more than one checkout is running — otherwise the
+second server fails to bind.
+
+## Map 3D plane
+
+The dungeon canvas sits on its own 3D plane (`.map-viewport > .map-plane` in
+`CenterStage.svelte`), independent of the background art and HUD, so it can be
+shaken/tilted/transitioned for cosmetic effect. `MapStageController`
+(`src/ui/mapStage.ts`) owns the plane's transform and is ticked by `GameUI`'s
+existing rAF loop; effects are purely cosmetic and collapse to identity under
+`prefers-reduced-motion`. Phase 1 ships the heavy-hit rumble (`GameUI.mapRumble`,
+gated by `isHeavyHit` in `src/combat.ts`). Roadmap + the pointer→tile caveat:
+[`design/active/map_3d_plane_plan.md`](design/active/map_3d_plane_plan.md).

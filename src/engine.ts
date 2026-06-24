@@ -10,7 +10,7 @@ import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
-import { computeStrike } from './combat';
+import { computeStrike, isHeavyHit, rumbleStrength } from './combat';
 import { type SoundSink, noopSink } from './audio/events';
 import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equipment';
 import { VitalsSoundTracker } from './audio/vitals';
@@ -843,6 +843,10 @@ export class GameEngine {
     const targetFloor = this.dungeonFloor + delta;
     if (targetFloor < 1 || targetFloor > 20) return;
 
+    // Snapshot the floor we're leaving for the transition BEFORE the live canvas
+    // repaints to the new one. Purely visual; the logical swap below stays sync.
+    this.ui.beginFloorTransition(delta > 0 ? 'down' : 'up');
+
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
     recordStairs(this.stats, this.dungeonFloor, delta);
@@ -971,6 +975,16 @@ export class GameEngine {
     // Combat flavor: lunge the player into the blow and pop a damage number.
     this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
     this.ui.fxHit(monster.x, monster.y, outcome.damage, monster.hp <= 0);
+
+    // A heavy blow shakes the map and plays the rumble cue, in addition to the
+    // normal hit feedback above (sound is always additive, never the only cue).
+    // maxHp is display-only and may be absent, so fall back to the pre-hit HP —
+    // "did this blow take a big share of what it had" is the right denominator.
+    const targetMax = monster.maxHp ?? monster.hp + outcome.damage;
+    if (isHeavyHit(outcome.damage, targetMax)) {
+      this.ui.mapRumble(rumbleStrength(outcome.damage, targetMax));
+      this.sound.emit({ type: 'combat.heavyHit', damage: outcome.damage });
+    }
   }
 
   /** Max HP accounting for the Vigor buff (doubled). */

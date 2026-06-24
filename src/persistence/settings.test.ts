@@ -51,6 +51,7 @@ describe('settings store', () => {
       playerName: 'Grok',
       lastClass: 'Warrior',
       boardSize: 'huge',
+      floorTransition: 'zpush',
       hasSeenIntro: true,
       audio: { muted: true, volume: 0.5, musicMuted: true, musicVolume: 0.6 },
     };
@@ -65,6 +66,7 @@ describe('settings store', () => {
       playerName: 'X',
       lastClass: 'Rogue',
       boardSize: 'classic',
+      floorTransition: 'zpush',
       hasSeenIntro: false,
       audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
     });
@@ -77,6 +79,7 @@ describe('settings store', () => {
       playerName: 'The Wretch',
       lastClass: 'Rogue',
       boardSize: 'classic',
+      floorTransition: 'zpush',
       hasSeenIntro: false,
       audio: { muted: true, volume: 1, musicMuted: false, musicVolume: 0.4 },
     });
@@ -100,6 +103,7 @@ describe('settings store', () => {
         playerName: 'Mira',
         lastClass: 'Mage',
         boardSize: 'large',
+        floorTransition: 'zpush',
         hasSeenIntro: false,
         audio: { muted: true, volume: 0.2, musicMuted: false, musicVolume: 0.4 },
       },
@@ -110,6 +114,7 @@ describe('settings store', () => {
       playerName: 'Mira',
       lastClass: 'Mage',
       boardSize: 'large',
+      floorTransition: 'zpush',
       hasSeenIntro: false,
       audio: { muted: true, volume: 0.8, musicMuted: false, musicVolume: 0.4 },
     });
@@ -123,6 +128,7 @@ describe('settings store', () => {
         playerName: 'Mira',
         lastClass: 'Mage',
         boardSize: 'large',
+        floorTransition: 'zpush',
         hasSeenIntro: false,
         audio: { muted: false, volume: 0.9, musicMuted: false, musicVolume: 0.4 },
       },
@@ -139,6 +145,7 @@ describe('settings store', () => {
         playerName: 'Mira',
         lastClass: 'Mage',
         boardSize: 'large',
+        floorTransition: 'zpush',
         hasSeenIntro: true,
         audio: { muted: true, volume: 0.2, musicMuted: true, musicVolume: 0.5 },
       },
@@ -149,6 +156,7 @@ describe('settings store', () => {
       playerName: 'Renamed',
       lastClass: 'Mage',
       boardSize: 'large',
+      floorTransition: 'zpush',
       hasSeenIntro: true,
       audio: { muted: true, volume: 0.2, musicMuted: true, musicVolume: 0.5 },
     });
@@ -162,6 +170,7 @@ describe('settings store', () => {
       playerName: 'First',
       lastClass: 'Rogue',
       boardSize: 'classic',
+      floorTransition: 'zpush',
       hasSeenIntro: false,
       audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
     });

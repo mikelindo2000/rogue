@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.musicMuted = settings.audio.musicMuted;
   ui.musicVolume = settings.audio.musicVolume;
   ui.boardSize = settings.boardSize;
+  ui.floorTransition = settings.floorTransition;
 
   const ui_ = new GameUI('gameCanvas');
   const engine = new GameEngine(ui_, audio);
@@ -287,6 +288,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // the player starts over (see the restart action below).
     ui.boardSize = id;
     updateSettings({ boardSize: id });
+  };
+  actions.setFloorTransition = (id) => {
+    // Takes effect on the next floor change; GameUI reads ui.floorTransition.
+    ui.floorTransition = id;
+    updateSettings({ floorTransition: id });
   };
   actions.testSound = () => {
     audio.unlock();

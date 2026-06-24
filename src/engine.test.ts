@@ -15,6 +15,8 @@ const makeUi = (overrides: Record<string, unknown> = {}) => ({
   fxPlayerRun: () => {},
   fxStrike: () => {},
   fxHit: () => {},
+  mapRumble: () => {},
+  beginFloorTransition: () => {},
   fxFreeze: () => {},
   fxDeath: () => {},
   fxPlayerHit: () => {},

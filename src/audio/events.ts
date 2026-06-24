@@ -13,6 +13,9 @@ export type SoundEvent =
   // combat
   | { type: 'combat.swing'; actor: 'player' | 'monster' }
   | { type: 'combat.hit'; actor: 'player' | 'monster'; target: 'player' | 'monster'; damage?: number }
+  // a heavy blow — pairs with the map screen-shake (rumble). Plays in addition
+  // to the normal combat.hit cue. See `isHeavyHit` in src/combat.ts.
+  | { type: 'combat.heavyHit'; damage: number }
   | { type: 'combat.miss'; actor: 'player' | 'monster' }
   // monster death carries identity so the manifest can resolve a most-specific
   // clip via the cascade: monsterId -> archetype -> special -> generic.

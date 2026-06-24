@@ -196,6 +196,8 @@ export interface UIState {
   musicVolume: number; // 0..1
   // board size for the next new game (mirrors persisted settings.boardSize)
   boardSize: BoardSizeId;
+  // active floor-change transition effect id (mirrors persisted settings.floorTransition)
+  floorTransition: string;
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
   // end-run stats and browser-local records
@@ -260,6 +262,7 @@ export const ui = $state<UIState>({
   musicMuted: false,
   musicVolume: 0.4,
   boardSize: 'classic',
+  floorTransition: 'zpush',
   discovery: emptyDiscovery(),
   endRunSummary: null,
   endRunRecords: null,
@@ -296,6 +299,8 @@ export interface UIActions {
   setMusicMuted(muted: boolean): void;
   setMusicVolume(volume: number): void;
   setBoardSize(id: BoardSizeId): void;
+  /** Choose the active floor-change transition effect (persisted). */
+  setFloorTransition(id: string): void;
   testSound(): void;
   copyEndRunSummary(): void;
   clearRunHistory(): void;
@@ -333,6 +338,7 @@ export const actions: UIActions = {
   setMusicMuted: () => {},
   setMusicVolume: () => {},
   setBoardSize: () => {},
+  setFloorTransition: () => {},
   testSound: () => {},
   copyEndRunSummary: () => {},
   clearRunHistory: () => {},

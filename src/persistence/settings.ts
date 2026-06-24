@@ -18,6 +18,10 @@ export interface Settings {
   lastClass: string;
   /** Board size applied to the NEXT new game (in-progress runs keep their own). */
   boardSize: BoardSizeId;
+  /** Active floor-change transition effect id (see src/ui/floorTransition.ts).
+   *  A plain string so persistence stays decoupled from the registry; an
+   *  unknown/stale id falls back to the default at resolve time. */
+  floorTransition: string;
   /** Set once the first-run How-to-Play intro gate has been dismissed, so a
    *  returning player is never shown it again. */
   hasSeenIntro: boolean;
@@ -34,6 +38,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   playerName: 'The Wretch',
   lastClass: 'Rogue',
   boardSize: DEFAULT_BOARD_SIZE,
+  floorTransition: 'zpush',
   hasSeenIntro: false,
   audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
 };

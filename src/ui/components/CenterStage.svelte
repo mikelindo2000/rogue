@@ -3,6 +3,7 @@
   import MonsterTooltip from './MonsterTooltip.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
+  import FloorTransitionSwitcher from './FloorTransitionSwitcher.svelte';
   import { getDungeonStyle } from '../../theme';
   import { backgroundUrl, pickFloorBackground } from '../backgrounds';
 
@@ -61,14 +62,38 @@
   <!-- Atmosphere between the background art and the canvas (e.g. floor fog). -->
   <EffectLayerHost effects={ui.visualEffects} target="stage-backdrop" />
 
-  <!-- Intrinsic size is set imperatively by GameUI.paint() to board × tile size
-       (it owns the backing store so resizes land before paints). These static
-       attributes are just the pre-first-paint default (classic 46×29 × 20). -->
-  <canvas id="gameCanvas" width="920" height="580"></canvas>
+  <!-- The map lives on its own 3D plane, independent of the background art and
+       HUD, so it can be moved/tilted/rotated in perspective for cosmetic effects.
+       `.map-viewport` owns the perspective. Inside it:
+       - `.map-transition` is the incoming-floor layer GameUI's FloorTransition-
+         Controller drives (transform + opacity) on a floor change;
+       - `.map-plane` (inside it) is the MapStageController rumble target;
+       - `.map-ghost` (sibling, hidden at rest) holds a snapshot of the floor
+         being left, crossfaded against the live canvas during a transition.
+       All shrink-wrap the canvas so the flex stage still centers it.
+       See design/active/map_3d_plane_plan.md. -->
+  <div class="map-viewport">
+    <div class="map-transition">
+      <div class="map-plane">
+        <!-- Intrinsic size is set imperatively by GameUI.paint() to board × tile
+             size (it owns the backing store so resizes land before paints). These
+             static attributes are just the pre-first-paint default (46×29 × 20). -->
+        <canvas id="gameCanvas" width="920" height="580"></canvas>
+      </div>
+    </div>
+    <!-- Outgoing-floor snapshot, painted over the live canvas only during a
+         transition (display toggled by the controller). -->
+    <div class="map-ghost" aria-hidden="true">
+      <canvas id="ghostCanvas"></canvas>
+    </div>
+  </div>
 
   <div class="vignette" aria-hidden="true"></div>
   <!-- Danger washes / above-board atmosphere (survival warning lives here). -->
   <EffectLayerHost effects={ui.visualEffects} target="stage-overlay" />
+
+  <!-- Dev: pick the floor-change effect live (prototype switcher). -->
+  <FloorTransitionSwitcher />
 
   {#if ui.stairsNearby}
     <div class="stairs-pill">
@@ -133,14 +158,64 @@
       opacity: 0.35;
     }
   }
+  /* Perspective container for the map. Shrink-wraps the plane (which shrink-wraps
+     the canvas) so the flex stage keeps centering the board. The perspective is
+     what makes the plane's translateZ/rotateX read as depth rather than a flat
+     scale; perspective-origin sits slightly high so a forward jolt feels grounded. */
+  .map-viewport {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 900px;
+    perspective-origin: 50% 45%;
+  }
+  /* Incoming-floor layer the FloorTransitionController writes (transform +
+     opacity) during a floor change. Identity/opaque at rest. */
+  .map-transition {
+    position: relative;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    will-change: transform, opacity;
+  }
+  /* The rumble target GameUI's MapStageController writes to. Identity at rest
+     (so the board renders pixel-identical when no effect is playing). */
+  .map-plane {
+    position: relative;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  /* Outgoing-floor snapshot. Absolutely overlaid on the live canvas, centered the
+     same way, shown only mid-transition (display toggled in JS). Painted above
+     the live layer so the old floor fades out to reveal the new beneath. */
+  .map-ghost {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    will-change: transform, opacity;
+  }
   canvas {
     display: block;
     position: relative;
-    z-index: 1;
     /* Intrinsic CSS width/height and any player-centering transform are set
        imperatively by GameUI.paint(), which fits the board to this stage. */
     transform-origin: center center;
     touch-action: none;
+  }
+  /* Reduced motion is also enforced in JS (effects are no-ops / dissolve), but
+     guard here too so any future CSS-driven plane motion is covered. */
+  @media (prefers-reduced-motion: reduce) {
+    .map-plane,
+    .map-transition {
+      transform: none !important;
+    }
   }
   .vignette {
     position: absolute;

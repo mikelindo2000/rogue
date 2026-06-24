@@ -11,6 +11,8 @@ import {
 } from './ui/store.svelte';
 import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from './ui/format';
 import { visualEffectLayers } from './ui/visualEffects';
+import { MapStageController } from './ui/mapStage';
+import { FloorTransitionController, resolveFloorTransition, type FloorDir } from './ui/floorTransition';
 import { buildEquipmentView } from './ui/equipmentView';
 import {
   buildInventoryComparisons,
@@ -188,6 +190,15 @@ export class GameUI {
   private viewport = { w: 0, h: 0, dpr: 1 };
   private resizeRaf = 0;
 
+  /** Drives the 3D transform of the map plane (the canvas's wrapper) for
+   *  cosmetic effects like the heavy-hit rumble. Null in environments without
+   *  the `.map-plane` wrapper (e.g. bare-canvas tests). See ./ui/mapStage. */
+  private mapStage: MapStageController | null = null;
+
+  /** Crossfades a snapshot of the floor being left against the incoming floor
+   *  on stairs. Null without the `.map-transition`/`.map-ghost` wrappers. */
+  private floorTransition: FloorTransitionController | null = null;
+
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     const context = this.canvas.getContext('2d');
@@ -195,8 +206,56 @@ export class GameUI {
       throw new Error("Could not acquire 2D canvas context");
     }
     this.ctx = context;
-    this.stageEl = this.canvas.parentElement;
+    // The canvas sits inside `.map-viewport > .map-transition > .map-plane`.
+    // `.map-plane` is the rumble target; `.map-transition` + `.map-ghost` are the
+    // floor-transition layers; the stage box (used to fit the board) is the
+    // perspective viewport's parent, so resolve each explicitly.
+    const plane = this.canvas.parentElement; // .map-plane
+    const transitionEl = plane?.parentElement ?? null; // .map-transition
+    const viewport = transitionEl?.parentElement ?? null; // .map-viewport
+    this.stageEl = (this.canvas.closest('.stage') as HTMLElement | null) ?? plane;
+    const reduced =
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (plane) {
+      this.mapStage = new MapStageController({
+        apply: t => { plane.style.transform = t; },
+        now: () => this.nowMs(),
+        reducedMotion: reduced,
+      });
+    }
+    if (transitionEl && viewport) {
+      this.floorTransition = new FloorTransitionController({
+        liveLayer: transitionEl,
+        ghostLayer: viewport.querySelector('.map-ghost'),
+        liveCanvas: this.canvas,
+        ghostCanvas: document.getElementById('ghostCanvas') as HTMLCanvasElement | null,
+        now: () => this.nowMs(),
+        reducedMotion: reduced,
+      });
+    }
     this.observeViewport();
+  }
+
+  /** Shake the map plane on a heavy blow (cosmetic; the engine decides what's
+   *  heavy). `strength` is a 0..1 intensity. Pairs with the `combat.heavyHit`
+   *  sound cue, but the two are independent — either can be disabled alone. */
+  public mapRumble(strength = 0.6) {
+    if (!this.mapStage) return;
+    this.mapStage.rumble({ intensity: strength });
+    this.ensureLoop();
+  }
+
+  /** Start a floor-change transition. Called by the engine at the top of a
+   *  stairs travel, before the live canvas repaints to the new floor, so the
+   *  outgoing floor can be snapshotted. The active effect is chosen from the
+   *  store (reduced motion forces the opacity-only dissolve). */
+  public beginFloorTransition(dir: FloorDir) {
+    if (!this.floorTransition) return;
+    const reduced =
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.floorTransition.setReducedMotion(reduced);
+    this.floorTransition.begin(dir, resolveFloorTransition(ui.floorTransition, reduced));
+    this.ensureLoop();
   }
 
   /** Watch the stage box for size changes (window resize, sidebar reflow,
@@ -302,6 +361,13 @@ export class GameUI {
     if (!s) return;
     const t = ts ?? this.nowMs();
     this.fx = this.fx.filter(f => t - f.start < f.life);
+
+    // Update the map plane's 3D transform (rumble, …) for this frame. Writes to
+    // the canvas's wrapper element, independent of the canvas's own pan transform.
+    this.mapStage?.applyFrame();
+    // Advance any in-flight floor transition (drives the .map-transition/.map-ghost
+    // layers, separate elements from the rumble target).
+    this.floorTransition?.applyFrame();
 
     // Derive the tile size from the available stage box so the dungeon fills the
     // screen and reflows with it. Everything downstream draws off s.tileSize, so
@@ -605,6 +671,8 @@ export class GameUI {
 
   private isAnimating(): boolean {
     if (this.fx.length > 0 || this.nowMs() < this.animUntil) return true;
+    if (this.mapStage?.isAnimating()) return true;
+    if (this.floorTransition?.isAnimating()) return true;
     // A live telegraph keeps pulsing until its attack resolves.
     const ms = this.scene?.monsters;
     if (ms) for (const m of ms) if (m.ai?.pendingAttack) return true;
