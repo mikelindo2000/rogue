@@ -66,3 +66,7 @@ This game is modularized using Vite, TypeScript, and native Web Components:
 - **Build Output**: Run `npm run build` to generate static production assets inside `/dist`.
 - **Custom Components**: Create new components in `src/components/` as HTML5 Custom Elements.
 - **Keyboard Manager**: Central key events are handled under `src/keyboard.ts`. Avoid binding raw keyboard event listeners.
+
+### Manual Trap Test Path
+
+When running the Vite dev server, press `Ctrl+P` (`Cmd+P` on macOS) during gameplay to place a visible poison dart trap on a safe adjacent tile. Step onto the trap to verify the poison dart log, strength drain, and disorienting map-plane wobble/blur without hunting for a naturally generated trap.
