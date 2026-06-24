@@ -33,6 +33,18 @@
   mix-blend-mode: var(--fx-blend, normal);
 }
 
+/* ── Floor chrome texture ──────────────────────────────────────────────── */
+
+.fx-chrome-texture {
+  opacity: var(--fx-opacity, 0.18);
+  background-image: var(--fx-texture-url);
+  background-size: var(--fx-tile-size, 144px) var(--fx-tile-size, 144px);
+  background-repeat: repeat;
+  background-position: center;
+  filter: saturate(0.78) contrast(0.9) brightness(0.9);
+  mix-blend-mode: soft-light;
+}
+
 /* ── Survival warning (migrated from CenterStage's .survival-wash) ──────── */
 
 .fx-survival-hunger,
@@ -172,6 +184,7 @@
     animation: none;
     opacity: var(--survival-pulse-min);
   }
+  .fx-chrome-texture,
   .fx-green-fog,
   .fx-airy-light {
     animation: none;

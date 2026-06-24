@@ -7,6 +7,11 @@
    place. */
 
 import { survivalWarningView, type SurvivalWarningTone } from './format';
+import {
+  chromeOverlayTextureByKey,
+  chromeOverlayUrl,
+  chromeOverlaysForFloor,
+} from './chromeOverlays';
 
 /** Where an effect renders. See the plan's stacking order:
  *  - `chrome`         — behind content in the top bar and side rails
@@ -15,6 +20,7 @@ import { survivalWarningView, type SurvivalWarningTone } from './format';
 export type VisualEffectTarget = 'chrome' | 'stage-backdrop' | 'stage-overlay';
 
 export type VisualEffectKind =
+  | 'floor-chrome-texture'
   | 'survival-hunger'
   | 'survival-health'
   | 'survival-both'
@@ -49,6 +55,7 @@ export interface VisualEffectInput {
 
 /** Paint layers, low → high. Atmosphere sits behind danger signaling. */
 const LAYER = {
+  chromeTexture: 1,
   floorFog: 10,
   survival: 20,
 } as const;
@@ -99,6 +106,8 @@ const FLOOR_EFFECTS: FloorEffectRule[] = [
 /** The CSS class for an effect kind (single source for class naming). */
 function classFor(kind: VisualEffectKind): string {
   switch (kind) {
+    case 'floor-chrome-texture':
+      return 'fx-chrome-texture';
     case 'floor-green-fog':
       return 'fx-green-fog';
     case 'floor-airy-light':
@@ -111,6 +120,27 @@ function classFor(kind: VisualEffectKind): string {
 /** Build the ordered list of currently active visual effects for this frame. */
 export function visualEffectLayers(input: VisualEffectInput): VisualEffectInstance[] {
   const effects: VisualEffectInstance[] = [];
+
+  // Floor-specific chrome textures sit at the bottom of the chrome effect stack.
+  // They are decorative, low opacity, and emitted from the same registry the
+  // asset audit uses.
+  for (const [index, overlay] of chromeOverlaysForFloor(input.floor).entries()) {
+    const texture = chromeOverlayTextureByKey(overlay.textureKey);
+    if (!texture) continue;
+    effects.push({
+      id: `chrome-texture-${texture.key}-${index}`,
+      kind: 'floor-chrome-texture',
+      target: 'chrome',
+      layer: LAYER.chromeTexture + index,
+      intensity: 1,
+      className: classFor('floor-chrome-texture'),
+      vars: {
+        '--fx-opacity': overlay.opacity,
+        '--fx-texture-url': `url("${chromeOverlayUrl(texture.file)}")`,
+        '--fx-tile-size': `${overlay.tileSize}px`,
+      },
+    });
+  }
 
   // Floor atmosphere (rendered behind the survival warning).
   for (const rule of FLOOR_EFFECTS) {

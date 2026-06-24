@@ -2,36 +2,76 @@ import { describe, expect, it } from 'vitest';
 import { visualEffectLayers, visualEffectStyle } from './visualEffects';
 
 // Mirrors format.test.ts's survival baseline so the two stay in lockstep.
-// Floor 2 is a neutral floor with no atmosphere (floors 1/11/13 have effects).
+// Floor 2 has only the baseline chrome texture, no fog/glow/survival effects.
 const base = { floor: 2, hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190, hungerHungry: 425 };
 
 describe('visualEffectLayers — survival migration', () => {
-  it('produces no effects in a safe state', () => {
-    expect(visualEffectLayers(base)).toEqual([]);
+  it('produces no survival effects in a safe state', () => {
+    expect(visualEffectLayers(base).some(e => e.kind.startsWith('survival'))).toBe(false);
   });
 
   it('emits a hunger overlay when hunger is low', () => {
     const effects = visualEffectLayers({ ...base, hunger: 100 });
-    expect(effects).toHaveLength(1);
-    const fx = effects[0];
+    const fx = effects.find(e => e.kind === 'survival-hunger');
+    expect(fx).toBeTruthy();
+    expect(fx!.target).toBe('stage-overlay');
+    expect(fx!.className).toBe('fx-survival-hunger');
+    expect(fx!.intensity).toBeGreaterThan(0.4);
+    expect(fx!.vars?.['--fx-intensity']).toBe(fx!.intensity);
+  });
+
+  it('emits a health overlay when HP is low', () => {
+    const fx = visualEffectLayers({ ...base, hp: 5 }).find(e => e.kind === 'survival-health');
+    expect(fx).toBeTruthy();
+    expect(fx!.className).toBe('fx-survival-health');
+  });
+
+  it('uses the distinct combined effect when both warnings overlap', () => {
+    const fx = visualEffectLayers({ ...base, hp: 5, hunger: 100 }).find(
+      e => e.kind === 'survival-both',
+    );
+    expect(fx).toBeTruthy();
+    expect(fx!.intensity).toBeGreaterThan(0.8);
+  });
+});
+
+describe('visualEffectLayers — chrome textures', () => {
+  it('adds a low chrome texture on every floor', () => {
+    for (let floor = 1; floor <= 20; floor += 1) {
+      const texture = visualEffectLayers({ ...base, floor }).filter(
+        e => e.kind === 'floor-chrome-texture',
+      );
+      expect(texture.length, `floor ${floor}`).toBeGreaterThanOrEqual(1);
+      expect(texture.every(e => e.target === 'chrome')).toBe(true);
+      expect(texture.every(e => e.className === 'fx-chrome-texture')).toBe(true);
+      expect(
+        texture.every(e => String(e.vars?.['--fx-texture-url']).startsWith('url("/chrome-overlays/')),
+      ).toBe(true);
+    }
+  });
+
+  it('uses stable texture ids that change between assigned floors for crossfade', () => {
+    const floor1 = visualEffectLayers({ ...base, floor: 1 }).find(
+      e => e.kind === 'floor-chrome-texture',
+    );
+    const floor2 = visualEffectLayers({ ...base, floor: 2 }).find(
+      e => e.kind === 'floor-chrome-texture',
+    );
+
+    expect(floor1?.id).toBe('chrome-texture-old-ashlar-0');
+    expect(floor2?.id).toBe('chrome-texture-granite-rubble-0');
+    expect(floor1?.id).not.toBe(floor2?.id);
+  });
+});
+
+describe('visualEffectLayers — survival migration details', () => {
+  it('keeps hunger overlay properties grounded in the survival registry', () => {
+    const fx = visualEffectLayers({ ...base, hunger: 100 }).find(e => e.kind === 'survival-hunger')!;
     expect(fx.kind).toBe('survival-hunger');
     expect(fx.target).toBe('stage-overlay');
     expect(fx.className).toBe('fx-survival-hunger');
     expect(fx.intensity).toBeGreaterThan(0.4);
     expect(fx.vars?.['--fx-intensity']).toBe(fx.intensity);
-  });
-
-  it('emits a health overlay when HP is low', () => {
-    const fx = visualEffectLayers({ ...base, hp: 5 })[0];
-    expect(fx.kind).toBe('survival-health');
-    expect(fx.className).toBe('fx-survival-health');
-  });
-
-  it('uses the distinct combined effect when both warnings overlap', () => {
-    const effects = visualEffectLayers({ ...base, hp: 5, hunger: 100 });
-    expect(effects).toHaveLength(1);
-    expect(effects[0].kind).toBe('survival-both');
-    expect(effects[0].intensity).toBeGreaterThan(0.8);
   });
 });
 
@@ -47,15 +87,14 @@ describe('visualEffectLayers — floor fog', () => {
     expect(Number(stage?.vars?.['--fx-opacity'])).toBeGreaterThan(
       Number(chrome?.vars?.['--fx-opacity'])
     );
-    // Fog (floor) layers paint below the survival overlay.
-    expect(visualEffectLayers({ ...base, floor: 13 }).length).toBe(2);
+    // Fog (floor) layers paint above the base chrome texture and below survival.
+    expect(visualEffectLayers({ ...base, floor: 13 }).filter(e => e.kind === 'floor-green-fog')).toHaveLength(2);
   });
 
   it('does not add fog on non-fog floors', () => {
     expect(visualEffectLayers({ ...base, floor: 12 }).some((e) => e.kind === 'floor-green-fog')).toBe(
       false
     );
-    expect(visualEffectLayers({ ...base, floor: 12 })).toEqual([]);
   });
 
   it('layers floor fog beneath the survival warning when both are active', () => {
@@ -76,11 +115,11 @@ describe('visualEffectLayers — floor fog', () => {
 describe('visualEffectLayers — floor 1 airy glow', () => {
   it('adds a light, airy effect on the chrome only on floor 1', () => {
     const effects = visualEffectLayers({ ...base, floor: 1 });
-    expect(effects).toHaveLength(1);
-    const fx = effects[0];
-    expect(fx.kind).toBe('floor-airy-light');
-    expect(fx.target).toBe('chrome');
-    expect(fx.className).toBe('fx-airy-light');
+    const fx = effects.find(e => e.kind === 'floor-airy-light');
+    expect(fx).toBeTruthy();
+    expect(fx!.kind).toBe('floor-airy-light');
+    expect(fx!.target).toBe('chrome');
+    expect(fx!.className).toBe('fx-airy-light');
     // Chrome-only: nothing lands on the stage.
     expect(effects.some((e) => e.target.startsWith('stage'))).toBe(false);
   });

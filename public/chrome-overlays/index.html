@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rogue Chrome Overlay Texture Candidates</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090807;
+      --rail: #12100e;
+      --rail-2: #181512;
+      --ink: #ece3d2;
+      --muted: #a79b88;
+      --line: #2b251f;
+      --accent: #d7a84f;
+      --danger: #cf5f4d;
+      --opacity: 0.22;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(215, 168, 79, 0.12), transparent 42rem),
+        var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem clamp(1rem, 3vw, 2rem);
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 86%, transparent);
+      backdrop-filter: blur(16px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1rem, 2vw, 1.35rem);
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      width: min(22vw, 220px);
+      accent-color: var(--accent);
+    }
+
+    main {
+      width: min(1800px, 100%);
+      margin: 0 auto;
+      padding: clamp(1rem, 3vw, 2rem);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+
+    article {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--rail);
+      min-width: 0;
+    }
+
+    .meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--rail-2);
+    }
+
+    .title {
+      min-width: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tag {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .preview {
+      display: grid;
+      grid-template-columns: 42% 58%;
+      min-height: 270px;
+    }
+
+    .raw {
+      min-height: 100%;
+      background-image: var(--texture);
+      background-size: cover;
+      background-position: center;
+      border-right: 1px solid var(--line);
+    }
+
+    .chrome {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 0.75rem;
+      padding: 0.9rem;
+      isolation: isolate;
+      background: var(--rail);
+      overflow: hidden;
+    }
+
+    .chrome::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      opacity: var(--opacity);
+      background-image: var(--texture);
+      background-size: 128px 128px;
+      background-repeat: repeat;
+      filter: saturate(0.82) contrast(0.92);
+    }
+
+    .chrome::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(90deg, rgba(0, 0, 0, 0.42), transparent 45%, rgba(0, 0, 0, 0.34)),
+        rgba(9, 8, 7, 0.42);
+    }
+
+    .topline,
+    .log,
+    .footer {
+      border: 1px solid color-mix(in srgb, var(--line) 82%, black);
+      border-radius: 6px;
+      background: rgba(12, 11, 9, 0.68);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+
+    .topline {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.4rem 0.55rem;
+      padding: 0.55rem;
+      color: var(--ink);
+    }
+
+    .stat {
+      min-width: 0;
+    }
+
+    .stat b {
+      display: inline;
+      margin-right: 0.35rem;
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .stat span {
+      display: inline;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .log {
+      padding: 0.65rem;
+      color: var(--muted);
+    }
+
+    .log strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .log p {
+      margin: 0 0 0.42rem;
+    }
+
+    .log p:last-child {
+      margin-bottom: 0;
+      color: var(--danger);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.65rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .prompt {
+      padding: 0.75rem 0.85rem 0.85rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 560px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      input[type="range"] {
+        width: 52vw;
+      }
+
+      .preview {
+        grid-template-columns: 1fr;
+      }
+
+      .raw {
+        min-height: 180px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Rogue Chrome Overlay Texture Candidates</h1>
+    <label class="controls">
+      <span>Opacity <output id="opacity-value">0.22</output></span>
+      <input id="opacity" type="range" min="0" max="1" value="0.22" step="0.01">
+    </label>
+  </header>
+  <main>
+    <section class="grid">
+      <article style="--texture: url('texture-01-old-ashlar.png');">
+        <div class="meta">
+          <div class="title">1. Old Ashlar</div>
+          <div class="tag">stone</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Old Ashlar raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 1</span>
+              <span>texture-01-old-ashlar.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, ancient ashlar block wall, uneven rectangular stones, lime mortar, tiny chips and hairline cracks, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-03-black-basalt.png');">
+        <div class="meta">
+          <div class="title">3. Black Basalt</div>
+          <div class="tag">stone</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Black Basalt raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 3</span>
+              <span>texture-03-black-basalt.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, dark basalt blocks, subtle volcanic grain, charcoal joints, small orange heat scars nearly faded, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-04-granite-rubble.png');">
+        <div class="meta">
+          <div class="title">4. Granite Rubble</div>
+          <div class="tag">stone</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Granite Rubble raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 4</span>
+              <span>texture-04-granite-rubble.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, rough granite rubble masonry, irregular fitted stones, dusty mortar, blunt chipped corners, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-06-sandstone-crypt.png');">
+        <div class="meta">
+          <div class="title">6. Sandstone Crypt</div>
+          <div class="tag">stone</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Sandstone Crypt raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 6</span>
+              <span>texture-06-sandstone-crypt.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, aged sandstone crypt wall, soft ochre-gray grain, worn block seams, powdery carved wear with no readable symbols, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-07-salt-crust.png');">
+        <div class="meta">
+          <div class="title">7. Salt Crust</div>
+          <div class="tag">stone</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Salt Crust raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 7</span>
+              <span>texture-07-salt-crust.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, blank stone wall with pale salt efflorescence, chalky crust around joints, subdued damp shadows, no carvings or tile labels, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-08-moss-mortar.png');">
+        <div class="meta">
+          <div class="title">8. Moss Mortar</div>
+          <div class="tag">overgrowth</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Moss Mortar raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 8</span>
+              <span>texture-08-moss-mortar.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, old dungeon blocks with moss only in mortar seams, tiny roots, dark cool stone, sparse organic flecks, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-09-root-veined-rock.png');">
+        <div class="meta">
+          <div class="title">9. Root Veined Rock</div>
+          <div class="tag">overgrowth</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Root Veined Rock raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 9</span>
+              <span>texture-09-root-veined-rock.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, cave rock surface threaded with thin brown roots, clay pockets, compact organic texture, no leaves, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-10-lichen-bricks.png');">
+        <div class="meta">
+          <div class="title">10. Lichen Bricks</div>
+          <div class="tag">overgrowth</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Lichen Bricks raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 10</span>
+              <span>texture-10-lichen-bricks.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, small ancient bricks with pale lichen speckles, green-gray patina, soft dusty grout, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-11-fungal-stone.png');">
+        <div class="meta">
+          <div class="title">11. Fungal Stone</div>
+          <div class="tag">overgrowth</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Fungal Stone raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 11</span>
+              <span>texture-11-fungal-stone.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, subtle fungal staining across dungeon stone, smoky teal spores, flattened surface detail, no mushroom shapes, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-12-ivy-shadow.png');">
+        <div class="meta">
+          <div class="title">12. Ivy Shadow</div>
+          <div class="tag">overgrowth</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Ivy Shadow raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 12</span>
+              <span>texture-12-ivy-shadow.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, faint dead ivy silhouettes pressed over masonry, brittle vine threads, very low contrast dark greens, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-13-clay-cave.png');">
+        <div class="meta">
+          <div class="title">13. Clay Cave</div>
+          <div class="tag">cave</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Clay Cave raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 13</span>
+              <span>texture-13-clay-cave.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, close-up cracked dry clay and mud surface, natural earth pigment, random organic crack network, compact cave-floor material texture, surface only, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-15-shale-strata.png');">
+        <div class="meta">
+          <div class="title">15. Shale Strata</div>
+          <div class="tag">cave</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Shale Strata raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 15</span>
+              <span>texture-15-shale-strata.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, horizontal shale strata, compressed layered rock, thin fissures, smoky charcoal and umber bands, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-16-lava-cooled.png');">
+        <div class="meta">
+          <div class="title">16. Lava Cooled</div>
+          <div class="tag">cave</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Lava Cooled raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 16</span>
+              <span>texture-16-lava-cooled.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, cooled lava stone crust, cracked ropy texture, almost-black surface with faint ember-red lines, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-17-crystal-dust.png');">
+        <div class="meta">
+          <div class="title">17. Crystal Dust</div>
+          <div class="tag">cave</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Crystal Dust raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 17</span>
+              <span>texture-17-crystal-dust.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, blank dark cave wall dusted with tiny quartz flecks, mineral sparkle kept sparse, cool gray-blue stone, no etched marks, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-19-iron-banded.png');">
+        <div class="meta">
+          <div class="title">19. Iron Banded</div>
+          <div class="tag">metal</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Iron Banded raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 19</span>
+              <span>texture-19-iron-banded.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, iron-banded dungeon plates, oxidized rivets, dark hammered metal, rust collecting around seams, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-20-verdigris-copper.png');">
+        <div class="meta">
+          <div class="title">20. Verdigris Copper</div>
+          <div class="tag">metal</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Verdigris Copper raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 20</span>
+              <span>texture-20-verdigris-copper.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, aged copper sheet texture with verdigris blooms, subtle riveted seams, dark teal oxidation, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-22-chainmail-shadow.png');">
+        <div class="meta">
+          <div class="title">22. Chainmail Shadow</div>
+          <div class="tag">metal</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Chainmail Shadow raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 2</span>
+              <span>texture-22-chainmail-shadow.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, flattened chainmail-like metal texture, interlocking dark rings, soft shadow, no object silhouette, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-23-rust-patina.png');">
+        <div class="meta">
+          <div class="title">23. Rust Patina</div>
+          <div class="tag">metal</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Rust Patina raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 3</span>
+              <span>texture-23-rust-patina.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, rust patina over old iron, mottled red-brown blooms, blackened pits, subdued grit, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-24-charred-plank.png');">
+        <div class="meta">
+          <div class="title">24. Charred Plank</div>
+          <div class="tag">wood</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Charred Plank raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 4</span>
+              <span>texture-24-charred-plank.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, charred dungeon wood planks, dark grain, scorched edges, faint ash dust in seams, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-26-root-wattle.png');">
+        <div class="meta">
+          <div class="title">26. Root Wattle</div>
+          <div class="tag">wood</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Root Wattle raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 6</span>
+              <span>texture-26-root-wattle.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, woven root and wattle texture, dark flexible branches, mud packed between strands, compact repeatable pattern, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-27-coffin-wood.png');">
+        <div class="meta">
+          <div class="title">27. Coffin Wood</div>
+          <div class="tag">wood</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Coffin Wood raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 7</span>
+              <span>texture-27-coffin-wood.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, aged coffin plank surface, gray-brown wood, faint nail stains, splintered grain without obvious hardware, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-33-ice-rimed-brick.png');">
+        <div class="meta">
+          <div class="title">33. Ice Rimed Brick</div>
+          <div class="tag">elemental</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Ice Rimed Brick raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 13</span>
+              <span>texture-33-ice-rimed-brick.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, cold dungeon bricks rimed with thin frost, blue-gray mortar, tiny ice crystals kept subtle, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+      <article style="--texture: url('texture-34-ember-mortar.png');">
+        <div class="meta">
+          <div class="title">34. Ember Mortar</div>
+          <div class="tag">elemental</div>
+        </div>
+        <div class="preview">
+          <div class="raw" aria-label="Ember Mortar raw texture"></div>
+          <div class="chrome">
+            <div class="topline">
+              <div class="stat"><b>HP</b><span>47/52</span></div>
+              <div class="stat"><b>AC</b><span>3</span></div>
+              <div class="stat"><b>STR</b><span>17</span></div>
+              <div class="stat"><b>Gold</b><span>1426</span></div>
+            </div>
+            <div class="log">
+              <p><strong>You descend.</strong> The walls close around the old stair.</p>
+              <p>A pressure plate clicks somewhere in the dark.</p>
+              <p>The goblin misses you.</p>
+            </div>
+            <div class="footer">
+              <span>Floor 14</span>
+              <span>texture-34-ember-mortar.png</span>
+            </div>
+          </div>
+        </div>
+        <div class="prompt">seamless tileable dark fantasy dungeon chrome overlay texture, flat orthographic material pattern, photogrammetry-style PBR material scan, edge-to-edge repeating surface, designed to sit at low opacity behind readable game UI text, subtle mid-dark values, low focal contrast, no scene composition, no perspective, black stone blocks with faint ember glow deep in mortar cracks, sparse warm points, mostly dark surface, 512x512 square texture, even lighting, muted natural color, fine tactile detail, soft worn edges, no central object, no characters, no creatures, no weapons, no text, no letters, no numbers, no writing, no inscriptions, blank material sample, no markings that resemble writing, no symbols, no logo, no UI, no frame, no vignette</div>
+      </article>
+    </section>
+  </main>
+  <script>
+    const slider = document.querySelector('#opacity');
+    const value = document.querySelector('#opacity-value');
+    const sync = () => {
+      document.documentElement.style.setProperty('--opacity', slider.value);
+      value.value = Number(slider.value).toFixed(2);
+    };
+    slider.addEventListener('input', sync);
+    sync();
+  </script>
+</body>
+</html>

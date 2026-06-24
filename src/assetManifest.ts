@@ -26,6 +26,7 @@ import {
   gearArtUrl,
 } from './ui/inventoryArt';
 import { FLOOR_BACKGROUNDS, LEGACY_DUNGEON_BACKGROUNDS, backgroundUrl } from './ui/backgrounds';
+import { CHROME_OVERLAY_TEXTURES, chromeOverlayUrl } from './ui/chromeOverlays';
 import {
   END_RUN_ART_FILES,
   MONSTER_DEATH_ART_FILES,
@@ -116,6 +117,10 @@ export function buildAssetManifest(): AssetGroup[] {
 
   const legacyBgEntries: AssetEntry[] = LEGACY_DUNGEON_BACKGROUNDS.map(name =>
     entry(name.replace('.png', ''), backgroundUrl(name), /* optional */ true),
+  );
+
+  const chromeOverlayEntries: AssetEntry[] = CHROME_OVERLAY_TEXTURES.map(texture =>
+    entry(texture.label, chromeOverlayUrl(texture.file)),
   );
 
   const scenarioEndingEntries: AssetEntry[] = END_RUN_ART_FILES.map(file =>
@@ -221,6 +226,15 @@ export function buildAssetManifest(): AssetGroup[] {
       designDoc: 'design/implemented/background_image_generation.md',
       generator: '(retained legacy art — not actively generated)',
       entries: legacyBgEntries,
+    },
+    {
+      category: 'chrome-overlays',
+      title: 'Chrome Overlay Textures',
+      dir: 'chrome-overlays',
+      sourceOfTruth: 'src/ui/chromeOverlays.ts CHROME_OVERLAY_TEXTURES',
+      designDoc: 'design/implemented/chrome_overlay_textures.md',
+      generator: 'node scripts/gen-chrome-overlay-textures.mjs',
+      entries: chromeOverlayEntries,
     },
     {
       category: 'intro',
