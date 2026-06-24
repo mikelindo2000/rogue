@@ -76,6 +76,14 @@ Rings Phase 1 (slot/equip plumbing) and the wands data model both exercise the
 pattern the others follow. A shared **identification + curses** plan is the natural
 next document, since it unlocks the final phase of all three.
 
+## New-game UX
+
+- **[Intro Screen, How-to-Play & Shortcuts](intro_screen_and_shortcuts_plan.md)** —
+  adds a first-visit "enter the dungeon" intro gate with a How-to-Play guide
+  (shared as a tab on the end screen), fixes the non-functional `?` "all
+  shortcuts" affordance with a real shortcuts modal driven by the keybinding
+  registry, and adds an optional pre-generated ElevenLabs narration of the guide.
+
 ## Map-generation expansion
 
 - **[Map Generation Variety](map_generation_variety_plan.md)** — expands the
