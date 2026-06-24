@@ -34,6 +34,10 @@
     <span class="lbl">inventory</span>
     </span>
     <span class="hint">
+    <KeyCap>c</KeyCap>
+    <span class="lbl">loadout</span>
+    </span>
+    <span class="hint">
     <KeyCap>e</KeyCap>
     <span class="lbl">eat</span>
     </span>
