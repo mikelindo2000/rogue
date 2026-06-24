@@ -28,6 +28,10 @@ and don't collide:
   first-class carried/read item line with a typed catalog, scroll-focused
   inventory browsing, filters by type/tier/floor band, keyboard-first reading,
   and generated full inventory art for every scroll.
+- **[Scroll Consistency & Drop Items](scroll_consistency_and_drop_items_plan.md)** —
+  retunes the now-visible scroll catalog so harmful/blank scrolls are rare
+  texture instead of common clutter, then adds a keyboard-first drop command so
+  situational items can be managed deliberately.
 - **[Visual Effect Layers](visual_effect_layers_plan.md)** — generalizes the
   existing hunger/low-HP HUD wash into layered chrome and stage effects, including
   the first green-fog floor atmosphere.
