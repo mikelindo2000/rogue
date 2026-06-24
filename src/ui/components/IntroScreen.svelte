@@ -42,14 +42,27 @@
     narrating = false;
   }
 
+  // Dismiss the gate AND stop the narration in the same synchronous call, so an
+  // in-progress clip can never bleed into gameplay (the game music starts when
+  // the gate is dismissed). The $effect below is only a backstop.
+  function dismiss() {
+    stopNarration();
+    actions.dismissIntro();
+  }
+
   $effect(() => {
     if (ui.introOpen) {
       requestAnimationFrame(() => enterButton?.focus());
     } else {
-      // Gate dismissed — silence any in-progress narration.
+      // Backstop: silence narration if the gate is closed by any other path.
       stopNarration();
     }
   });
+
+  // Hard cleanup: if this component is ever torn down (e.g. an HMR swap) while
+  // the clip is playing, pause it so an orphaned Audio element can't keep
+  // playing over the game with no handle left to stop it.
+  $effect(() => () => stopNarration());
 
   function onKeydown(e: KeyboardEvent) {
     if (!ui.introOpen) return;
@@ -63,7 +76,7 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      actions.dismissIntro();
+      dismiss();
       return;
     }
     // Trap Tab within the gate's buttons so focus can't fall into the suspended
@@ -100,7 +113,7 @@
       <HowToPlay variant="intro" />
 
       <footer class="actions">
-        <button bind:this={enterButton} class="primary" type="button" onclick={() => actions.dismissIntro()}>
+        <button bind:this={enterButton} class="primary" type="button" onclick={dismiss}>
           Enter the dungeon
         </button>
         <button class="ghost" type="button" aria-pressed={narrating} onclick={toggleNarration}>
