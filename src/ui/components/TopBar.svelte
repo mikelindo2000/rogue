@@ -2,9 +2,11 @@
   import { ui, actions } from '../store.svelte';
   import StatChip from './primitives/StatChip.svelte';
   import Icon from './primitives/Icon.svelte';
+  import EffectLayerHost from './EffectLayerHost.svelte';
 </script>
 
 <header class="bar">
+  <EffectLayerHost effects={ui.visualEffects} target="chrome" />
   <div class="left">
     <div class="logo" aria-hidden="true">></div>
     <div class="floor">
@@ -38,6 +40,9 @@
 
 <style>
   .bar {
+    position: relative;
+    /* Contain chrome-fog z-index math so it can't leak into the app stack. */
+    isolation: isolate;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -46,6 +51,12 @@
     padding: 0 20px;
     background: var(--surface-bar);
     border-bottom: 1px solid var(--border);
+  }
+  /* Lift the bar's content above the chrome effect host (z-index: 0). */
+  .left,
+  .right {
+    position: relative;
+    z-index: 1;
   }
   .left {
     display: flex;

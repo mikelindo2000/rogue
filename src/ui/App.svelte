@@ -12,6 +12,8 @@
   import InventoryModal from './components/InventoryModal.svelte';
   import BalancePanel from './components/BalancePanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
+  import EffectLayerHost from './components/EffectLayerHost.svelte';
+  import { ui } from './store.svelte';
 </script>
 
 <div class="frame">
@@ -19,15 +21,21 @@
     <TopBar />
     <div class="body">
       <aside class="rail rail-left">
-        <CharacterCard />
-        <Vitals />
-        <Equipment />
-        <Consumables />
+        <EffectLayerHost effects={ui.visualEffects} target="chrome" />
+        <div class="rail-content">
+          <CharacterCard />
+          <Vitals />
+          <Equipment />
+          <Consumables />
+        </div>
       </aside>
       <CenterStage />
       <aside class="rail rail-right">
-        <Inventory />
-        <MessageLog />
+        <EffectLayerHost effects={ui.visualEffects} target="chrome" />
+        <div class="rail-content">
+          <Inventory />
+          <MessageLog />
+        </div>
       </aside>
     </div>
     <Footer />
@@ -61,11 +69,25 @@
     min-height: 0;
   }
   .rail {
+    position: relative;
+    /* Contain chrome-fog z-index math so it can't leak into the app stack.
+       The effect host self-clips (its own overflow: hidden), so the rail keeps
+       overflow visible and focus rings/tooltips are never clipped. */
+    isolation: isolate;
     flex: none;
     display: flex;
     flex-direction: column;
     min-height: 0;
     background: var(--surface-rail);
+  }
+  /* Holds the rail's real content above the chrome effect host (z-index: 0). */
+  .rail-content {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
   .rail-left {
     width: var(--rail-left-w);
