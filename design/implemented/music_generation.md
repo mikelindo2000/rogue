@@ -23,16 +23,21 @@ curl -s -X POST "https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128"
 
 ## Per-track prompts
 
-- **`explore-shallow-01.mp3`** (floors 1–3, the opening bed) — tense,
-  anticipatory "gathering storm":
-  > Tense, anticipatory dark-fantasy orchestral instrumental. A slow, brooding,
-  > patient build: low sustained strings and soft cello drones, a quiet pulsing
-  > bass heartbeat, distant muffled timpani, sparse lonely piano and harp notes
-  > hanging in cold air, faint ominous swells. Restrained and atmospheric, heavy
-  > with foreboding and suspense, like a storm gathering on the horizon that has
-  > not yet broken. Minor key, unresolved and uneasy, cinematic and spacious. No
-  > whistles, no cheerful folk, no fiddle jigs, no vocals, no big climax. Seamless
-  > looping background music for cautiously exploring a dangerous dungeon.
+- **`explore-shallow-01.mp3`** (floors 1–3, the opening bed) — melodic,
+  anticipatory cinematic theme (driving ostinato + a real melody, not ambient).
+  Reference idiom: epic fantasy-film "the journey begins" cues built on a
+  running low-string ostinato under a noble minor-key theme:
+  > Epic cinematic fantasy film score, anticipatory and building, in the style of
+  > a grand adventure beginning. A driving, propulsive low string ostinato —
+  > steady running eighth-note cellos and basses — creates forward momentum and
+  > rising tension, while a clear, memorable, noble minor-key melodic theme soars
+  > over the top on solo cello and french horn. Brooding yet adventurous: a sense
+  > of an approaching threat and a great journey setting out, something powerful
+  > brewing just over the horizon but not yet arrived. Lush orchestral strings,
+  > distant calling horns, a subtle timpani pulse, dark and stirring. Strong
+  > thematic melody, NOT ambient, NOT sparse, NOT a drone. Minor key, mid-tempo,
+  > fully instrumental, no vocals, no whistles, no folk fiddle jigs. Seamless
+  > looping background music for a perilous fantasy dungeon adventure.
 
 Other beds (`explore-deep`, `boss`, `safe`, `gameover`, `victory-credits`) were
 part of the original audio drop; document their prompts here if/when regenerated.
