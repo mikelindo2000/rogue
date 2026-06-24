@@ -63,6 +63,8 @@ describe('equipment stat display helpers', () => {
     expect(gearHealthView({ name: 'Buckler', def: 3, maxDef: 3 }, 'var(--rarity-common)')).toEqual({
       label: '3/3',
       ratio: 1,
+      current: 3,
+      max: 3,
       tone: 'good',
       color: 'var(--rarity-common)',
     });

@@ -3,6 +3,8 @@
   import type { InventoryCell } from '../store.svelte';
   import Icon from './primitives/Icon.svelte';
   import InventoryTooltip from './InventoryTooltip.svelte';
+  import DurabilityBar from './primitives/DurabilityBar.svelte';
+  import UpgradeBadge from './primitives/UpgradeBadge.svelte';
 
   let { cell, onSelect }: { cell?: InventoryCell; onSelect?: (cell: InventoryCell) => void } = $props();
 
@@ -69,14 +71,19 @@
       <span class="icon" class:broken={cell.health?.tone === 'broken'} style="color:{cell.health?.color ?? cell.rarityColor}">
         <Icon name={cell.icon} size={20} />
       </span>
-      {#if cell.health && cell.health.tone !== 'good'}
-        <span class="health tnum" class:bad={cell.health.tone === 'bad'} class:broken={cell.health.tone === 'broken'}>{cell.health.label}</span>
+      {#if cell.verdict || cell.isBest || cell.strictlyBetter}
+        <span class="badge">
+          <UpgradeBadge verdict={cell.verdict} strictlyBetter={cell.strictlyBetter} isBest={cell.isBest} compact />
+        </span>
       {/if}
       {#if cell.statLabel}
         <span class="stat tnum">{cell.statLabel}</span>
       {/if}
       {#if cell.count}
         <span class="count">{cell.count}</span>
+      {/if}
+      {#if cell.health}
+        <span class="dura"><DurabilityBar health={cell.health} /></span>
       {/if}
     </button>
     {#if showTooltip && tooltipId}
@@ -132,36 +139,16 @@
     opacity: 0.7;
     filter: saturate(0.55);
   }
-  .health {
+  .badge {
     position: absolute;
     top: 3px;
-    right: 3px;
-    max-width: calc(100% - 6px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 1px 4px;
-    border-radius: var(--r-pill);
-    border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border-chip));
-    background: var(--accent-surface);
-    color: var(--accent);
-    font: 750 8px var(--font-display);
-    font-variant-numeric: tabular-nums;
-  }
-  .health.bad {
-    border-color: color-mix(in srgb, var(--danger) 54%, var(--border-chip));
-    background: color-mix(in srgb, var(--danger) 12%, var(--surface-inset));
-    color: var(--danger);
-  }
-  .health.broken {
-    border-color: var(--border-chip);
-    background: var(--surface-inset);
-    color: var(--text-faint);
+    left: 4px;
+    line-height: 1;
   }
   .stat {
     position: absolute;
     left: 4px;
-    bottom: 3px;
+    bottom: 6px;
     max-width: calc(100% - 8px);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -174,9 +161,16 @@
   .count {
     position: absolute;
     right: 4px;
-    bottom: 3px;
+    bottom: 6px;
     font: 600 9.5px var(--font-display);
     font-variant-numeric: tabular-nums;
     color: var(--text-label);
+  }
+  .dura {
+    position: absolute;
+    left: 5px;
+    right: 5px;
+    bottom: 3px;
+    display: block;
   }
 </style>

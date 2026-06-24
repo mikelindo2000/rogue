@@ -3,106 +3,85 @@
   import type { EquipSlotView } from '../store.svelte';
   import Icon from './primitives/Icon.svelte';
   import RarityDot from './primitives/RarityDot.svelte';
-  import Popover, { type MenuItem } from './primitives/Popover.svelte';
+  import DurabilityBar from './primitives/DurabilityBar.svelte';
 
-  let { slot, onOpenChange }: { slot: EquipSlotView; onOpenChange?: (open: boolean) => void } =
-    $props();
+  let { slot, index = 0 }: { slot: EquipSlotView; index?: number } = $props();
 
-  const items = $derived<MenuItem[]>(
-    slot.options.map((o) => ({
-      value: o.value,
-      label: o.label,
-      meta: o.meta,
-      color: o.rarityColor,
-      selected: o.selected,
-      disabled: o.disabled,
-    }))
-  );
-
-  function onSelect(value: string) {
-    actions.equip(slot.slot, value);
+  // The slot is now a pure summary affordance: clicking (or Enter/Space) opens
+  // the loadout hub focused on this slot, where selection actually happens.
+  function open() {
+    actions.selectEquipSlot(slot.slot);
+    actions.setInventoryOpen(true);
   }
+
+  const upgradeText = $derived(
+    slot.upgrade ? `${slot.upgrade.strict ? '▲' : '▲'} ${slot.upgrade.bestName} · ${slot.upgrade.bestStat}` : ''
+  );
 </script>
 
-<Popover
-  {items}
-  {onSelect}
-  {onOpenChange}
-  align="stretch"
-  label="{slot.label} options"
+<button
+  class="slot"
+  class:filled={!slot.empty}
+  data-equip-slot={index}
+  onclick={open}
+  aria-label="{slot.label}: {slot.empty ? (slot.emptyLabel ?? 'Empty') : slot.itemName}; {slot.statLabel}{slot.health ? `; condition ${slot.health.tone}, ${slot.health.label}` : ''}{slot.upgrade ? `; better available: ${slot.upgrade.bestName} ${slot.upgrade.bestStat}` : ''}. Open loadout."
 >
-  {#snippet trigger({ toggle, open })}
-    <button
-      class="slot"
-      class:filled={!slot.empty}
-      class:open
-      onclick={toggle}
-      aria-haspopup="menu"
-      aria-expanded={open}
-      aria-label="{slot.label}: {slot.empty ? (slot.emptyLabel ?? 'Empty') : slot.itemName}; {slot.statLabel}{slot.health ? `; condition ${slot.health.tone}, ${slot.health.label}` : ''}; {slot.availableLabel}"
-    >
-      <span
-        class="tile"
-        class:filled={!slot.empty}
-        class:broken={slot.health?.tone === 'broken'}
-        style:color={slot.empty ? 'var(--text-faintest)' : (slot.health?.color ?? slot.rarityColor)}
-      >
-        <Icon name={slot.icon} size={18} />
-      </span>
-      <span class="text">
-        <span class="label">{slot.label}</span>
-        <span class="name-line">
-          {#if slot.empty}
-            <span class="name empty">{slot.emptyLabel ?? 'Empty'}</span>
-          {:else}
-            <span class="name" style:color={slot.rarityColor}>{slot.itemName}</span>
-          {/if}
-          <span class="stat tnum">{slot.statLabel}</span>
-        </span>
-      </span>
-      <span class="right">
-        {#if slot.health && slot.health.tone !== 'good'}
-          <span class="health tnum" class:bad={slot.health.tone === 'bad'} class:broken={slot.health.tone === 'broken'} title="Condition {slot.health.label}">
-            {slot.health.label}
-          </span>
-        {/if}
-        {#if slot.availableCount > 0}
-          <span
-            class="available tnum"
-            class:upgrade={slot.hasUpgrade || slot.empty}
-            title={slot.hasUpgrade ? `${slot.availableLabel}; upgrade available` : slot.availableLabel}
-          >
-            {slot.availableCount}
-          </span>
-        {/if}
-        {#if !slot.empty}
-          <RarityDot color={slot.rarityColor} glow />
-        {/if}
-      </span>
-    </button>
-  {/snippet}
-</Popover>
+  <span
+    class="tile"
+    class:filled={!slot.empty}
+    class:broken={slot.health?.tone === 'broken'}
+    style:color={slot.empty ? 'var(--text-faintest)' : (slot.health?.color ?? slot.rarityColor)}
+  >
+    <Icon name={slot.icon} size={18} />
+  </span>
+  <span class="text">
+    <span class="label-line">
+      <span class="label">{slot.label}</span>
+      {#if !slot.empty}<RarityDot color={slot.rarityColor} glow />{/if}
+    </span>
+    <span class="name-line">
+      {#if slot.empty}
+        <span class="name empty">{slot.emptyLabel ?? 'Empty'}</span>
+      {:else}
+        <span class="name" style:color={slot.rarityColor}>{slot.itemName}</span>
+      {/if}
+      <span class="stat tnum">{slot.statLabel}</span>
+    </span>
+    {#if slot.health}
+      <DurabilityBar health={slot.health} />
+    {/if}
+    {#if slot.upgrade}
+      <span class="upgrade" class:strict={slot.upgrade.strict}>{upgradeText}</span>
+    {/if}
+  </span>
+</button>
 
 <style>
   .slot {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 9px;
     width: 100%;
     padding: 8px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--r-md);
     background: transparent;
     text-align: left;
     cursor: pointer;
-    transition: background var(--dur-fast) var(--ease);
+    transition:
+      background var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease);
   }
   .slot.filled {
     background: var(--surface-card);
   }
-  .slot:hover,
-  .slot.open {
+  .slot:hover {
     background: var(--surface-card);
+  }
+  .slot:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 35%, transparent);
   }
   .tile {
     display: flex;
@@ -111,6 +90,7 @@
     width: 32px;
     height: 32px;
     flex: none;
+    margin-top: 2px;
     border-radius: var(--r-md);
     background: var(--surface-card);
     border: 1px dashed var(--border-slot);
@@ -128,7 +108,13 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
+  }
+  .label-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
   }
   .label {
     font: 600 var(--fs-slot-label) var(--font-display);
@@ -156,61 +142,19 @@
   }
   .stat {
     flex: none;
+    margin-left: auto;
     font: 600 10px var(--font-display);
     color: var(--text-label);
     font-variant-numeric: tabular-nums;
   }
-  .right {
-    flex: none;
-    width: 62px;
-    min-height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 5px;
+  .upgrade {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 700 9.5px var(--font-display);
+    color: var(--good);
   }
-  .health {
-    min-width: 26px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 5px;
-    border-radius: var(--r-pill);
-    border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border-chip));
-    background: var(--accent-surface);
-    color: var(--accent);
-    font: 750 9px var(--font-display);
-    font-variant-numeric: tabular-nums;
-  }
-  .health.bad {
-    border-color: color-mix(in srgb, var(--danger) 54%, var(--border-chip));
-    background: color-mix(in srgb, var(--danger) 12%, var(--surface-inset));
-    color: var(--danger);
-  }
-  .health.broken {
-    border-color: var(--border-chip);
-    background: var(--surface-inset);
-    color: var(--text-faint);
-  }
-  .available {
-    min-width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 5px;
-    border-radius: var(--r-pill);
-    border: 1px solid var(--border-chip);
-    background: var(--surface-inset);
-    color: var(--text-muted);
-    font: 700 10px var(--font-display);
-    font-variant-numeric: tabular-nums;
-  }
-  .available.upgrade {
-    color: var(--accent);
-    border-color: var(--accent-border);
-    background: var(--accent-surface);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-glow) 28%, transparent);
+  .upgrade.strict {
+    color: var(--good-bright);
   }
 </style>

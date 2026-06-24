@@ -51,9 +51,14 @@ export function gearHealthView(item: GearItem | undefined, fallbackColor: string
   const ratio = gearHealthRatio(item);
   const tone = gearHealthTone(item);
   if (!label || ratio === null || tone === 'none') return undefined;
+  // gearHealthLabel normalizes the item in place, so health is populated here.
+  const current = item?.health?.current ?? 0;
+  const max = item?.health?.max ?? current;
   return {
     label,
     ratio,
+    current,
+    max,
     tone,
     color: conditionColor(tone, fallbackColor),
   };

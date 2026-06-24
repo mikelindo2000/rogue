@@ -48,6 +48,9 @@ export interface SlotUpgradeHint {
 export interface GearHealthView {
   label: string;
   ratio: number;
+  /** Durability points remaining / total — drives the segmented bar. */
+  current: number;
+  max: number;
   tone: 'good' | 'worn' | 'bad' | 'broken';
   color: string;
 }
