@@ -20,7 +20,8 @@ export interface GearComparison {
   verdict: GearVerdict;
   /** True when the candidate is >= the current item on every axis (effective
    *  defense, max defense, condition) and strictly greater on at least one —
-   *  the "clearly better in every way" case. Always true vs an empty slot. */
+   *  the "clearly better in every way" case. Against an empty slot, true for any
+   *  candidate with a positive primary stat. */
   strictlyBetter: boolean;
 }
 

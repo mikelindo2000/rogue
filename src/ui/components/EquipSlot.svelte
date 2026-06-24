@@ -15,7 +15,7 @@
   }
 
   const upgradeText = $derived(
-    slot.upgrade ? `${slot.upgrade.strict ? '▲' : '▲'} ${slot.upgrade.bestName} · ${slot.upgrade.bestStat}` : ''
+    slot.upgrade ? `▲ ${slot.upgrade.bestName} · ${slot.upgrade.bestStat}` : ''
   );
 </script>
 

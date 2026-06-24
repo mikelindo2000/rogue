@@ -173,10 +173,13 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     availableCount: offAvailable,
     availableLabel: availableLabel(offAvailable),
     hasUpgrade: offCandidates.some(({ item, kind }) => primaryUpgrade(offGear, offKind, item, kind)),
-    upgrade: is2H
+    // Only hint a shield upgrade when the off-hand is empty or already a shield;
+    // a dual-wielded dagger (offKind 'attack') must not be flagged as upgradeable
+    // by a shield, which would be an attack→defense swap, not an upgrade.
+    upgrade: is2H || offKind !== 'defense'
       ? undefined
       : upgradeHint(
-          offKind === 'defense' ? offGear : undefined,
+          offGear,
           player.inventory.shield.filter((_, i) => i !== 0 && `shield:${i}` !== off),
           'defense'
         ),

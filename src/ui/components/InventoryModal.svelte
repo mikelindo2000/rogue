@@ -127,14 +127,22 @@
     return cell.actions.find((a) => !a.disabled)?.action ?? null;
   }
 
+  // Dispatch an action, then re-anchor keyboard focus into the candidate column.
+  // Equipping/dropping removes the acted-on row, which would otherwise drop focus
+  // to <body> and kill arrow/Tab nav (the handler's containment guard fails).
+  function runAction(ref: InventoryRef, action: InventoryAction) {
+    actions.inventoryAction(ref, action);
+    tick().then(() => focusColumn(1));
+  }
+
   function runDefault(cell: InventoryCell) {
     const action = defaultAction(cell);
-    if (action) actions.inventoryAction(cell.ref, action);
+    if (action) runAction(cell.ref, action);
   }
 
   function runVerb(cell: InventoryCell, predicate: (a: InventoryAction) => boolean) {
     const action = cell.actions.find((a) => !a.disabled && predicate(a.action));
-    if (action) actions.inventoryAction(cell.ref, action.action);
+    if (action) runAction(cell.ref, action.action);
   }
 
   // ---- Focus / keyboard ----------------------------------------------------
@@ -193,6 +201,15 @@
     applySelection(btn, colIdx);
   }
 
+  // `handle` claims the event for the hub: prevents the browser default and stops
+  // it reaching the other window listeners (Modal's Tab focus-trap, the global
+  // game KeyboardManager). Escape and the toggle key 'c' are deliberately left
+  // unclaimed so Modal close / KeyboardManager toggle still work.
+  function handle(event: KeyboardEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function handleKeyboard(event: KeyboardEvent) {
     if (!ui.inventoryOpen) return;
     const target = event.target as HTMLElement | null;
@@ -203,29 +220,27 @@
 
     switch (event.key) {
       case 'ArrowDown':
-        event.preventDefault();
+        handle(event);
         moveWithin(1);
         break;
       case 'ArrowUp':
-        event.preventDefault();
+        handle(event);
         moveWithin(-1);
         break;
       case 'ArrowRight':
+        handle(event);
+        focusColumn(Math.min(2, colIdx + 1));
+        break;
       case 'Tab':
-        if (event.key === 'Tab' && event.shiftKey) {
-          event.preventDefault();
-          focusColumn(Math.max(0, colIdx - 1));
-        } else {
-          event.preventDefault();
-          focusColumn(Math.min(2, colIdx + 1));
-        }
+        handle(event);
+        focusColumn(event.shiftKey ? Math.max(0, colIdx - 1) : Math.min(2, colIdx + 1));
         break;
       case 'ArrowLeft':
-        event.preventDefault();
+        handle(event);
         focusColumn(Math.max(0, colIdx - 1));
         break;
-      case 'Enter': {
-        event.preventDefault();
+      case 'Enter':
+        handle(event);
         if (colIdx === 0) {
           focusColumn(1);
         } else if (colIdx === 2 && target instanceof HTMLButtonElement) {
@@ -234,25 +249,24 @@
           runDefault(selected.cell);
         }
         break;
-      }
       case 'e':
       case 'E':
         if (selected?.kind === 'cell') {
-          event.preventDefault();
+          handle(event);
           runVerb(selected.cell, (a) => a === 'equip' || a === 'equipOffHand');
         }
         break;
       case 'd':
       case 'D':
         if (selected?.kind === 'cell') {
-          event.preventDefault();
+          handle(event);
           runVerb(selected.cell, (a) => a === 'drop');
         }
         break;
       case 'r':
       case 'R':
         if (selected?.kind === 'cell' && selected.cell.ref.kind === 'scroll') {
-          event.preventDefault();
+          handle(event);
           runDefault(selected.cell);
         }
         break;
@@ -294,9 +308,16 @@
   });
 
   const title = $derived(ui.inventoryFilterKind === 'scroll' ? 'Scrolls' : 'Loadout');
-</script>
 
-<svelte:window onkeydown={handleKeyboard} />
+  // Listen in the capture phase so the hub's nav/verbs win over the Modal's
+  // bubble-phase Tab focus-trap and the global KeyboardManager.
+  $effect(() => {
+    if (!ui.inventoryOpen) return;
+    const onKey = (e: KeyboardEvent) => handleKeyboard(e);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+</script>
 
 <Modal open={ui.inventoryOpen} {title} onClose={close}>
   <div class="body">
@@ -450,7 +471,7 @@
               data-nav={`act:${item.action}`}
               disabled={item.disabled}
               title={item.reason}
-              onclick={() => { if (!item.disabled) actions.inventoryAction(cell.ref, item.action); }}
+              onclick={() => { if (!item.disabled) runAction(cell.ref, item.action); }}
             >
               {item.label}
             </button>
