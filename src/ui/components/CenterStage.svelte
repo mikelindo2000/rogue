@@ -4,29 +4,46 @@
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
   import { getDungeonStyle } from '../../theme';
-  import { pickRandomBg, backgroundUrl } from '../backgrounds';
+  import { backgroundUrl, pickFloorBackground } from '../backgrounds';
 
   const dungeonStyle = $derived(getDungeonStyle(ui.floor));
   const floorBg = $derived(dungeonStyle.background);
 
-  let currentBg = $state(pickRandomBg());
+  let currentBg = $state(pickFloorBackground(ui.floor));
   let previousBg = $state<string | null>(null);
   let isTransitioning = $state(false);
 
   let wasEnded = false;
+  let lastFloor = ui.floor;
+
+  function transitionToBackground(nextBg: string) {
+    if (nextBg === currentBg) return;
+    previousBg = currentBg;
+    currentBg = nextBg;
+    isTransitioning = true;
+    const timer = setTimeout(() => {
+      previousBg = null;
+      isTransitioning = false;
+    }, 1000);
+    return () => clearTimeout(timer);
+  }
+
+  $effect(() => {
+    const floor = ui.floor;
+    let cleanup: (() => void) | undefined = undefined;
+    if (floor !== lastFloor) {
+      cleanup = transitionToBackground(pickFloorBackground(floor));
+      lastFloor = floor;
+    }
+    return cleanup;
+  });
 
   $effect(() => {
     const isEnded = ui.gameOver || ui.gameWon;
     let cleanup: (() => void) | undefined = undefined;
     if (wasEnded && !isEnded) {
-      previousBg = currentBg;
-      currentBg = pickRandomBg();
-      isTransitioning = true;
-      const timer = setTimeout(() => {
-        previousBg = null;
-        isTransitioning = false;
-      }, 1000);
-      cleanup = () => clearTimeout(timer);
+      lastFloor = ui.floor;
+      cleanup = transitionToBackground(pickFloorBackground(ui.floor));
     }
     wasEnded = isEnded;
     return cleanup;
