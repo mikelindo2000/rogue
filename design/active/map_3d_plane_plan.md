@@ -1,13 +1,14 @@
 # Map on a 3D Plane Plan
 
-> **Status (active).** Phase 1 shipped on branch `map-3d-plane`: the canvas is
-> wrapped in `.map-viewport > .map-plane`, `MapStageController`
-> (`src/ui/mapStage.ts`) drives the plane off GameUI's rAF loop, and a heavy-hit
-> **rumble** fires from `executeStrike` (gated by `isHeavyHit` in
-> `src/combat.ts`) alongside a new `combat.heavyHit` SFX (4 `combat-rumble-0N`
-> variants). Phases 2–4 (floor transitions, depth effects, settings) are the
-> prototype menu still to evaluate. The pointer→tile caveat below governs how far
-> the persistent effects can go.
+> **Status (active).** Phases 1-2 shipped on branch `map-3d-plane`: the canvas is
+> wrapped in `.map-viewport > .map-transition > .map-plane`,
+> `MapStageController` (`src/ui/mapStage.ts`) drives heavy-hit rumble off
+> GameUI's rAF loop, and `FloorTransitionController`
+> (`src/ui/floorTransition.ts`) crossfades floor changes. Heavy-hit rumble fires
+> from `executeStrike` (gated by `isHeavyHit` in `src/combat.ts`) alongside a new
+> `combat.heavyHit` SFX (4 `combat-rumble-0N` variants). Later depth effects and
+> settings controls are still the prototype menu to evaluate. The pointer→tile
+> caveat below governs how far the persistent effects can go.
 
 ## Current Situation
 

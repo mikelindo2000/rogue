@@ -38,11 +38,12 @@ second server fails to bind.
 
 ## Map 3D plane
 
-The dungeon canvas sits on its own 3D plane (`.map-viewport > .map-plane` in
-`CenterStage.svelte`), independent of the background art and HUD, so it can be
-shaken/tilted/transitioned for cosmetic effect. `MapStageController`
+The dungeon canvas sits on its own 3D plane (`.map-viewport > .map-transition >
+.map-plane` in `CenterStage.svelte`), independent of the background art and HUD,
+so it can be shaken/tilted/transitioned for cosmetic effect. `MapStageController`
 (`src/ui/mapStage.ts`) owns the plane's transform and is ticked by `GameUI`'s
 existing rAF loop; effects are purely cosmetic and collapse to identity under
 `prefers-reduced-motion`. Phase 1 ships the heavy-hit rumble (`GameUI.mapRumble`,
-gated by `isHeavyHit` in `src/combat.ts`). Roadmap + the pointer→tile caveat:
-[`design/active/map_3d_plane_plan.md`](design/active/map_3d_plane_plan.md).
+gated by `isHeavyHit` in `src/combat.ts`), and Phase 2 ships floor transitions
+through `FloorTransitionController` (`src/ui/floorTransition.ts`). Roadmap + the
+pointer→tile caveat: [`design/active/map_3d_plane_plan.md`](design/active/map_3d_plane_plan.md).

@@ -2,15 +2,63 @@
   import { ui, actions } from '../store.svelte';
   import { FLOOR_TRANSITION_LIST } from '../floorTransition';
 
+  let groupEl: HTMLDivElement;
+
+  function focusOption(index: number) {
+    const buttons = Array.from(groupEl.querySelectorAll<HTMLButtonElement>('.fx-option'));
+    buttons[index]?.focus();
+  }
+
+  function selectOption(index: number) {
+    const next = FLOOR_TRANSITION_LIST[index];
+    if (!next) return;
+    actions.setFloorTransition(next.id);
+    focusOption(index);
+  }
+
+  function activeIndex() {
+    const idx = FLOOR_TRANSITION_LIST.findIndex(t => t.id === ui.floorTransition);
+    return idx >= 0 ? idx : 0;
+  }
+
+  function clicked(id: string) {
+    actions.setFloorTransition(id);
+  }
+
   // Prototype/dev affordance: flip the floor-change effect live so the options
-  // can be felt back-to-back. Stop key events from bubbling to the global game
-  // shortcuts so using the picker never moves the player or triggers search.
+  // can be felt back-to-back. Keep keys scoped here so using the picker never
+  // moves the player, and give the repeated control Rogue-style arrow parity.
   function onKeydown(e: KeyboardEvent) {
     e.stopPropagation();
+    const len = FLOOR_TRANSITION_LIST.length;
+    const current = activeIndex();
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectOption((current + 1) % len);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectOption((current - 1 + len) % len);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      selectOption(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      selectOption(len - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const target = e.target as HTMLElement | null;
+      const id = target?.closest<HTMLButtonElement>('.fx-option')?.dataset.fxId;
+      if (id) actions.setFloorTransition(id);
+    }
   }
 </script>
 
-<div class="fx-switcher" role="group" aria-label="Floor transition effect (dev)">
+<div
+  class="fx-switcher"
+  role="group"
+  aria-label="Floor transition effect (dev)"
+  bind:this={groupEl}
+>
   <span class="fx-label">Floor FX</span>
   <div class="fx-options">
     {#each FLOOR_TRANSITION_LIST as t (t.id)}
@@ -19,7 +67,9 @@
         class="fx-option"
         class:active={ui.floorTransition === t.id}
         aria-pressed={ui.floorTransition === t.id}
-        onclick={() => actions.setFloorTransition(t.id)}
+        tabindex={ui.floorTransition === t.id ? 0 : -1}
+        data-fx-id={t.id}
+        onclick={() => clicked(t.id)}
         onkeydown={onKeydown}
       >
         {t.label}

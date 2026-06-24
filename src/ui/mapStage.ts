@@ -13,7 +13,7 @@
  * Effects are purely cosmetic. No gameplay state, timing, or information lives
  * here, and everything collapses to identity under `prefers-reduced-motion`.
  *
- * Design: design/planning/map_3d_plane_plan.md.
+ * Design: design/active/map_3d_plane_plan.md.
  */
 
 export interface RumbleOptions {
