@@ -23,22 +23,29 @@ For a no-target scroll with an immediate effect:
    save/UI test touched by the effect.
 8. Run `npm run check`.
 
-Example type and visual entries:
+Example type and visual entries. Add these entries to the existing declarations;
+do not replace the current scroll list or visual map.
 
 ```ts
 // src/types.ts
 export type ScrollType =
   | 'light'
+  | 'repair'
+  // ...
   | 'my_new_scroll';
 
 // src/itemVisuals.ts
 export const SCROLL_TYPES = [
   'light',
+  'repair',
+  // ...
   'my_new_scroll',
 ] as const satisfies readonly ScrollType[];
 
 export const SCROLL_VISUALS: Record<ScrollType, ScrollVisual> = {
   light: { icon: 'scroll-light', mapColor: '#ffd86b', uiColor: 'var(--scroll-light)', accent: 'warm-gold' },
+  repair: { icon: 'scroll-repair', mapColor: '#b9c4d0', uiColor: '#b9c4d0', accent: 'silver anvil' },
+  // ...
   my_new_scroll: { icon: 'scroll-my_new_scroll', mapColor: '#66e0c2', uiColor: '#66e0c2', accent: 'teal' },
 };
 ```
@@ -93,10 +100,15 @@ to spawn. Then add it to `IMPLEMENTED_SCROLLS`.
 
 ```ts
 export const SCROLL_TUNING: Partial<Record<ScrollType, ScrollSpawnTuning>> = {
+  light: { role: 'core', early: 20, mid: 10, deep: 8 },
+  // ...
   my_new_scroll: { role: 'situational', early: 0, mid: 3, deep: 4 },
 };
 
 export const IMPLEMENTED_SCROLLS: ReadonlySet<ScrollType> = new Set<ScrollType>([
+  'light',
+  'repair',
+  // ...
   'my_new_scroll',
 ]);
 ```
