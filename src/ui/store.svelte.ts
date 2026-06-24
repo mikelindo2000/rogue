@@ -151,6 +151,19 @@ export interface NearbyMonster {
   subtitle?: string;
 }
 
+/** The combat portrait shown over the board while the player is in melee with a
+ *  monster. Positioned in a board corner whose footprint is clear of drawn map,
+ *  so it never covers a room/corridor. Null when not fighting (drives fade-out). */
+export interface CombatPortrait {
+  id: string; // bestiary slug -> /bestiary/${id}.png
+  name: string;
+  color: string; // monster palette color, tints the frame accent
+  hp: number;
+  maxHp: number;
+  corner: 'tl' | 'tr' | 'bl' | 'br';
+  sizePx: number; // oval diameter in CSS px
+}
+
 export interface UIState {
   // top bar
   floor: number;
@@ -195,6 +208,8 @@ export interface UIState {
   // center-stage overlays
   stairsNearby: boolean;
   nearbyMonster: NearbyMonster | null;
+  /** The framed portrait of the monster currently being fought (null = idle). */
+  combatPortrait: CombatPortrait | null;
   /** Non-null while a wand is drawn and awaiting an aim direction. Drives the
    *  transient aiming prompt overlay. */
   aiming: { wandName: string } | null;
@@ -277,6 +292,7 @@ export const ui = $state<UIState>({
   logs: [],
   stairsNearby: false,
   nearbyMonster: null,
+  combatPortrait: null,
   aiming: null,
   gameOver: false,
   gameWon: false,

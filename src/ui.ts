@@ -8,6 +8,7 @@ import {
   type InventoryActionView,
   type InventoryCell,
   type LogLineView,
+  type CombatPortrait,
 } from './ui/store.svelte';
 import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from './ui/format';
 import { visualEffectLayers } from './ui/visualEffects';
@@ -37,7 +38,7 @@ import {
   type PlayerSprite,
   type PlayerPalette,
 } from './render/avatar';
-import { snapshotDiscovery, type DiscoveryState } from './discovery';
+import { snapshotDiscovery, monsterId, type DiscoveryState } from './discovery';
 import { escapeHtml } from './ui/monsterMention';
 import { enrichLogMessageHtml } from './ui/logMessage';
 import { appendLogLine } from './ui/logHistory';
@@ -162,6 +163,13 @@ export class GameUI {
 
   /** Latest board snapshot, repainted by the animation loop. */
   private scene: Scene | null = null;
+  /** Bestiary id of the monster the player most recently struck. Set by the
+   *  engine on each player attack; picks which adjacent foe the combat portrait
+   *  focuses on. Cleared when that monster dies. */
+  public combatFocusId: string | null = null;
+  /** Last portrait pushed to the store, for change-detection so the rAF repaint
+   *  path doesn't thrash store reactivity every frame. */
+  private lastPortrait: CombatPortrait | null = null;
   /** In-flight combat effects; the rAF loop runs only while this is non-empty. */
   private fx: Fx[] = [];
   private rafId: number | null = null;
@@ -350,7 +358,7 @@ export class GameUI {
     // without the turn-based engine having to drive every frame.
     this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
 
-    this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
+    this.syncOverlays(map, explored, visible, player, monsters, items, cols, rows, gameOver, gameWon);
 
     this.trackMovement(monsters);
     this.paint();
@@ -1677,9 +1685,11 @@ export class GameUI {
    *  monster, run state) into the store for the center-stage chrome. */
   private syncOverlays(
     map: string[][],
+    explored: boolean[][],
     visible: boolean[][],
     player: Player,
     monsters: Monster[],
+    items: Item[],
     cols: number,
     rows: number,
     gameOver: boolean,
@@ -1719,7 +1729,155 @@ export class GameUI {
         }
       : null;
 
+    const portrait = (gameOver || gameWon)
+      ? null
+      : this.computeCombatPortrait(map, explored, visible, player, monsters, items, cols, rows);
+    if (!portraitsEqual(portrait, this.lastPortrait)) {
+      this.lastPortrait = portrait;
+      ui.combatPortrait = portrait;
+    }
+
     ui.gameOver = gameOver;
     ui.gameWon = gameWon;
   }
+
+  /** Build the combat portrait for this turn, or null when not in melee or no
+   *  board corner is clear of drawn map. "Fighting" = a hostile monster is
+   *  adjacent to the player; focus prefers the last-attacked foe (combatFocusId),
+   *  else the nearest adjacent one. The chosen corner's oval footprint is
+   *  guaranteed not to overlap any drawn room/corridor tile, monster, or item. */
+  private computeCombatPortrait(
+    map: string[][],
+    explored: boolean[][],
+    visible: boolean[][],
+    player: Player,
+    monsters: Monster[],
+    items: Item[],
+    cols: number,
+    rows: number
+  ): CombatPortrait | null {
+    // 1. Adjacent, visible hostiles only.
+    const adjacent = monsters.filter(
+      m =>
+        Math.max(Math.abs(m.x - player.x), Math.abs(m.y - player.y)) <= 1 &&
+        visible[m.y]?.[m.x]
+    );
+    if (adjacent.length === 0) return null;
+
+    // 2. Focus: the last-attacked monster if it's still adjacent, else nearest.
+    let focus =
+      (this.combatFocusId && adjacent.find(m => monsterId(m) === this.combatFocusId)) || null;
+    if (!focus) {
+      let bestDist = Infinity;
+      for (const m of adjacent) {
+        const d = Math.max(Math.abs(m.x - player.x), Math.abs(m.y - player.y));
+        if (d < bestDist) {
+          bestDist = d;
+          focus = m;
+        }
+      }
+    }
+    if (!focus) return null;
+
+    // 3. Size the oval off the rendered tile size so it scales with the board.
+    const tileSize = this.computeTileSize(cols, rows);
+    const sizePx = Math.max(96, Math.min(200, Math.round(Math.min(cols, rows) * tileSize * 0.28)));
+
+    // 4. Pick a corner whose footprint is clear of drawn map / entities.
+    const corner = this.pickFreeCorner(map, explored, visible, monsters, items, player, cols, rows, tileSize, sizePx);
+    if (!corner) return null;
+
+    return {
+      id: monsterId(focus),
+      name: focus.name,
+      color: focus.color,
+      hp: Math.max(0, focus.hp),
+      maxHp: focus.maxHp ?? focus.hp,
+      corner,
+      sizePx,
+    };
+  }
+
+  /** Find a board corner where the portrait's oval footprint covers only empty
+   *  (unexplored or VOID) tiles. Corners are tried farthest-from-player first so
+   *  the portrait sits away from the action. Returns null if every corner is
+   *  blocked. A tile is "drawn map" when it is explored and not VOID — the same
+   *  gate paint() uses — and tiles holding a visible monster/item also block. */
+  private pickFreeCorner(
+    map: string[][],
+    explored: boolean[][],
+    visible: boolean[][],
+    monsters: Monster[],
+    items: Item[],
+    player: Player,
+    cols: number,
+    rows: number,
+    tileSize: number,
+    sizePx: number
+  ): CombatPortrait['corner'] | null {
+    // Oval footprint in tiles, plus a one-tile breathing margin.
+    const span = Math.ceil(sizePx / tileSize) + 1;
+    const w = Math.min(span, cols);
+    const h = Math.min(span, rows);
+
+    // Tiles occupied by a visible monster or an explored item block placement.
+    const blockedTiles = new Set<number>();
+    for (const m of monsters) {
+      if (visible[m.y]?.[m.x]) blockedTiles.add(m.y * cols + m.x);
+    }
+    for (const it of items) {
+      if (explored[it.y]?.[it.x]) blockedTiles.add(it.y * cols + it.x);
+    }
+
+    type Corner = { id: CombatPortrait['corner']; c0: number; r0: number; ax: number; ay: number };
+    const corners: Corner[] = [
+      { id: 'tl', c0: 0, r0: 0, ax: 0, ay: 0 },
+      { id: 'tr', c0: cols - w, r0: 0, ax: cols - 1, ay: 0 },
+      { id: 'bl', c0: 0, r0: rows - h, ax: 0, ay: rows - 1 },
+      { id: 'br', c0: cols - w, r0: rows - h, ax: cols - 1, ay: rows - 1 },
+    ];
+    // Farthest corner from the player first.
+    corners.sort(
+      (a, b) =>
+        Math.max(Math.abs(b.ax - player.x), Math.abs(b.ay - player.y)) -
+        Math.max(Math.abs(a.ax - player.x), Math.abs(a.ay - player.y))
+    );
+
+    const rx = w / 2;
+    const ry = h / 2;
+    for (const corner of corners) {
+      let blocked = false;
+      for (let dr = 0; dr < h && !blocked; dr++) {
+        for (let dc = 0; dc < w; dc++) {
+          // Inscribed-ellipse test: ignore tiles outside the oval so the square
+          // corner's outer tiles don't false-positive.
+          const nx = (dc + 0.5 - rx) / rx;
+          const ny = (dr + 0.5 - ry) / ry;
+          if (nx * nx + ny * ny > 1) continue;
+          const c = corner.c0 + dc;
+          const r = corner.r0 + dr;
+          const drawn = explored[r]?.[c] && map[r]?.[c] !== TILE.VOID;
+          if (drawn || blockedTiles.has(r * cols + c)) {
+            blocked = true;
+            break;
+          }
+        }
+      }
+      if (!blocked) return corner.id;
+    }
+    return null;
+  }
+}
+
+/** Cheap structural equality for the combat-portrait change check. */
+function portraitsEqual(a: CombatPortrait | null, b: CombatPortrait | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.corner === b.corner &&
+    a.sizePx === b.sizePx &&
+    a.hp === b.hp &&
+    a.maxHp === b.maxHp
+  );
 }

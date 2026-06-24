@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
+  import MonsterPortrait from './MonsterPortrait.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
   import FloorTransitionSwitcher from './FloorTransitionSwitcher.svelte';
@@ -88,6 +89,13 @@
     <div class="map-ghost" aria-hidden="true">
       <canvas id="ghostCanvas"></canvas>
     </div>
+
+    <!-- Combat portrait of the monster being fought. Sits inside .map-viewport so
+         it anchors to a corner of the board canvas; GameUI only ever picks a
+         corner whose oval footprint is clear of drawn rooms. -->
+    {#if ui.combatPortrait}
+      <MonsterPortrait portrait={ui.combatPortrait} />
+    {/if}
   </div>
 
   <div class="vignette" aria-hidden="true"></div>
