@@ -1,10 +1,10 @@
 <script lang="ts">
   import { ui, actions } from '../store.svelte';
-  import { pickEndRunArt } from '../endRunArt';
+  import { pickOpeningEndRunArt } from '../endRunArt';
   import { buildEndRunView, type EndRunStat } from '../endRunView';
   import KeyCap from './primitives/KeyCap.svelte';
 
-  type TabId = 'story' | 'combat' | 'loot' | 'exploration' | 'records' | 'history';
+  type TabId = 'story' | 'combat' | 'loot' | 'exploration' | 'records' | 'history' | 'credits';
 
   const TABS: Array<{ id: TabId; label: string }> = [
     { id: 'story', label: 'Run Story' },
@@ -13,6 +13,19 @@
     { id: 'exploration', label: 'Exploration' },
     { id: 'records', label: 'Records' },
     { id: 'history', label: 'History' },
+    { id: 'credits', label: 'Credits' },
+  ];
+
+  const CREDIT_ROWS = [
+    ['Dungeon Direction', 'Mira Backspace'],
+    ['Amulet Continuity', 'Theo Stacktrace'],
+    ['Potion Safety', 'Brenda Breadcrumbs'],
+    ['Floor Twenty Logistics', 'Lady Savefile'],
+    ['Scroll Misreading', 'Quentin Quartermaster'],
+    ['Gold Pile Accounting', 'Ada Goldstack'],
+    ['Turn Counting', 'Tess Turncounter'],
+    ['Final Stair Polishing', 'Gregory Hitpoint'],
+    ['Closing Song', 'The Probably Cursed House Band'],
   ];
 
   let activeTab = $state<TabId>('story');
@@ -24,6 +37,7 @@
   let restartButton = $state<HTMLButtonElement | null>(null);
   let clearButton = $state<HTMLButtonElement | null>(null);
   let confirmClearButton = $state<HTMLButtonElement | null>(null);
+  let creditRollKey = $state(0);
 
   const summary = $derived(ui.endRunSummary);
   const view = $derived(
@@ -32,7 +46,7 @@
       : null
   );
   const isOpen = $derived(!!summary && (ui.gameOver || ui.gameWon));
-  const endArt = $derived(summary ? pickEndRunArt(summary) : null);
+  const endArt = $derived(summary ? pickOpeningEndRunArt(summary) : null);
   const activeIndex = $derived(TABS.findIndex(t => t.id === activeTab));
   const activeStats: EndRunStat[] = $derived(
     !view ? [] :
@@ -64,6 +78,7 @@
     activeTab = id;
     selectedHistory = 0;
     confirmClear = false;
+    if (id === 'credits') creditRollKey++;
   }
 
   function moveTab(delta: number) {
@@ -128,6 +143,10 @@
   function cancelClearHistory() {
     confirmClear = false;
     requestAnimationFrame(() => clearButton?.focus());
+  }
+
+  function replayCredits() {
+    creditRollKey++;
   }
 </script>
 
@@ -236,6 +255,26 @@
               </div>
             {/if}
             <p class="local-note">Saved in this browser only.</p>
+          {:else if activeTab === 'credits'}
+            <div class="credits-scene" aria-label="Credits">
+              <div class="credits-window">
+                {#key creditRollKey}
+                  <div class="credits-roll">
+                    <div class="credit-spacer"></div>
+                    <p class="credits-title">{summary.outcome === 'won' ? 'The Amulet Returns' : 'The Dungeon Curtain Call'}</p>
+                    {#each CREDIT_ROWS as row}
+                      <p class="credit-row">
+                        <span>{row[0]}</span>
+                        <strong>{row[1]}</strong>
+                      </p>
+                    {/each}
+                    <p class="credits-title small">Recorded locally in this browser</p>
+                    <div class="credit-spacer"></div>
+                  </div>
+                {/key}
+              </div>
+              <button class="replay" onclick={replayCredits}>Replay credits</button>
+            </div>
           {:else}
             <div class="stats-grid">
               {#each activeStats as stat}
@@ -248,6 +287,11 @@
             </div>
 
             {#if activeTab === 'story' && summary.awards.length > 0}
+              <div class="legend" aria-label="Run legend">
+                {#each view.legend as line}
+                  <p>{line}</p>
+                {/each}
+              </div>
               <div class="awards" aria-label="Awards">
                 {#each summary.awards as award}
                   <span>{award}</span>
@@ -526,6 +570,20 @@
     gap: 8px;
     margin-top: 12px;
   }
+  .legend {
+    display: grid;
+    gap: 7px;
+    margin-top: 12px;
+  }
+  .legend p {
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    font: 600 var(--fs-sm) var(--font-ui);
+  }
   .history-head,
   .history button {
     display: grid;
@@ -592,6 +650,91 @@
     display: inline-flex;
     gap: 6px;
   }
+  .credits-scene {
+    display: grid;
+    gap: 12px;
+  }
+  .credits-window {
+    position: relative;
+    height: min(360px, 48vh);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background:
+      linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 24%, transparent 76%, rgba(0, 0, 0, 0.66)),
+      var(--surface-inset);
+  }
+  .credits-roll {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px;
+    animation: credits-roll 22s linear infinite;
+  }
+  .credit-spacer {
+    height: 260px;
+    flex: none;
+  }
+  .credits-title {
+    margin: 0;
+    color: var(--text-bright);
+    font: 800 22px var(--font-display);
+    text-align: center;
+  }
+  .credits-title.small {
+    font-size: var(--fs-body);
+    color: var(--accent);
+  }
+  .credit-row {
+    width: min(520px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    margin: 0;
+    color: var(--text-muted);
+    font: 700 var(--fs-sm) var(--font-display);
+  }
+  .credit-row span {
+    color: var(--text-dimmer);
+    text-align: right;
+  }
+  .credit-row strong {
+    min-width: 0;
+    color: var(--text-bright);
+  }
+  .replay {
+    justify-self: start;
+    min-height: 32px;
+    padding: 0 11px;
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-md);
+    background: var(--surface-inset);
+    color: var(--text-muted);
+    cursor: pointer;
+    font: 700 var(--fs-sm) var(--font-display);
+  }
+  .replay:focus-visible {
+    color: var(--text-bright);
+    border-color: var(--accent);
+    outline: none;
+  }
+  @keyframes credits-roll {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-76%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .credits-roll {
+      animation: none;
+    }
+    .credit-spacer {
+      height: 24px;
+    }
+  }
   @media (max-width: 820px) {
     h2 {
       font-size: 22px;
@@ -609,6 +752,14 @@
     }
     .stats-grid {
       grid-template-columns: 1fr;
+    }
+    .credit-row {
+      grid-template-columns: 1fr;
+      gap: 2px;
+      text-align: center;
+    }
+    .credit-row span {
+      text-align: center;
     }
   }
 </style>

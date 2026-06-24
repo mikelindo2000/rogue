@@ -58,6 +58,7 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'player-lowhealth': { id: 'player-lowhealth', variants: [sfx('player-lowhealth-01.mp3')], channel: 'status', volume: 0.8, cooldownMs: 1000 },
   'player-criticalhealth': { id: 'player-criticalhealth', variants: [sfx('player-criticalhealth-01.mp3')], channel: 'status', volume: 0.9, cooldownMs: 1000, priority: 6 },
   'player-death': { id: 'player-death', variants: [sfx('player-death-01.mp3')], channel: 'status', volume: 1, priority: 10 },
+  'victory-amulet': { id: 'victory-amulet', variants: [sfx('victory-amulet-01.mp3')], channel: 'status', volume: 1, priority: 12 },
   // hunger / survival
   'hunger-hungry': { id: 'hunger-hungry', variants: [sfx('hunger-hungry-01.mp3')], channel: 'status', volume: 0.7, cooldownMs: 1500 },
   'hunger-nearstarved': { id: 'hunger-nearstarved', variants: [sfx('hunger-nearstarved-01.mp3')], channel: 'status', volume: 0.78, cooldownMs: 1500, priority: 5 },
@@ -117,6 +118,7 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'player.lowHealth': return 'player-lowhealth';
     case 'player.criticalHealth': return 'player-criticalhealth';
     case 'player.death': return 'player-death';
+    case 'game.victory': return 'victory-amulet';
     case 'hunger.hungry': return 'hunger-hungry';
     case 'hunger.nearStarved': return 'hunger-nearstarved';
     case 'hunger.fatigued': return 'hunger-fatigued';
@@ -147,7 +149,7 @@ export function resolveCue(event: SoundEvent): SoundAsset | null {
 // --- background music ---------------------------------------------------
 
 /** Coarse game-state contexts that select a music bed. */
-export type MusicContextId = 'explore-shallow' | 'explore-deep' | 'boss' | 'safe' | 'gameover';
+export type MusicContextId = 'explore-shallow' | 'explore-deep' | 'boss' | 'safe' | 'gameover' | 'victory';
 
 /** Looping ~3-minute beds, one per context. Files relative to AUDIO_BASE. */
 export const MUSIC_TRACKS: Record<MusicContextId, string> = {
@@ -156,4 +158,5 @@ export const MUSIC_TRACKS: Record<MusicContextId, string> = {
   boss: 'music/boss-01.mp3',
   safe: 'music/safe-01.mp3',
   gameover: 'music/gameover-01.mp3',
+  victory: 'music/victory-credits-01.mp3',
 };

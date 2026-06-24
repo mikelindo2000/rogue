@@ -12,12 +12,13 @@ export type EndRunArtScenario =
   | 'death-default';
 
 export interface EndRunArt {
-  scenario: EndRunArtScenario;
+  scenario: EndRunArtScenario | 'victory-finale';
   file: string;
   url: string;
 }
 
 const VARIANTS_PER_SCENARIO = 6;
+export const VICTORY_FINALE_ART_FILE = 'victory-amulet-escape-1.png';
 
 const SCENARIOS: EndRunArtScenario[] = [
   'victory-fast',
@@ -64,4 +65,15 @@ export function pickEndRunArt(summary: RunSummaryV1): EndRunArt {
   const variant = (hashString(`${summary.runId}:${summary.seed}:${summary.turns}:${summary.score}`) % VARIANTS_PER_SCENARIO) + 1;
   const file = `${scenario}-${variant}.png`;
   return { scenario, file, url: endRunArtUrl(file) };
+}
+
+export function pickOpeningEndRunArt(summary: RunSummaryV1): EndRunArt {
+  if (summary.outcome === 'won') {
+    return {
+      scenario: 'victory-finale',
+      file: VICTORY_FINALE_ART_FILE,
+      url: endRunArtUrl(VICTORY_FINALE_ART_FILE),
+    };
+  }
+  return pickEndRunArt(summary);
 }

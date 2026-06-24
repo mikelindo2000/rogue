@@ -58,7 +58,7 @@ describe('manifest integrity', () => {
   it('every resolvable clip id exists in SOUND_ASSETS', () => {
     const ids = [
       'combat-swing', 'combat-hit', 'player-hit', 'combat-miss', 'death-default', 'death-boss',
-      'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death',
+      'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death', 'victory-amulet',
       'hunger-hungry', 'hunger-nearstarved', 'hunger-fatigued', 'hunger-starving', 'hunger-starvetick',
       'survival-dualwarning',
       'equip-weapon', 'equip-armor', 'equip-unequip', 'equip-rejected',
@@ -66,6 +66,10 @@ describe('manifest integrity', () => {
       'stairs-down', 'stairs-up', 'secret-reveal', 'movement-run',
     ];
     for (const id of ids) expect(SOUND_ASSETS[id], id).toBeDefined();
+  });
+
+  it('routes the final victory event to the amulet sting', () => {
+    expect(resolveClipId({ type: 'game.victory' })).toBe('victory-amulet');
   });
 
   it('every per-archetype death clip resolves to a real asset', () => {
@@ -78,5 +82,6 @@ describe('manifest integrity', () => {
     for (const [ctx, file] of Object.entries(MUSIC_TRACKS)) {
       expect(file, ctx).toMatch(/^music\/.+\.mp3$/);
     }
+    expect(MUSIC_TRACKS.victory).toBe('music/victory-credits-01.mp3');
   });
 });

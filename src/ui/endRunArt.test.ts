@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { RunSummaryV1 } from '../runStats';
 import { SCROLL_TYPES } from '../itemVisuals';
-import { END_RUN_ART_FILES, endRunArtUrl, pickEndRunArt, selectEndRunArtScenario } from './endRunArt';
+import {
+  END_RUN_ART_FILES,
+  VICTORY_FINALE_ART_FILE,
+  endRunArtUrl,
+  pickEndRunArt,
+  pickOpeningEndRunArt,
+  selectEndRunArtScenario,
+} from './endRunArt';
 
 function summary(overrides: Partial<RunSummaryV1> = {}): RunSummaryV1 {
   return {
@@ -84,5 +91,15 @@ describe('end run art', () => {
     const run = summary({ runId: 'stable', seed: 999, turns: 1234, score: 8000 });
     expect(pickEndRunArt(run)).toEqual(pickEndRunArt(run));
     expect(pickEndRunArt(run).file).toMatch(/^death-default-[1-6]\.png$/);
+  });
+
+  it('uses the dedicated finale artwork as the first victory image', () => {
+    const run = summary({ outcome: 'won', title: 'Escaped the dungeon' });
+    expect(VICTORY_FINALE_ART_FILE).toBe('victory-amulet-escape-1.png');
+    expect(pickOpeningEndRunArt(run)).toMatchObject({
+      scenario: 'victory-finale',
+      file: VICTORY_FINALE_ART_FILE,
+      url: '/endings/victory-amulet-escape-1.png',
+    });
   });
 });

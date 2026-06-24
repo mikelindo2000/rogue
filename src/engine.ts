@@ -860,6 +860,7 @@ export class GameEngine {
     this.gameWon = true;
     this.addLog("You climb into daylight clutching the Amulet of Ballard. You have WON! Press 'R' to restart.");
     this.sound.emit({ type: 'map.stairs', dir: 'up' });
+    this.sound.emit({ type: 'game.victory' });
     this.recordWinTurn();
     this.ui.updateDropdowns(this.player);
     this.updateUI();

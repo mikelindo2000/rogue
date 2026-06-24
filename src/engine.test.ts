@@ -191,8 +191,8 @@ describe('GameEngine boss victory conditions', () => {
 
 describe('GameEngine amulet escape endgame', () => {
   // Place up-stairs one tile to the player's right on a small carved floor.
-  const makeEscapeStage = (floor: number) => {
-    const engine = makeRunner();
+  const makeEscapeStage = (floor: number, sound?: RecordingSink) => {
+    const engine = makeRunner(sound);
     engine.dungeonFloor = floor;
     carveRow(engine, 2, 2, 4, TILE.FLOOR);
     engine.map[2][4] = TILE.STAIRS_UP;
@@ -202,7 +202,8 @@ describe('GameEngine amulet escape endgame', () => {
   };
 
   it('wins by escaping up the Floor-1 stairs while carrying the Amulet', () => {
-    const engine = makeEscapeStage(1);
+    const sound = new RecordingSink();
+    const engine = makeEscapeStage(1, sound);
     engine.hasAmulet = true;
 
     engine.handlePlayerMove(1, 0); // step onto the up-stairs
@@ -210,6 +211,7 @@ describe('GameEngine amulet escape endgame', () => {
     expect(engine.gameWon).toBe(true);
     expect(engine.finalRunSummary?.outcome).toBe('won');
     expect(engine.logs.join('\n')).toContain('You have WON');
+    expect(sound.types()).toContain('game.victory');
   });
 
   it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {

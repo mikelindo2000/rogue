@@ -18,6 +18,7 @@ export interface EndRunView {
   combat: EndRunStat[];
   loot: EndRunStat[];
   exploration: EndRunStat[];
+  legend: string[];
   recordBadges: string[];
   recordStats: EndRunStat[];
   history: Array<{
@@ -59,6 +60,36 @@ function sumValues(record: Record<string, number>): number {
 function recordStat(label: string, value: number | null | undefined, suffix = ''): EndRunStat | null {
   if (value === null || value === undefined) return null;
   return { label, value: `${formatNumber(value)}${suffix}` };
+}
+
+function finalLoadout(summary: RunSummaryV1): string {
+  const equipped = [
+    summary.equipped.mainHand,
+    summary.equipped.offHand,
+    summary.equipped.helm,
+    summary.equipped.chest,
+    summary.equipped.legs,
+    summary.equipped.gauntlets,
+    summary.equipped.boots,
+  ].filter((item): item is string => !!item);
+  if (equipped.length === 0) return 'No notable gear made it to the ending.';
+  return equipped.slice(0, 4).join(', ');
+}
+
+function buildLegendLines(summary: RunSummaryV1): string[] {
+  const lines = [
+    summary.outcome === 'won'
+      ? `The Amulet of Ballard reached daylight after ${formatNumber(summary.turns)} turns.`
+      : summary.deathCause === 'monster' && summary.killedByMonsterId
+        ? `Final troublemaker: ${summary.killedByMonsterId}.`
+        : 'The dungeon kept the receipt.',
+    `Final kit: ${finalLoadout(summary)}`,
+    `${formatNumber(summary.monstersKilled)} foes down, ${formatNumber(summary.goldCollected)} gold collected, ${formatNumber(summary.secretsFound)} secrets uncovered.`,
+  ];
+  if (summary.finalLogs.length > 0) {
+    lines.push(`Last report: ${summary.finalLogs[summary.finalLogs.length - 1]}`);
+  }
+  return lines;
 }
 
 export function buildCopySummary(summary: RunSummaryV1, comparison: RunRecordComparison | null): string {
@@ -152,6 +183,7 @@ export function buildEndRunView(
       { label: 'Descents', value: formatNumber(summary.stairDescents) },
       { label: 'Ascents', value: formatNumber(summary.stairAscents) },
     ],
+    legend: buildLegendLines(summary),
     recordBadges,
     recordStats,
     history: history.slice(0, 12).map(run => ({
@@ -164,4 +196,3 @@ export function buildEndRunView(
     })),
   };
 }
-

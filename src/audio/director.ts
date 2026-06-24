@@ -17,7 +17,8 @@ export interface MusicState {
  * Returns the bed id; the music service ignores repeats and crossfades changes.
  */
 export function selectMusicContext(state: MusicState): MusicContextId {
-  if (state.gameOver || state.gameWon) return 'gameover';
+  if (state.gameWon) return 'victory';
+  if (state.gameOver) return 'gameover';
   if (state.monsters.some((m) => m.special === 'boss')) return 'boss';
   if (state.monsters.length === 0) return 'safe';
   return state.dungeonFloor <= 3 ? 'explore-shallow' : 'explore-deep';

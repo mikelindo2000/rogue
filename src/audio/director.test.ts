@@ -12,7 +12,7 @@ const state = (over: Partial<MusicState> = {}): MusicState => ({
 describe('selectMusicContext', () => {
   it('run end outranks everything', () => {
     expect(selectMusicContext(state({ gameOver: true, monsters: [{ special: 'boss' }] }))).toBe('gameover');
-    expect(selectMusicContext(state({ gameWon: true }))).toBe('gameover');
+    expect(selectMusicContext(state({ gameWon: true }))).toBe('victory');
   });
 
   it('a boss present outranks depth and respite', () => {

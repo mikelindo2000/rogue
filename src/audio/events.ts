@@ -22,6 +22,7 @@ export type SoundEvent =
   | { type: 'player.lowHealth' }
   | { type: 'player.criticalHealth' }
   | { type: 'player.death' }
+  | { type: 'game.victory' }
   // hunger / survival
   | { type: 'hunger.hungry' }
   | { type: 'hunger.nearStarved' }
