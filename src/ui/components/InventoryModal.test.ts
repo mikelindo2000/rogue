@@ -403,4 +403,95 @@ describe('loadout hub — keyboard navigation and focus highlighting', () => {
     // Verifies it targeted Row 1 (Head) rather than default Row 0 (Chest)
     expect(document.activeElement).toBe(spineRows[1]);
   });
+
+  it('resets spine selection state when reopening modal to recalculate closest vertical button', async () => {
+    openHub({
+      items: [betterChestCell()],
+      equipment: [
+        chestSlot(),
+        {
+          slot: 'helm',
+          label: 'Head',
+          icon: 'helm',
+          itemName: 'Leather Cap',
+          statLabel: 'DEF 1',
+          rarityColor: '#fff',
+          empty: false,
+          artUrl: '',
+          availableCount: 0,
+          availableLabel: '0 items available',
+          hasUpgrade: false,
+          options: [],
+        }
+      ]
+    });
+    await tick();
+    await tick();
+    flushSync();
+
+    const firstRow = candidateRow();
+    const spineRows = Array.from(document.querySelectorAll('.spine-row')) as HTMLElement[];
+
+    // Mock bounding client rects:
+    // Row 0 (Chest): midpoint = 120
+    // Row 1 (Head): midpoint = 220
+    vi.spyOn(spineRows[0], 'getBoundingClientRect').mockReturnValue({
+      top: 100, height: 40, bottom: 140, left: 10, right: 100, width: 90, x: 10, y: 100, toJSON: () => {}
+    });
+    vi.spyOn(spineRows[1], 'getBoundingClientRect').mockReturnValue({
+      top: 200, height: 40, bottom: 240, left: 10, right: 100, width: 90, x: 10, y: 200, toJSON: () => {}
+    });
+
+    // Midpoint = 230, closest to Row 1 (Head)
+    vi.spyOn(firstRow, 'getBoundingClientRect').mockReturnValue({
+      top: 210, height: 40, bottom: 250, left: 110, right: 300, width: 190, x: 110, y: 210, toJSON: () => {}
+    });
+
+    // Press ArrowLeft to focus Column 0
+    firstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+
+    // Verifies it targeted Row 1 (Head)
+    expect(document.activeElement).toBe(spineRows[1]);
+
+    // Close the hub
+    actions.setInventoryOpen(false);
+    await tick();
+    await tick();
+    flushSync();
+
+    // Reopen the hub
+    ui.inventoryOpen = true;
+    await tick();
+    await tick();
+    await tick();
+    flushSync();
+
+    // Setup new coordinates where the candidate is now closest to Row 0 (Chest)
+    const newFirstRow = candidateRow();
+    const newSpineRows = Array.from(document.querySelectorAll('.spine-row')) as HTMLElement[];
+
+    vi.spyOn(newSpineRows[0], 'getBoundingClientRect').mockReturnValue({
+      top: 100, height: 40, bottom: 140, left: 10, right: 100, width: 90, x: 10, y: 100, toJSON: () => {}
+    });
+    vi.spyOn(newSpineRows[1], 'getBoundingClientRect').mockReturnValue({
+      top: 200, height: 40, bottom: 240, left: 10, right: 100, width: 90, x: 10, y: 200, toJSON: () => {}
+    });
+
+    // Midpoint = 110, closest to Row 0 (Chest)
+    vi.spyOn(newFirstRow, 'getBoundingClientRect').mockReturnValue({
+      top: 90, height: 40, bottom: 130, left: 110, right: 300, width: 190, x: 110, y: 90, toJSON: () => {}
+    });
+
+    newFirstRow.focus();
+    newFirstRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await tick();
+    await tick();
+    flushSync();
+
+    // Verifies it targeted Row 0 (Chest) on the second open instead of Row 1 (Head)
+    expect(document.activeElement).toBe(newSpineRows[0]);
+  });
 });

@@ -357,6 +357,8 @@
     if (wasOpen) return; // only initialize on the open transition
     wasOpen = true;
 
+    userSelectedSpine = false;
+
     let key = groups[0]?.key ?? '';
     if (ui.inventoryFilterKind === 'scroll' && groups.some((g) => g.key === 'cat:scroll')) {
       key = 'cat:scroll';
