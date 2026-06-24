@@ -28,6 +28,9 @@ and don't collide:
   first-class carried/read item line with a typed catalog, scroll-focused
   inventory browsing, filters by type/tier/floor band, keyboard-first reading,
   and generated full inventory art for every scroll.
+- **[Visual Effect Layers](visual_effect_layers_plan.md)** — generalizes the
+  existing hunger/low-HP HUD wash into layered chrome and stage effects, including
+  the first green-fog floor atmosphere.
 
 ## Cross-cutting concerns (read before implementing any one of them)
 
