@@ -1,4 +1,4 @@
-import { Player, Monster, Item, StatusEffects, GearItem, EquipSlot, GearSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
+import { Player, Monster, Item, ItemSpawn, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
@@ -6,6 +6,7 @@ import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inv
 import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
 import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
 import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
+import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
@@ -66,6 +67,14 @@ import {
  *  rather than a walk through already-cleared levels. Set to false for a calm
  *  victory-lap ascent instead. */
 const AMULET_REGENERATES_ASCENT = true;
+
+/** Convert a carried gear item into a floor-ready gear payload. `category` must
+ *  survive the round-trip so re-pickup routes the item back to the right bucket
+ *  (weapon type for weapons, slot name for armor, 'shield' for shields); the
+ *  fallback only applies to malformed legacy gear that never carried one. */
+function toFloorGear(gear: GearItem, category: string | undefined): FloorGear {
+  return { ...gear, category: gear.category ?? category ?? 'misc' };
+}
 
 export interface FloorState {
   map: string[][];
@@ -1978,6 +1987,9 @@ export class GameEngine {
   }
 
   public performInventoryAction(ref: InventoryRef, action: InventoryAction): boolean {
+    // Drop owns its own guards (incl. the sleep check), so route it before the
+    // shared takeSleepTurn below to avoid double-ticking a sleep turn.
+    if (action === 'drop') return this.dropInventoryRef(ref);
     if (this.takeSleepTurn()) return false;
     if (action === 'equip') return this.equipInventoryItem(ref);
     if (action === 'equipOffHand' && ref.kind === 'weapon') {
@@ -1993,6 +2005,146 @@ export class GameEngine {
     if (action === 'use') return this.useInventoryItem(ref);
     if (action === 'zap' && ref.kind === 'wand') return this.beginZap(ref);
     return false;
+  }
+
+  /** Drop one unit of the referenced inventory item onto the player's tile.
+   *  Costs a turn on success. Refuses — no turn, no mutation — while asleep,
+   *  game over/won, or aiming; when the referenced item is gone; when the tile
+   *  already holds a floor item; or when the ref points at equipped gear. See
+   *  design/planning/scroll_consistency_and_drop_items_plan.md (Part B). */
+  public dropInventoryRef(ref: InventoryRef): boolean {
+    if (this.gameOver || this.gameWon || this.aiming) return false;
+    if (this.takeSleepTurn()) return false;
+
+    const px = this.player.x;
+    const py = this.player.y;
+    if (this.items.some(i => i.x === px && i.y === py)) {
+      this.addLog("There is already something on the floor here.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+
+    const dropped = this.removeAndBuildFloorItem(ref);
+    if (!dropped) {
+      this.addLog("You cannot drop that.");
+      this.ui.updateDropdowns(this.player);
+      return false;
+    }
+
+    this.items.push({ ...dropped.spawn, x: px, y: py } as Item);
+    this.addLog(`Dropped ${dropped.name}.`);
+    this.ui.updateDropdowns(this.player);
+    this.processTurn();
+    return true;
+  }
+
+  /** Remove exactly one unit for `ref` from the inventory and return the floor
+   *  item it becomes (sans coordinates) plus a display name. Returns null if the
+   *  referenced item no longer exists or is equipped gear (not droppable yet).
+   *  Floor visuals mirror map.ts so a dropped item is indistinguishable from a
+   *  naturally-spawned one, and `category` is preserved so re-pickup routes the
+   *  gear back to the right bucket. */
+  private removeAndBuildFloorItem(ref: InventoryRef): { spawn: ItemSpawn; name: string } | null {
+    const inv = this.player.inventory;
+    switch (ref.kind) {
+      case 'food': {
+        if (inv.food <= 0) return null;
+        inv.food--;
+        return { spawn: { type: 'food', symbol: '%', color: '#ff9900' }, name: 'Rations' };
+      }
+      case 'potion': {
+        const idx = inv.potions.findIndex(p => p === ref.potionType);
+        if (idx === -1) return null;
+        const pType = inv.potions[idx]!;
+        inv.potions.splice(idx, 1);
+        return {
+          spawn: { type: 'potion', symbol: '!', color: potionVisual(pType).mapColor, data: { potionType: pType } },
+          name: `Potion of ${pType.charAt(0).toUpperCase()}${pType.slice(1)}`,
+        };
+      }
+      case 'scroll': {
+        const idx = inv.scrolls.findIndex(s => s === ref.scrollType);
+        if (idx === -1) return null;
+        const sType = inv.scrolls[idx]!;
+        inv.scrolls.splice(idx, 1);
+        return {
+          spawn: { type: 'scroll', symbol: '?', color: scrollVisual(sType).mapColor, data: { scrollType: sType } },
+          name: scrollDisplayName(sType),
+        };
+      }
+      case 'wand': {
+        const wand = inv.wands[ref.index];
+        if (!wand) return null;
+        inv.wands.splice(ref.index, 1);
+        return {
+          spawn: { type: 'wand', symbol: '/', color: wandVisual(wand.wandType).mapColor, data: wand },
+          name: wand.name,
+        };
+      }
+      case 'weapon': {
+        if (this.isWeaponEquipped(ref.index)) return null;
+        const w = inv.weapons[ref.index];
+        if (!w) return null;
+        inv.weapons.splice(ref.index, 1);
+        this.adjustWeaponIndices(ref.index);
+        return {
+          spawn: { type: 'gear', symbol: ')', color: w.color || '#ffffff', data: toFloorGear(w, w.type) },
+          name: w.name,
+        };
+      }
+      case 'armor': {
+        if (this.player.equipped[ref.slot] === ref.index) return null;
+        const a = inv[ref.slot][ref.index];
+        if (!a) return null;
+        inv[ref.slot].splice(ref.index, 1);
+        this.adjustArmorIndices(ref.slot, ref.index);
+        return {
+          spawn: { type: 'gear', symbol: '[', color: a.color || '#ffffff', data: toFloorGear(a, ref.slot) },
+          name: a.name,
+        };
+      }
+      case 'shield': {
+        if (ref.index === 0) return null; // index 0 is the "None" sentinel
+        if (this.player.equipped.offHand === `shield:${ref.index}`) return null;
+        const s = inv.shield[ref.index];
+        if (!s) return null;
+        inv.shield.splice(ref.index, 1);
+        this.adjustShieldIndices(ref.index);
+        return {
+          spawn: { type: 'gear', symbol: '[', color: s.color || '#ffffff', data: toFloorGear(s, 'shield') },
+          name: s.name,
+        };
+      }
+    }
+  }
+
+  private isWeaponEquipped(index: number): boolean {
+    const eq = this.player.equipped;
+    return eq.mainHand === index || eq.offHand === `weapon:${index}`;
+  }
+
+  /** Splicing a gear array shifts every index above the removed slot down by one.
+   *  These keep the index-based `equipped` references pointing at the same items. */
+  private adjustWeaponIndices(removed: number): void {
+    const eq = this.player.equipped;
+    if (eq.mainHand > removed) eq.mainHand--;
+    if (eq.offHand.startsWith('weapon:')) {
+      const k = Number(eq.offHand.split(':')[1]);
+      if (k > removed) eq.offHand = `weapon:${k - 1}`;
+    }
+  }
+
+  private adjustArmorIndices(slot: ArmorSlot, removed: number): void {
+    const eq = this.player.equipped;
+    if (eq[slot] > removed) eq[slot]--;
+  }
+
+  private adjustShieldIndices(removed: number): void {
+    const eq = this.player.equipped;
+    if (eq.offHand.startsWith('shield:')) {
+      const k = Number(eq.offHand.split(':')[1]);
+      if (k > removed) eq.offHand = `shield:${k - 1}`;
+    }
   }
 
   public processTurn() {

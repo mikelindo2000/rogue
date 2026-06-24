@@ -890,6 +890,117 @@ describe('GameEngine inventory commands', () => {
   });
 });
 
+describe('GameEngine dropInventoryRef', () => {
+  it('drops one food onto the player tile and spends a turn', () => {
+    const engine = makeRunner();
+    engine.player.inventory.food = 2;
+    const turnBefore = engine.turn;
+
+    const ok = engine.dropInventoryRef({ kind: 'food' });
+
+    expect(ok).toBe(true);
+    expect(engine.player.inventory.food).toBe(1);
+    const floor = engine.items.find(i => i.x === engine.player.x && i.y === engine.player.y);
+    expect(floor?.type).toBe('food');
+    expect(engine.turn).toBe(turnBefore + 1);
+    expect(engine.logs).toContain('Dropped Rations.');
+  });
+
+  it('drops exactly one of a potion stack and stores its type', () => {
+    const engine = makeRunner();
+    engine.player.inventory.potions = ['healing', 'healing', 'strength'];
+
+    const ok = engine.dropInventoryRef({ kind: 'potion', potionType: 'healing' });
+
+    expect(ok).toBe(true);
+    expect(engine.player.inventory.potions).toEqual(['healing', 'strength']);
+    const floor = engine.items.find(i => i.type === 'potion');
+    expect(floor?.type === 'potion' && floor.data.potionType).toBe('healing');
+  });
+
+  it('drops a scroll that can be picked back up with its type intact', () => {
+    const engine = makeRunner();
+    engine.player.inventory.scrolls = ['magic_mapping'];
+
+    expect(engine.dropInventoryRef({ kind: 'scroll', scrollType: 'magic_mapping' })).toBe(true);
+    expect(engine.player.inventory.scrolls).toEqual([]);
+    const floor = engine.items.find(i => i.type === 'scroll');
+    expect(floor?.type === 'scroll' && floor.data.scrollType).toBe('magic_mapping');
+
+    // Standing on the dropped scroll and re-checking the tile picks it back up.
+    engine.checkItems();
+    expect(engine.player.inventory.scrolls).toEqual(['magic_mapping']);
+  });
+
+  it('drops a wand, preserving its data', () => {
+    const engine = makeRunner();
+    engine.player.inventory.wands = [{ name: 'Wand of Fire', wandType: 'fire', tier: 'wand', rarity: 'rare' }];
+
+    const ok = engine.dropInventoryRef({ kind: 'wand', index: 0 });
+
+    expect(ok).toBe(true);
+    expect(engine.player.inventory.wands).toEqual([]);
+    const floor = engine.items.find(i => i.type === 'wand');
+    expect(floor?.type === 'wand' && floor.data.wandType).toBe('fire');
+  });
+
+  it('drops an unequipped weapon and keeps equipped indices valid', () => {
+    const engine = makeRunner();
+    // weapons[0] is the starting weapon. Add two more, equip the last as main.
+    engine.player.inventory.weapons.push({ name: 'Iron Sword', type: '1h_sword', dmg: 5 });
+    engine.player.inventory.weapons.push({ name: 'Steel Mace', type: '1h_mace', dmg: 6 });
+    engine.player.equipped.mainHand = 2; // Steel Mace
+
+    // Drop the middle weapon (index 1) which is not equipped.
+    const ok = engine.dropInventoryRef({ kind: 'weapon', index: 1 });
+
+    expect(ok).toBe(true);
+    expect(engine.items.some(i => i.type === 'gear')).toBe(true);
+    // The equipped weapon shifted from index 2 to 1 but still resolves to itself.
+    expect(engine.player.inventory.weapons[engine.player.equipped.mainHand]?.name).toBe('Steel Mace');
+  });
+
+  it('refuses to drop equipped gear', () => {
+    const engine = makeRunner();
+    engine.player.inventory.weapons.push({ name: 'Iron Sword', type: '1h_sword', dmg: 5 });
+    engine.player.equipped.mainHand = 1;
+    const turnBefore = engine.turn;
+
+    const ok = engine.dropInventoryRef({ kind: 'weapon', index: 1 });
+
+    expect(ok).toBe(false);
+    expect(engine.player.inventory.weapons[1]?.name).toBe('Iron Sword');
+    expect(engine.items).toHaveLength(0);
+    expect(engine.turn).toBe(turnBefore);
+  });
+
+  it('refuses a stale ref without spending a turn', () => {
+    const engine = makeRunner();
+    engine.player.inventory.potions = [];
+    const turnBefore = engine.turn;
+
+    const ok = engine.dropInventoryRef({ kind: 'potion', potionType: 'healing' });
+
+    expect(ok).toBe(false);
+    expect(engine.turn).toBe(turnBefore);
+    expect(engine.items).toHaveLength(0);
+  });
+
+  it('refuses to drop onto an already-occupied tile', () => {
+    const engine = makeRunner();
+    engine.player.inventory.scrolls = ['light'];
+    engine.items.push({ type: 'gold', symbol: '$', color: '#ffff55', x: engine.player.x, y: engine.player.y });
+    const turnBefore = engine.turn;
+
+    const ok = engine.dropInventoryRef({ kind: 'scroll', scrollType: 'light' });
+
+    expect(ok).toBe(false);
+    expect(engine.player.inventory.scrolls).toEqual(['light']);
+    expect(engine.items).toHaveLength(1); // unchanged
+    expect(engine.turn).toBe(turnBefore);
+  });
+});
+
 describe('dark-room FOV', () => {
   // A rectangular room with walls + corners. Interior is (l+1..r-1, t+1..b-1).
   const carveRoom = (engine: GameEngine, l: number, t: number, r: number, b: number) => {

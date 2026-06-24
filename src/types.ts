@@ -265,7 +265,7 @@ export type InventoryRef =
   | { kind: 'armor'; slot: ArmorSlot; index: number }
   | { kind: 'shield'; index: number };
 
-export type InventoryAction = 'equip' | 'equipOffHand' | 'use' | 'zap';
+export type InventoryAction = 'equip' | 'equipOffHand' | 'use' | 'zap' | 'drop';
 
 export type EquipTarget =
   | { slot: 'mainHand'; index: number }
