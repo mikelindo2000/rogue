@@ -157,11 +157,65 @@ export function scrollDefinition(type: ScrollType): ScrollDefinition {
   return SCROLLS[type];
 }
 
+/** Spawn role. Drives the weight band a scroll falls into and lets tests assert
+ *  "risky + dud scrolls stay rare" without pinning exact distributions. */
+export type ScrollRole = 'core' | 'situational' | 'risky' | 'dud';
+
+/** Floor-band cutoffs. early = 1..earlyMax, mid = earlyMax+1..midMax, deep = rest.
+ *  See design/planning/scroll_consistency_and_drop_items_plan.md (A2 Revised). */
+export const SCROLL_BANDS = { earlyMax: 6, midMax: 12 } as const;
+export type ScrollBand = 'early' | 'mid' | 'deep';
+
+export function scrollBand(floor: number): ScrollBand {
+  if (floor <= SCROLL_BANDS.earlyMax) return 'early';
+  if (floor <= SCROLL_BANDS.midMax) return 'mid';
+  return 'deep';
+}
+
+/** Per-scroll spawn weighting, intentional rather than derived from rarity alone.
+ *  `minFloor` on the ScrollDefinition still gates eligibility; these weights then
+ *  set the relative odds within a floor band. A weight of 0 keeps the scroll
+ *  eligible nowhere in that band (it still exists for pickup/read). */
+export interface ScrollSpawnTuning {
+  role: ScrollRole;
+  early: number;
+  mid: number;
+  deep: number;
+}
+
+/** Spawn tuning for the implemented scrolls. Keyed loosely (Partial) because the
+ *  catalog defines scrolls whose effects are not wired up yet; those never spawn
+ *  and need no tuning. A test asserts every IMPLEMENTED_SCROLLS entry is present. */
+export const SCROLL_TUNING: Partial<Record<ScrollType, ScrollSpawnTuning>> = {
+  // core utility — the backbone of the scroll economy under visible names.
+  light:          { role: 'core',        early: 20, mid: 10, deep: 8 },
+  teleportation:  { role: 'core',        early: 10, mid: 10, deep: 10 },
+  repair:         { role: 'core',        early: 8,  mid: 8,  deep: 8 },
+  magic_mapping:  { role: 'core',        early: 8,  mid: 8,  deep: 8 },
+  hold_monster:   { role: 'core',        early: 8,  mid: 8,  deep: 8 },
+  // build scrolls — gated to floor 7+, low but meaningful.
+  enchant_weapon: { role: 'core',        early: 0,  mid: 5,  deep: 6 },
+  enchant_armor:  { role: 'core',        early: 0,  mid: 5,  deep: 6 },
+  // situational detection — useful in context, not staple filler.
+  food_detection: { role: 'situational', early: 5,  mid: 4,  deep: 3 },
+  gold_detection: { role: 'situational', early: 3,  mid: 2,  deep: 2 },
+  // risky reads — rare spice with visible names, never baseline economy.
+  sleep:              { role: 'risky',   early: 1,  mid: 1,  deep: 1 },
+  create_monster:     { role: 'risky',   early: 1,  mid: 1,  deep: 1 },
+  aggravate_monsters: { role: 'risky',   early: 0,  mid: 1,  deep: 1 },
+  // dud — ultra rare until blank paper gains a real use (writing/crafting).
+  blank_paper:    { role: 'dud',         early: 1,  mid: 1,  deep: 1 },
+};
+
 export interface ScrollSpawnEntry {
   type: ScrollType;
   minFloor: number;
   maxFloor?: number;
-  weight: number;
+  role: ScrollRole;
+  /** Relative weight by floor band. */
+  early: number;
+  mid: number;
+  deep: number;
 }
 
 /** Scroll types whose read effect is wired up in the engine. The spawn pool is
@@ -185,31 +239,43 @@ export function isScrollImplemented(type: ScrollType): boolean {
   return IMPLEMENTED_SCROLLS.has(type);
 }
 
-/** Weighted spawn pool. Derived from the registry's `minFloor`/`rarity`, with
- *  rarer scrolls weighted down so the common utility scrolls dominate early.
- *  Only implemented effects spawn. */
-const RARITY_WEIGHT: Record<Rarity, number> = {
-  common: 10, uncommon: 6, rare: 3, epic: 2, legendary: 1,
-};
-
+/** Weighted spawn pool. Derived from SCROLL_TUNING so weights are intentional
+ *  (per-role, per-band) rather than a flat function of rarity. Only implemented
+ *  scrolls spawn; a scroll with no tuning entry is silently excluded. */
 export const SCROLL_POOL: ScrollSpawnEntry[] = (Object.keys(SCROLLS) as ScrollType[])
-  .filter(type => IMPLEMENTED_SCROLLS.has(type))
-  .map(type => ({
-    type,
-    minFloor: SCROLLS[type].minFloor,
-    weight: RARITY_WEIGHT[SCROLLS[type].rarity],
-  }));
+  .filter(type => IMPLEMENTED_SCROLLS.has(type) && SCROLL_TUNING[type] !== undefined)
+  .map(type => {
+    const tuning = SCROLL_TUNING[type]!;
+    return {
+      type,
+      minFloor: SCROLLS[type].minFloor,
+      role: tuning.role,
+      early: tuning.early,
+      mid: tuning.mid,
+      deep: tuning.deep,
+    };
+  });
 
-/** Pick a floor-appropriate scroll by weight. Falls back to Light if (somehow)
- *  nothing is eligible, so a spawn never produces an invalid item. */
+/** Weight of an entry on a given floor: its band weight, or 0 if the floor is
+ *  below the scroll's minFloor (eligibility gate) or above any maxFloor cap. */
+export function scrollWeightForFloor(entry: ScrollSpawnEntry, floor: number): number {
+  if (floor < entry.minFloor) return 0;
+  if (entry.maxFloor !== undefined && floor > entry.maxFloor) return 0;
+  return entry[scrollBand(floor)];
+}
+
+/** Pick a floor-appropriate scroll by band weight. Falls back to Light if
+ *  (somehow) nothing is eligible, so a spawn never produces an invalid item. */
 export function pickScrollForFloor(floor: number, rng: RNG): ScrollType {
-  const eligible = SCROLL_POOL.filter(e => e.minFloor <= floor && (e.maxFloor === undefined || floor <= e.maxFloor));
+  const eligible = SCROLL_POOL
+    .map(entry => ({ entry, weight: scrollWeightForFloor(entry, floor) }))
+    .filter(e => e.weight > 0);
   if (eligible.length === 0) return 'light';
   const total = eligible.reduce((sum, e) => sum + e.weight, 0);
   let roll = rng.next() * total;
-  for (const entry of eligible) {
-    roll -= entry.weight;
-    if (roll < 0) return entry.type;
+  for (const e of eligible) {
+    roll -= e.weight;
+    if (roll < 0) return e.entry.type;
   }
-  return eligible[eligible.length - 1]!.type;
+  return eligible[eligible.length - 1]!.entry.type;
 }
