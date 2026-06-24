@@ -66,6 +66,7 @@ This game is modularized using Vite, TypeScript, and native Web Components:
 - **Build Output**: Run `npm run build` to generate static production assets inside `/dist`.
 - **Custom Components**: Create new components in `src/components/` as HTML5 Custom Elements.
 - **Keyboard Manager**: Central key events are handled under `src/keyboard.ts`. Avoid binding raw keyboard event listeners.
+- **Authoring Guides**: See `guides/monster-authoring.md` and `guides/scroll-authoring.md` before adding new monsters or scrolls.
 
 ### Manual Trap Test Path
 
