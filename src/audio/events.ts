@@ -43,7 +43,8 @@ export type SoundEvent =
   | { type: 'item.zap'; wandType: WandType }
   // map / navigation
   | { type: 'map.stairs'; dir: 'up' | 'down' }
-  | { type: 'map.secretReveal' };
+  | { type: 'map.secretReveal' }
+  | { type: 'movement.run'; steps: number };
 
 export type SoundEventType = SoundEvent['type'];
 

@@ -191,6 +191,7 @@ influence is `prompt_influence`.
 | `stairs-down-01.mp3` | `map.stairs` (descend) | 0.9 | 0.5 | Descending stone stairs deeper underground, footsteps with a low ominous drop |
 | `stairs-up-01.mp3` | `map.stairs` (ascend) | 0.9 | 0.5 | Climbing stone stairs upward, footsteps with a lighter rising tone |
 | `secret-reveal-01.mp3` | `map.secretReveal` | 1.0 | 0.55 | A hidden stone door grinds open revealing a secret passage, soft magical reveal shimmer |
+| `movement-run-01.mp3` | `movement.run` | 0.7 | 0.5 | A very soft cloth-and-leather rush through a stone hallway, quick airy whoosh, understated |
 
 ---
 

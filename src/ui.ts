@@ -102,6 +102,25 @@ interface MoveAnim {
   start: number;
 }
 
+interface RunPathStep {
+  x: number;
+  y: number;
+}
+
+interface PlayerRunAnim {
+  path: RunPathStep[];
+  start: number;
+  tileMs: number;
+  duration: number;
+}
+
+export const PLAYER_RUN_ANIMATION = {
+  msPerTile: 32,
+  maxDurationMs: 480,
+  trailCount: 5,
+  trailSpacingMs: 28,
+} as const;
+
 /** Snapshot of the board for a single frame — lets the animation loop repaint
  *  between turns without the turn-based engine driving every frame. */
 interface Scene {
@@ -148,6 +167,7 @@ export class GameUI {
    *  identity (monsters persist within a floor; WeakMap self-cleans on death). */
   private moveAnim: WeakMap<Monster, MoveAnim> = new WeakMap();
   private lastTile: WeakMap<Monster, { x: number; y: number }> = new WeakMap();
+  private playerRunAnim: PlayerRunAnim | null = null;
   /** Quick perpendicular "flit aside" wobble when a monster evades a strike. */
   private dodgeAnim: WeakMap<Monster, { start: number; dx: number; dy: number }> = new WeakMap();
   /** Timestamp (ms) until which at least one glide is still in flight, so the
@@ -182,6 +202,10 @@ export class GameUI {
     gameOver: boolean,
     gameWon: boolean
   ) {
+    // Any engine-driven render after a run replay begins means newer gameplay
+    // state has arrived; stop replaying the old presentation path immediately.
+    this.playerRunAnim = null;
+
     // Snapshot the board so the animation loop can repaint between turns
     // without the turn-based engine having to drive every frame.
     this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
@@ -313,9 +337,11 @@ export class GameUI {
     }
     this.ctx.globalAlpha = 1;
 
-    // Draw Player (with attack lunge + damage flash)
+    // Draw Player (with run replay, attack lunge, and damage flash)
     const pf = this.playerFx(t, s.tileSize);
-    this.drawPlayer(s.player.x, s.player.y, s.tileSize, style, s.gameOver, s.gameWon, pf.dx, pf.dy, pf.flash);
+    const run = this.playerRunPos(t);
+    if (run.active) this.drawPlayerRunTrail(t, s.tileSize, style, s.gameOver, s.gameWon, pf.flash);
+    this.drawPlayer(run.active ? run.x : s.player.x, run.active ? run.y : s.player.y, s.tileSize, style, s.gameOver, s.gameWon, pf.dx, pf.dy, pf.flash);
 
     // Floating damage numbers, painted last so they read above everything.
     for (const f of this.fx) {
@@ -509,6 +535,50 @@ export class GameUI {
     return typeof performance !== 'undefined' ? performance.now() : 0;
   }
 
+  private playerRunPos(t: number): { x: number; y: number; active: boolean } {
+    const run = this.playerRunAnim;
+    if (!run) return { x: 0, y: 0, active: false };
+    const elapsed = t - run.start;
+    if (elapsed >= run.duration) {
+      this.playerRunAnim = null;
+      return { x: run.path[run.path.length - 1].x, y: run.path[run.path.length - 1].y, active: false };
+    }
+    return { ...this.sampleRunPath(run, Math.max(0, elapsed)), active: true };
+  }
+
+  private sampleRunPath(run: PlayerRunAnim, elapsedMs: number): RunPathStep {
+    if (run.path.length <= 1) return run.path[0] ?? { x: 0, y: 0 };
+    const progress = Math.min(run.path.length - 1, elapsedMs / run.tileMs);
+    const i = Math.min(run.path.length - 2, Math.floor(progress));
+    const a = run.path[i];
+    const b = run.path[i + 1];
+    const local = easeOutCubic(Math.max(0, Math.min(1, progress - i)));
+    return { x: lerp(a.x, b.x, local), y: lerp(a.y, b.y, local) };
+  }
+
+  private drawPlayerRunTrail(
+    t: number,
+    tileSize: number,
+    style: DungeonStyle,
+    gameOver: boolean,
+    gameWon: boolean,
+    flash: number
+  ) {
+    const run = this.playerRunAnim;
+    if (!run) return;
+    const elapsed = t - run.start;
+    for (let i = PLAYER_RUN_ANIMATION.trailCount; i >= 1; i--) {
+      const trailElapsed = elapsed - i * PLAYER_RUN_ANIMATION.trailSpacingMs;
+      if (trailElapsed < 0) continue;
+      const p = this.sampleRunPath(run, trailElapsed);
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.max(0, 0.22 - i * 0.032);
+      this.drawPlayer(p.x, p.y, tileSize, style, gameOver, gameWon, 0, 0, flash * 0.4);
+      this.ctx.restore();
+    }
+    this.ctx.globalAlpha = 1;
+  }
+
   /** Aggregate the player's attack-lunge offset and damage flash for frame t. */
   private playerFx(t: number, tileSize: number): { dx: number; dy: number; flash: number } {
     let dx = 0;
@@ -620,6 +690,23 @@ export class GameUI {
   /** A floating label (e.g. "dodge", "miss") rising off (x,y). */
   public fxFloat(x: number, y: number, text: string, color = '#9fb4c8') {
     this.fx.push({ kind: 'float', start: this.nowMs(), life: FX_LIFE.float, x, y, text, color, jx: Math.random() * 0.4 - 0.2 });
+    this.ensureLoop();
+  }
+
+  public fxPlayerRun(path: RunPathStep[]) {
+    this.playerRunAnim = null;
+    if (path.length < 3) return;
+    const steps = path.length - 1;
+    const tileMs = Math.min(PLAYER_RUN_ANIMATION.msPerTile, PLAYER_RUN_ANIMATION.maxDurationMs / steps);
+    const start = this.nowMs();
+    this.playerRunAnim = {
+      path: path.map(p => ({ x: p.x, y: p.y })),
+      start,
+      tileMs,
+      duration: tileMs * steps,
+    };
+    this.animUntil = Math.max(this.animUntil, start + this.playerRunAnim.duration + PLAYER_RUN_ANIMATION.trailCount * PLAYER_RUN_ANIMATION.trailSpacingMs);
+    this.paint(start);
     this.ensureLoop();
   }
 

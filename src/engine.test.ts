@@ -12,6 +12,7 @@ const makeUi = () => ({
   updateStats: () => {},
   syncDiscovery: () => {},
   render: () => {},
+  fxPlayerRun: () => {},
   fxStrike: () => {},
   fxHit: () => {},
   fxFreeze: () => {},
@@ -511,7 +512,8 @@ describe('GameEngine hidden traps', () => {
 
 describe('GameEngine run movement', () => {
   it('moves in a straight line until the next tile is blocked', () => {
-    const engine = makeRunner();
+    const sink = new RecordingSink();
+    const engine = makeRunner(sink);
     carveRow(engine, 2, 2, 6);
 
     engine.handlePlayerRun(1, 0);
@@ -519,6 +521,7 @@ describe('GameEngine run movement', () => {
     expect(engine.player.x).toBe(6);
     expect(engine.player.y).toBe(2);
     expect(engine.turn).toBe(4);
+    expect(sink.ofType('movement.run')[0]).toMatchObject({ steps: 4 });
   });
 
   it('stops at the doorway when running down a corridor into a room', () => {

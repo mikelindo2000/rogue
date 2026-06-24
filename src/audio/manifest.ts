@@ -79,6 +79,7 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'stairs-down': { id: 'stairs-down', variants: [sfx('stairs-down-01.mp3')], channel: 'ui', volume: 0.8 },
   'stairs-up': { id: 'stairs-up', variants: [sfx('stairs-up-01.mp3')], channel: 'ui', volume: 0.8 },
   'secret-reveal': { id: 'secret-reveal', variants: [sfx('secret-reveal-01.mp3')], channel: 'ui', volume: 0.85 },
+  'movement-run': { id: 'movement-run', variants: [sfx('movement-run-01.mp3')], channel: 'ui', volume: 0.26, cooldownMs: 180, maxVoices: 1 },
 };
 
 /**
@@ -132,6 +133,7 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'item.consume': return event.kind === 'food' ? 'consume-food' : 'consume-potion';
     case 'map.stairs': return event.dir === 'down' ? 'stairs-down' : 'stairs-up';
     case 'map.secretReveal': return 'secret-reveal';
+    case 'movement.run': return event.steps > 1 ? 'movement-run' : null;
     default: return null;
   }
 }

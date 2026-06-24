@@ -732,6 +732,13 @@ export class GameEngine {
     // single-onward bend — until maxSteps is exhausted, burning turns and
     // dumping the player somewhere surprising. Re-entering a tile ends the run.
     const visited = new Set<number>([this.player.y * this.COLS + this.player.x]);
+    const runPath = [{ x: this.player.x, y: this.player.y }];
+    const finishRunPresentation = () => {
+      const steps = runPath.length - 1;
+      if (steps <= 1) return;
+      this.sound.emit({ type: 'movement.run', steps });
+      this.ui.fxPlayerRun(runPath);
+    };
 
     for (let step = 0; step < maxSteps; step++) {
       const here = this.map[this.player.y]?.[this.player.x];
@@ -767,6 +774,7 @@ export class GameEngine {
       this.player.x = tx;
       this.player.y = ty;
       visited.add(ty * this.COLS + tx);
+      runPath.push({ x: tx, y: ty });
       backDx = -curDx;
       backDy = -curDy;
       recordStep(this.stats, true);
@@ -791,9 +799,16 @@ export class GameEngine {
       if (trapResult.teleported || this.trapEffects.bearTrapTurns > 0 || this.trapEffects.sleepTurns > 0) return;
       // Pause on entering a room from a corridor — at its doorway or its floor —
       // so the player can survey before pressing on.
-      if (here === TILE.CORRIDOR && (currentTile === TILE.DOOR || currentTile === TILE.FLOOR)) return;
-      if (this.hasAdjacentMonster()) return;
+      if (here === TILE.CORRIDOR && (currentTile === TILE.DOOR || currentTile === TILE.FLOOR)) {
+        finishRunPresentation();
+        return;
+      }
+      if (this.hasAdjacentMonster()) {
+        finishRunPresentation();
+        return;
+      }
     }
+    finishRunPresentation();
   }
 
   private travelStairs(delta: 1 | -1) {

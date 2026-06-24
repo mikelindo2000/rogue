@@ -41,6 +41,11 @@ describe('payload-based routing', () => {
     expect(resolveClipId({ type: 'map.stairs', dir: 'down' })).toBe('stairs-down');
     expect(resolveClipId({ type: 'map.stairs', dir: 'up' })).toBe('stairs-up');
   });
+
+  it('routes only multi-step run movement to the subtle whoosh cue', () => {
+    expect(resolveClipId({ type: 'movement.run', steps: 1 })).toBeNull();
+    expect(resolveClipId({ type: 'movement.run', steps: 3 })).toBe('movement-run');
+  });
 });
 
 describe('manifest integrity', () => {
@@ -58,7 +63,7 @@ describe('manifest integrity', () => {
       'survival-dualwarning',
       'equip-weapon', 'equip-armor', 'equip-unequip', 'equip-rejected',
       'item-pickup', 'item-gold', 'consume-potion', 'consume-food',
-      'stairs-down', 'stairs-up', 'secret-reveal',
+      'stairs-down', 'stairs-up', 'secret-reveal', 'movement-run',
     ];
     for (const id of ids) expect(SOUND_ASSETS[id], id).toBeDefined();
   });

@@ -118,6 +118,7 @@ Start with names stable enough for code, broad enough for asset iteration:
 | `item.consume` | food/potion/scroll used |
 | `map.stairs` | up/down floor travel |
 | `map.secretReveal` | secret door reveal |
+| `movement.run` | multi-tile fast movement through a hall/room path |
 | `ui.open` / `ui.close` | settings/inventory/bestiary modal transitions, optional |
 
 Prefer fewer event names with useful payloads over many asset-specific names. For
