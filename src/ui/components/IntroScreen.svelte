@@ -123,7 +123,12 @@
     padding: 20px;
     padding-top: calc(20px + env(safe-area-inset-top));
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
-    background: rgba(0, 0, 0, 0.72);
+    /* Atmospheric opening scene (public/intro/, generated via
+       scripts/gen-intro-art.sh), held at low opacity under a dark wash so the
+       panel and its text stay legible. */
+    background:
+      radial-gradient(ellipse at 50% 38%, rgba(6, 7, 11, 0.66), rgba(4, 5, 8, 0.92)),
+      url('/intro/intro-bg.png') center / cover no-repeat;
     backdrop-filter: blur(6px);
     outline: none;
   }
