@@ -865,6 +865,12 @@ export class GameEngine {
     this.loadFloorForTravel(delta);
     this.ui.updateDropdowns(this.player);
     this.updateUI();
+    // Repaint the live canvas to the NEW floor now. The stairs path returns
+    // before processTurn (which normally draws), so without this the canvas keeps
+    // the old floor until the next move. The floor transition began above with the
+    // live layer hidden, so this new-floor paint lands invisibly and the crossfade
+    // reveals it.
+    this.draw();
     this.autosave();
   }
 
