@@ -13,6 +13,7 @@
   import BalancePanel from './components/BalancePanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
   import ShortcutsModal from './components/ShortcutsModal.svelte';
+  import IntroScreen from './components/IntroScreen.svelte';
   import EffectLayerHost from './components/EffectLayerHost.svelte';
   import { ui } from './store.svelte';
 </script>
@@ -48,6 +49,7 @@
 <BalancePanel />
 <SettingsModal />
 <ShortcutsModal />
+<IntroScreen />
 
 <style>
   .frame {

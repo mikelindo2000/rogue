@@ -18,6 +18,9 @@ export interface Settings {
   lastClass: string;
   /** Board size applied to the NEXT new game (in-progress runs keep their own). */
   boardSize: BoardSizeId;
+  /** Set once the first-run How-to-Play intro gate has been dismissed, so a
+   *  returning player is never shown it again. */
+  hasSeenIntro: boolean;
   audio: {
     muted: boolean;
     volume: number;
@@ -31,6 +34,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   playerName: 'The Wretch',
   lastClass: 'Rogue',
   boardSize: DEFAULT_BOARD_SIZE,
+  hasSeenIntro: false,
   audio: { muted: false, volume: 1, musicMuted: false, musicVolume: 0.4 },
 };
 

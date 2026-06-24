@@ -14,6 +14,7 @@ import {
   upsertRunSummary,
 } from './persistence/runHistory';
 import { loadSettings, updateSettings } from './persistence/settings';
+import { shouldShowIntro } from './introGate';
 import { buildCopySummary } from './ui/endRunView';
 import type { RunSummaryV1 } from './runStats';
 import { createAudioService } from './audio/service';
@@ -251,6 +252,15 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.setShortcutsOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
     ui.shortcutsOpen = open;
+  };
+  actions.dismissIntro = () => {
+    if (!ui.introOpen) return;
+    ui.introOpen = false;
+    // Game input was suspended while the gate was up; restore it now.
+    keyboard.resume();
+    // The dismissing gesture also unlocks audio (autoplay policy).
+    unlockAudio();
+    updateSettings({ hasSeenIntro: true });
   };
   actions.setAudioMuted = (muted) => {
     ui.audioMuted = muted;
@@ -497,4 +507,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Publish the registered bindings so the shortcuts modal and How-to-Play guide
   // render from one source of truth instead of a hand-maintained duplicate.
   ui.shortcuts = keyboard.list();
+
+  // First-run How-to-Play gate: shown only to a brand-new visitor (no save and
+  // never dismissed). While it's up, suspend game input so keys don't leak to
+  // the board underneath; dismissIntro() resumes it.
+  if (shouldShowIntro(!!save, settings.hasSeenIntro)) {
+    ui.introOpen = true;
+    keyboard.suspend();
+  }
 });
