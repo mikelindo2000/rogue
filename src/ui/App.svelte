@@ -70,10 +70,14 @@
   }
   .rail {
     position: relative;
-    /* Contain chrome-fog z-index math so it can't leak into the app stack.
-       The effect host self-clips (its own overflow: hidden), so the rail keeps
-       overflow visible and focus rings/tooltips are never clipped. */
+    /* Contain chrome-fog z-index math so it can't leak into the app stack
+       (the host self-clips via overflow: hidden, so the rail keeps overflow
+       visible and focus rings/tooltips are never clipped). z-index lifts the
+       whole rail above the stage's canvas (z1) and overlay effects (z2) so
+       leftward-overhanging popovers — e.g. the inventory tooltip — still render
+       over the board, while staying below the end-run overlay (z8). */
     isolation: isolate;
+    z-index: 3;
     flex: none;
     display: flex;
     flex-direction: column;

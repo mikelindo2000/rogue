@@ -92,6 +92,8 @@
   --fx-color-a: rgba(70, 150, 78, 0.5);
   --fx-color-b: rgba(120, 190, 96, 0.32);
   --fx-color-c: rgba(40, 90, 55, 0.42);
+  /* Per-target opacity (chrome ~0.12, stage ~0.5) folded with --fx-intensity,
+     which is currently always 1 for fog but kept as a future strength hook. */
   opacity: calc(var(--fx-opacity, 0.5) * var(--fx-intensity, 1));
   background:
     radial-gradient(60% 50% at 22% 32%, var(--fx-color-a), transparent 70%),
