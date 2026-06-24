@@ -131,6 +131,7 @@ export interface PotionOption {
   label: string;
   icon: IconName;
   color: string;
+  count: number;
 }
 
 export interface LogLineView {

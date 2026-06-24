@@ -4,6 +4,7 @@
   import Icon from './primitives/Icon.svelte';
 
   const firstPotion = $derived(ui.potions[0]);
+  const potionCount = $derived(ui.potions.reduce((n, p) => n + p.count, 0));
   const scrollCells = $derived(ui.inventoryItems.filter((c) => c.ref.kind === 'scroll'));
   const scrollCount = $derived(scrollCells.reduce((n, c) => n + (c.count ?? 1), 0));
   const firstScrollIcon = $derived(scrollCells[0]?.icon ?? 'book');
@@ -88,7 +89,7 @@
         <button class="quick" onclick={() => actions.setCompendiumOpen(true)}>Bestiary</button>
         <button class="quick icon" aria-label="Use potion" disabled={!firstPotion} onclick={() => firstPotion && actions.usePotion(firstPotion.idx)}>
           <Icon name={firstPotion?.icon ?? 'potion-healing'} size={16} />
-          <span class="count tnum">{ui.potions.length}</span>
+          <span class="count tnum">{potionCount}</span>
         </button>
         <button class="quick icon" aria-label="Eat" disabled={ui.food === 0} onclick={() => actions.eat()}>
           <Icon name="leaf" size={16} />

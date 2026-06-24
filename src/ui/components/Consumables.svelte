@@ -10,8 +10,10 @@
       icon: p.icon,
       iconColor: p.color,
       color: p.color,
+      meta: p.count > 1 ? `×${p.count}` : undefined,
     }))
   );
+  const potionCount = $derived(ui.potions.reduce((n, p) => n + p.count, 0));
   const noPotions = $derived(ui.potions.length === 0);
   const firstPotion = $derived(ui.potions[0]);
   let potionButton = $state<HTMLButtonElement | null>(null);
@@ -42,7 +44,7 @@
           <Icon name={firstPotion?.icon ?? 'potion-healing'} size={16} />
         </span>
         <span class="text">Use potion</span>
-        <span class="count tnum">{ui.potions.length}</span>
+        <span class="count tnum">{potionCount}</span>
       </button>
     {/snippet}
   </Popover>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../config';
 import type { PotionType } from '../types';
-import { potionDetail, potionLabel, potionTooltipStats } from './potionView';
+import { buildPotionOptions, potionDetail, potionLabel, potionTooltipStats } from './potionView';
 
 const POTIONS: PotionType[] = ['healing', 'strength', 'invisibility', 'armor'];
 
@@ -10,6 +10,16 @@ describe('potion view helpers', () => {
     expect(potionLabel('healing')).toBe('Potion of Healing');
     expect(potionLabel('healing', 1)).toBe('Potion of Healing');
     expect(potionLabel('healing', 2)).toBe('Potion of Healing ×2');
+  });
+
+  it('stacks identical HUD potion options while keeping the first inventory index', () => {
+    const options = buildPotionOptions(['healing', 'strength', 'healing', 'armor', 'strength']);
+
+    expect(options.map((p) => ({ idx: p.idx, label: p.label, count: p.count }))).toEqual([
+      { idx: 0, label: 'Healing', count: 2 },
+      { idx: 1, label: 'Strength', count: 2 },
+      { idx: 3, label: 'Armor', count: 1 },
+    ]);
   });
 
   it('provides detail copy for every potion type', () => {

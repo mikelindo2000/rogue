@@ -24,7 +24,7 @@ import { gearHealthView } from './ui/equipmentStats';
 import { bestIndex, compareGear } from './ui/gearCompare';
 import { SLOT_ICON } from './ui/icons';
 import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl, wandArtUrl } from './ui/inventoryArt';
-import { potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
+import { buildPotionOptions, potionDetail, potionLabel, potionTooltipStats } from './ui/potionView';
 import { wandDetail, wandLabel, wandTooltipStats } from './ui/wandView';
 import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { SCROLLS, scrollDisplayName } from './scrolls';
@@ -1420,15 +1420,7 @@ export class GameUI {
     ui.inventoryItems = inv.cells;
     ui.inventory = inv.cells.slice(0, ui.inventoryMax);
     ui.inventoryCount = inv.count;
-    ui.potions = player.inventory.potions.map((p, i) => {
-      const visual = potionVisual(p);
-      return {
-        idx: i,
-        label: titleCase(p),
-        icon: visual.icon,
-        color: visual.uiColor,
-      };
-    });
+    ui.potions = buildPotionOptions(player.inventory.potions);
   }
 
   private buildInventory(player: Player): { cells: InventoryCell[]; count: number } {

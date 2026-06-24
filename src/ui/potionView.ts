@@ -1,10 +1,34 @@
 import { BALANCE } from '../config';
 import type { PotionType } from '../types';
-import type { InventoryTooltipStat } from './store.svelte';
+import { potionVisual } from '../itemVisuals';
+import type { InventoryTooltipStat, PotionOption } from './store.svelte';
 import { titleCase } from './format';
 
 export function potionLabel(type: PotionType, count?: number): string {
   return `Potion of ${titleCase(type)}${count && count > 1 ? ` ×${count}` : ''}`;
+}
+
+export function buildPotionOptions(potions: PotionType[]): PotionOption[] {
+  const stacks = new Map<PotionType, PotionOption>();
+
+  potions.forEach((type, idx) => {
+    const current = stacks.get(type);
+    if (current) {
+      current.count += 1;
+      return;
+    }
+
+    const visual = potionVisual(type);
+    stacks.set(type, {
+      idx,
+      label: titleCase(type),
+      icon: visual.icon,
+      color: visual.uiColor,
+      count: 1,
+    });
+  });
+
+  return Array.from(stacks.values());
 }
 
 export function potionDetail(type: PotionType): string {
