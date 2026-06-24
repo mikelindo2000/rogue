@@ -32,15 +32,19 @@ and don't collide:
   retunes the now-visible scroll catalog so harmful/blank scrolls are rare
   texture instead of common clutter, then adds a keyboard-first drop command so
   situational items can be managed deliberately.
+- **[Scroll of Monster Detection](monster_detection_scroll_plan.md)** — adds a
+  monster-sensing scroll that reveals live monster positions on the current floor
+  through a separate detected-overlay channel, without mutating FOV or making
+  sensed monsters valid line-of-sight targets.
 - **[Visual Effect Layers](visual_effect_layers_plan.md)** — generalizes the
   existing hunger/low-HP HUD wash into layered chrome and stage effects, including
   the first green-fog floor atmosphere.
 
 ## Cross-cutting concerns (read before implementing any one of them)
 
-These three plans all touch the same seams. Coordinate so they integrate cleanly:
+These related plans all touch the same seams. Coordinate so they integrate cleanly:
 
-1. **Savegame version** (`src/persistence/savegame.ts`, currently `VERSION = 2`).
+1. **Savegame version** (`src/persistence/savegame.ts`, currently `VERSION = 4`).
    Each plan bumps it and adds shape validation + migration. **If two or more ship
    together, do a single combined bump** rather than stacking sequential versions.
    Each plan documents its own delta.
