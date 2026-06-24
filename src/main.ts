@@ -509,6 +509,20 @@ document.addEventListener('DOMContentLoaded', () => {
     },
   });
 
+  if (import.meta.env.DEV) {
+    keyboard.register({
+      keys: ['p'],
+      description: 'Place a poison dart trap (dev)',
+      context: 'game',
+      ctrlOrMeta: true,
+      hidden: true,
+      callback: () => {
+        if (overlayOpen()) return;
+        engine.debugPlacePoisonDartTrap();
+      },
+    });
+  }
+
   keyboard.register({
     keys: [','],
     description: 'Toggle settings',

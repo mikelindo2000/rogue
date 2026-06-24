@@ -39,7 +39,7 @@ const setup = (floor = 5) => {
   engine.items = [];
   engine.monsters = [];
   engine.traps = [];
-  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
+  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
   engine.player.x = 2;
   engine.player.y = 2;
   engine.player.hunger = 500;

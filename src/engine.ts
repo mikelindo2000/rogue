@@ -133,6 +133,7 @@ export class GameEngine {
     bearTrapTurns: 0,
     sleepTurns: 0,
     strengthDrained: 0,
+    confusedTurns: 0,
   };
 
   // Board dimensions follow the chosen board size (see boards.ts). Mutable
@@ -220,6 +221,7 @@ export class GameEngine {
       bearTrapTurns: 0,
       sleepTurns: 0,
       strengthDrained: 0,
+      confusedTurns: 0,
     };
     this.floorStates.clear();
     this.searchHintShown = false;
@@ -577,6 +579,46 @@ export class GameEngine {
     return this.traps.find(trap => trap.x === x && trap.y === y && trap.armed);
   }
 
+  /** Dev-only manual testing hook: place a visible poison dart trap beside the
+   *  player so the trap/confusion visual can be tested without seed hunting. */
+  public debugPlacePoisonDartTrap(): boolean {
+    if (this.gameOver || this.gameWon) return false;
+    const candidates = [
+      { dx: 1, dy: 0, label: 'east' },
+      { dx: -1, dy: 0, label: 'west' },
+      { dx: 0, dy: 1, label: 'south' },
+      { dx: 0, dy: -1, label: 'north' },
+    ];
+
+    for (const c of candidates) {
+      const x = this.player.x + c.dx;
+      const y = this.player.y + c.dy;
+      if (x < 0 || x >= this.COLS || y < 0 || y >= this.ROWS) continue;
+      if (!isWalkable(this.map[y]?.[x]) || STAIR_TILES.has(this.map[y]?.[x])) continue;
+      if (this.monsters.some(m => m.x === x && m.y === y)) continue;
+      if (this.items.some(i => i.x === x && i.y === y)) continue;
+      if (this.trapAt(x, y)?.armed) continue;
+
+      this.traps.push({
+        id: `debug-poison-dart-${this.turn}-${x}-${y}`,
+        kind: 'dart',
+        x,
+        y,
+        revealed: true,
+        armed: true,
+      });
+      this.addLog(`Debug: poison dart trap placed ${c.label}.`);
+      this.updateUI();
+      this.draw();
+      return true;
+    }
+
+    this.addLog('Debug: no adjacent safe tile for a poison dart trap.');
+    this.updateUI();
+    this.draw();
+    return false;
+  }
+
   private capNonlethalDamage(amount: number): number {
     return Math.max(0, Math.min(amount, this.player.hp - 1));
   }
@@ -622,8 +664,10 @@ export class GameEngine {
       const damage = this.applyTrapDamage(trap.kind);
       const before = this.trapEffects.strengthDrained;
       this.trapEffects.strengthDrained = Math.min(maxDartDrainStacks(this.dungeonFloor), before + 1);
+      this.trapEffects.confusedTurns = Math.max(this.trapEffects.confusedTurns, BALANCE.map.traps.dartConfuseTurns);
       const drained = this.trapEffects.strengthDrained > before;
       this.addLog(drained ? "Your strength ebbs." : "You resist further weakness.");
+      this.addLog("Poison clouds your senses.");
       if (damage > 0) this.addLog(`The dart hits for ${damage} damage.`);
       return { travelled: false, teleported: false };
     }
@@ -2197,6 +2241,10 @@ export class GameEngine {
       this.statusEffects.armorTurns--;
       if (this.statusEffects.armorTurns === 0) this.addLog("Armor status expired.");
     }
+    if (this.trapEffects.confusedTurns > 0) {
+      this.trapEffects.confusedTurns--;
+      if (this.trapEffects.confusedTurns === 0) this.addLog("Your senses clear.");
+    }
 
     // Tick down wand recharge timers (cooldowns, not charges). Set to K on zap
     // and ticked here in that same turn (like every status timer), so the next
@@ -2449,7 +2497,9 @@ export class GameEngine {
       this.searchHintShown = save.searchHintShown;
       this.secretsFoundThisRun = save.secretsFoundThisRun;
       this.stats = structuredClone(save.stats);
-      this.trapEffects = save.trapEffects ? { ...save.trapEffects } : { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
+      this.trapEffects = save.trapEffects
+        ? { ...save.trapEffects, confusedTurns: save.trapEffects.confusedTurns ?? 0 }
+        : { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
       this.trapdoorGeneratedThisRun = this.hasAnyTrapdoorInRun();
       this.finalRunSummary = null;
 

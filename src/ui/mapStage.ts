@@ -24,8 +24,8 @@ export interface RumbleOptions {
 }
 
 export interface MapStageOptions {
-  /** Writes the composed CSS transform to the plane element (or '' for identity). */
-  apply: (transform: string) => void;
+  /** Writes composed CSS effects to the plane element (or '' for identity). */
+  apply: (transform: string, filter?: string) => void;
   /** Monotonic clock in ms. Defaults to performance.now(). */
   now?: () => number;
   /** RNG in [0,1). Defaults to Math.random. Injected for deterministic tests. */
@@ -63,9 +63,10 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 
 export class MapStageController {
   private rumbles: Rumble[] = [];
+  private disorientation = 0;
   private reduced: boolean;
   private wasIdentity = true;
-  private readonly apply: (transform: string) => void;
+  private readonly apply: (transform: string, filter?: string) => void;
   private readonly now: () => number;
   private readonly random: () => number;
 
@@ -97,10 +98,17 @@ export class MapStageController {
     });
   }
 
+  /** Set a persistent disorientation strength in [0, 1]. Used by gameplay
+   *  statuses such as poison confusion; no-op visually under reduced motion. */
+  setDisorientation(intensity: number): void {
+    this.disorientation = clamp01(intensity);
+    if (this.reduced) this.settle();
+  }
+
   /** True while any effect is still alive (keeps GameUI's rAF loop spinning). */
   isAnimating(): boolean {
     const t = this.now();
-    return this.rumbles.some(r => t - r.start < r.life);
+    return this.disorientation > 0 || this.rumbles.some(r => t - r.start < r.life);
   }
 
   /** Compose all live effects into one transform and write it to the plane.
@@ -110,7 +118,7 @@ export class MapStageController {
     if (this.rumbles.length) {
       this.rumbles = this.rumbles.filter(r => t - r.start < r.life);
     }
-    if (this.rumbles.length === 0) {
+    if (this.rumbles.length === 0 && this.disorientation <= 0) {
       this.settle();
       return;
     }
@@ -119,6 +127,8 @@ export class MapStageController {
     let dy = 0;
     let dz = 0;
     let rot = 0;
+    let pitch = 0;
+    let yaw = 0;
     for (const r of this.rumbles) {
       const p = clamp01((t - r.start) / r.life);
       const env = (1 - p) * (1 - p); // snappy quadratic decay
@@ -128,19 +138,31 @@ export class MapStageController {
       rot += Math.sin(t * OMEGA_R + r.phaseR) * MAX_ROT * r.intensity * env;
       dz += MAX_Z * r.intensity * env; // sums toward the camera at impact
     }
+    let filter = '';
+    if (this.disorientation > 0 && !this.reduced) {
+      const s = this.disorientation;
+      dx += Math.sin(t * 0.0047) * 2.4 * s;
+      dy += Math.cos(t * 0.0039) * 1.8 * s;
+      pitch += Math.sin(t * 0.0033) * 1.15 * s;
+      yaw += Math.cos(t * 0.0027) * 1.35 * s;
+      rot += Math.sin(t * 0.0041) * 1.0 * s;
+      filter = `blur(${round(1.35 * s)}px) saturate(${round(1 + 0.28 * s)}) contrast(${round(1 - 0.08 * s)})`;
+    }
 
     this.wasIdentity = false;
     this.apply(
-      `translate3d(${round(dx)}px, ${round(dy)}px, ${round(dz)}px) rotateZ(${round(rot)}deg)`,
+      `translate3d(${round(dx)}px, ${round(dy)}px, ${round(dz)}px) rotateX(${round(pitch)}deg) rotateY(${round(yaw)}deg) rotateZ(${round(rot)}deg)`,
+      filter,
     );
   }
 
   /** Force the plane back to identity. */
   settle(): void {
     this.rumbles.length = 0;
+    this.disorientation = 0;
     if (!this.wasIdentity) {
       this.wasIdentity = true;
-      this.apply('');
+      this.apply('', '');
     }
   }
 }

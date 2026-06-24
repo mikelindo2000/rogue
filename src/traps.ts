@@ -8,7 +8,7 @@ export const TRAP_KINDS: readonly TrapKind[] = ['bear', 'sleep_gas', 'dart', 'te
 export const TRAP_LABELS: Record<TrapKind, string> = {
   bear: 'Bear Trap',
   sleep_gas: 'Sleep Gas',
-  dart: 'Dart Trap',
+  dart: 'Poison Dart Trap',
   teleport: 'Teleport Trap',
   trapdoor: 'Trapdoor',
 };
@@ -16,7 +16,7 @@ export const TRAP_LABELS: Record<TrapKind, string> = {
 export const TRAP_REVEAL_MESSAGES: Record<TrapKind, string> = {
   bear: 'You notice a bear trap.',
   sleep_gas: 'You smell sleep gas venting from the floor.',
-  dart: 'You spot a dart hole in the wall.',
+  dart: 'You spot a poison dart hole in the wall.',
   teleport: 'You notice a strange rune in the floor.',
   trapdoor: 'You find a hidden trapdoor.',
 };
@@ -24,7 +24,7 @@ export const TRAP_REVEAL_MESSAGES: Record<TrapKind, string> = {
 export const TRAP_TRIGGER_MESSAGES: Record<TrapKind, string> = {
   bear: 'A bear trap snaps shut!',
   sleep_gas: 'Sleep gas hisses from the floor!',
-  dart: 'A dart trap fires!',
+  dart: 'A poison dart trap fires!',
   teleport: 'A teleport trap twists the room away.',
   trapdoor: 'A trapdoor opens beneath you!',
 };

@@ -352,7 +352,18 @@ describe('savegame validation', () => {
 
     expect(parsed).not.toBeNull();
     expect(parsed?.traps).toEqual([]);
-    expect(parsed?.trapEffects).toEqual({ bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 });
+    expect(parsed?.trapEffects).toEqual({ bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 });
+  });
+
+  it('backfills confusedTurns on saves with legacy trap effects', () => {
+    const engine = newEngine();
+    engine.initGame(SEED);
+    const snap = engine.snapshot() as any;
+    delete snap.trapEffects.confusedTurns;
+
+    const parsed = validateSaveGame(snap);
+
+    expect(parsed?.trapEffects?.confusedTurns).toBe(0);
   });
 
   it('migrates a legacy repair_scroll floor item to a typed Scroll of Repair', () => {

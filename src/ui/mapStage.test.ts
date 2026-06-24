@@ -6,8 +6,12 @@ import { MapStageController } from './mapStage';
 function harness(reducedMotion = false) {
   let t = 0;
   const applied: string[] = [];
+  const filters: string[] = [];
   const ctrl = new MapStageController({
-    apply: s => applied.push(s),
+    apply: (s, filter) => {
+      applied.push(s);
+      filters.push(filter ?? '');
+    },
     now: () => t,
     random: () => 0.5,
     reducedMotion,
@@ -15,7 +19,9 @@ function harness(reducedMotion = false) {
   return {
     ctrl,
     applied,
+    filters,
     last: () => applied[applied.length - 1],
+    lastFilter: () => filters[filters.length - 1],
     advance: (ms: number) => {
       t += ms;
     },
@@ -95,6 +101,33 @@ describe('MapStageController', () => {
     expect(h.ctrl.isAnimating()).toBe(false);
     h.ctrl.applyFrame();
     expect(h.applied).toHaveLength(0);
+  });
+
+  it('applies a persistent disorientation wobble and blur', () => {
+    const h = harness();
+    h.ctrl.setDisorientation(0.8);
+    expect(h.ctrl.isAnimating()).toBe(true);
+
+    h.setTime(100);
+    h.ctrl.applyFrame();
+
+    expect(h.last()).toMatch(/^translate3d\(/);
+    expect(h.last()).toMatch(/rotateX\(/);
+    expect(h.last()).toMatch(/rotateY\(/);
+    expect(h.lastFilter()).toMatch(/blur\(/);
+  });
+
+  it('clears disorientation back to identity', () => {
+    const h = harness();
+    h.ctrl.setDisorientation(1);
+    h.setTime(100);
+    h.ctrl.applyFrame();
+    h.ctrl.setDisorientation(0);
+    h.ctrl.applyFrame();
+
+    expect(h.last()).toBe('');
+    expect(h.lastFilter()).toBe('');
+    expect(h.ctrl.isAnimating()).toBe(false);
   });
 
   it('ignores zero/negative intensity', () => {

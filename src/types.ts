@@ -245,6 +245,7 @@ export interface TrapEffects {
   bearTrapTurns: number;
   sleepTurns: number;
   strengthDrained: number;
+  confusedTurns: number;
 }
 
 export type Inventory = {

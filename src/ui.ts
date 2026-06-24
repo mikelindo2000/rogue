@@ -219,7 +219,10 @@ export class GameUI {
       typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (plane) {
       this.mapStage = new MapStageController({
-        apply: t => { plane.style.transform = t; },
+        apply: (transform, filter = '') => {
+          plane.style.transform = transform;
+          plane.style.filter = filter;
+        },
         now: () => this.nowMs(),
         reducedMotion: reduced,
       });
@@ -1360,6 +1363,9 @@ export class GameUI {
     ui.turn = turn;
     ui.level = player.level;
     ui.strengthDrain = trapEffects?.strengthDrained ?? 0;
+    const confusedTurns = trapEffects?.confusedTurns ?? 0;
+    this.mapStage?.setDisorientation(confusedTurns > 0 ? Math.min(1, 0.45 + confusedTurns * 0.05) : 0);
+    if (confusedTurns > 0) this.ensureLoop();
 
     ui.hp = Math.max(0, player.hp);
     ui.maxHp = Math.round(

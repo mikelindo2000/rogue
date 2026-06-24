@@ -240,11 +240,19 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     if (!validateTrapArray(raw.traps, raw.map)) return null;
   }
 
+  let trapEffects: TrapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
   if (raw.trapEffects !== undefined) {
     if (!isObject(raw.trapEffects)) return null;
     for (const k of ['bearTrapTurns', 'sleepTurns', 'strengthDrained']) {
       if (typeof raw.trapEffects[k] !== 'number') return null;
     }
+    if (raw.trapEffects.confusedTurns !== undefined && typeof raw.trapEffects.confusedTurns !== 'number') return null;
+    trapEffects = {
+      bearTrapTurns: Number(raw.trapEffects.bearTrapTurns),
+      sleepTurns: Number(raw.trapEffects.sleepTurns),
+      strengthDrained: Number(raw.trapEffects.strengthDrained),
+      confusedTurns: Number(raw.trapEffects.confusedTurns ?? 0),
+    };
   }
 
   if (!Array.isArray(raw.floorStates)) return null;
@@ -321,7 +329,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     ...(raw as unknown as Omit<SaveGameV2, 'stats'>),
     player,
     traps: (raw.traps as TrapState[] | undefined) ?? [],
-    trapEffects: (raw.trapEffects as TrapEffects | undefined) ?? { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 },
+    trapEffects,
     stats,
   };
 }

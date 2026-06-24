@@ -74,7 +74,7 @@ const makeRunner = (sound?: RecordingSink, ui = makeUi()) => {
   engine.items = [];
   engine.monsters = [];
   engine.traps = [];
-  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0 };
+  engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
   engine.player.hunger = 100;
   engine.player.x = 2;
   engine.player.y = 2;
@@ -627,7 +627,7 @@ describe('GameEngine hidden traps', () => {
     expect(engine.logs).toContain('The bear trap holds you fast.');
   });
 
-  it('dart trap drains strength and Potion of Strength clears the drain', () => {
+  it('poison dart trap drains strength, confuses, and Potion of Strength clears the drain', () => {
     const engine = makeRunner();
     carveRow(engine, 2, 2, 4);
     engine.traps = [{ id: 't1', kind: 'dart', x: 3, y: 2, revealed: false, armed: true }];
@@ -636,10 +636,28 @@ describe('GameEngine hidden traps', () => {
 
     engine.handlePlayerMove(1, 0);
     expect(engine.trapEffects.strengthDrained).toBe(1);
+    expect(engine.trapEffects.confusedTurns).toBeGreaterThan(0);
+    expect(engine.logs).toContain('Poison clouds your senses.');
 
     engine.usePotion(0);
     expect(engine.trapEffects.strengthDrained).toBe(0);
     expect(engine.statusEffects.strengthTurns).toBeGreaterThan(0);
+  });
+
+  it('poison dart confusion expires over turns', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 4);
+    engine.traps = [{ id: 't1', kind: 'dart', x: 3, y: 2, revealed: false, armed: true }];
+    setChanceRoll(engine, 0);
+
+    engine.handlePlayerMove(1, 0);
+    const turns = engine.trapEffects.confusedTurns;
+    expect(turns).toBeGreaterThan(0);
+
+    for (let i = 0; i < turns; i++) engine.search();
+
+    expect(engine.trapEffects.confusedTurns).toBe(0);
+    expect(engine.logs).toContain('Your senses clear.');
   });
 
   it('teleport trap moves the player away from monsters and armed traps', () => {

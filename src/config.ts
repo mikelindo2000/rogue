@@ -102,6 +102,7 @@ export const BALANCE = {
       revealChance: 0.35,
       sleepTurns: 2,
       adjacentMonsterSleepTurns: 1,
+      dartConfuseTurns: 6,
       trapdoorLastFloor: 18,
       cost: {
         bear: 1,
