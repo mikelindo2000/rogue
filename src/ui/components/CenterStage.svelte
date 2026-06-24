@@ -32,10 +32,7 @@
   });
 </script>
 
-<div
-  class="stage"
-  style="background-color: {floorBg}; --player-x: {ui.playerX + 0.5}; --player-y: {ui.playerY + 0.5}; --map-cols: {ui.mapCols}; --map-rows: {ui.mapRows};"
->
+<div class="stage" style="background-color: {floorBg};">
   <div class="bg-image-container" aria-hidden="true">
     {#if previousBg}
       <img src={backgroundUrl(previousBg)} class="bg-image fade-out" alt="" />
@@ -125,9 +122,9 @@
     display: block;
     position: relative;
     z-index: 1;
-    width: min(920px, calc(100% - 32px));
-    height: auto;
-    max-height: calc(100% - 32px);
+    /* Intrinsic CSS width/height and any player-centering transform are set
+       imperatively by GameUI.paint(), which fits the board to this stage. */
+    transform-origin: center center;
     touch-action: none;
   }
   .vignette {
@@ -262,19 +259,4 @@
     }
   }
 
-  @media (max-width: 560px) {
-    canvas {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      max-height: none;
-      transform-origin: 0 0;
-      transform:
-        scale(1.46)
-        translate(
-          calc(-1 * (var(--player-x) / var(--map-cols)) * 100%),
-          calc(-1 * (var(--player-y) / var(--map-rows)) * 100%)
-        );
-    }
-  }
 </style>

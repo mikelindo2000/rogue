@@ -162,10 +162,6 @@ export interface UIState {
   /** Non-null while a wand is drawn and awaiting an aim direction. Drives the
    *  transient aiming prompt overlay. */
   aiming: { wandName: string } | null;
-  playerX: number;
-  playerY: number;
-  mapCols: number;
-  mapRows: number;
   // run state
   gameOver: boolean;
   gameWon: boolean;
@@ -233,10 +229,6 @@ export const ui = $state<UIState>({
   stairsNearby: false,
   nearbyMonster: null,
   aiming: null,
-  playerX: 0,
-  playerY: 0,
-  mapCols: 46,
-  mapRows: 29,
   gameOver: false,
   gameWon: false,
   hasAmulet: false,

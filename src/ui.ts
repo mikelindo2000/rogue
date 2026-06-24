@@ -178,6 +178,15 @@ export class GameUI {
    *  select UI will drive it later via setPlayerSprite(). */
   private playerSprite: PlayerSprite = DEFAULT_PLAYER_SPRITE;
 
+  /** The element the canvas is fitted into (its flex-centering parent). The
+   *  tile size is derived from this box so the dungeon fills whatever screen
+   *  real estate is available, growing and shrinking with the window. */
+  private stageEl: HTMLElement | null = null;
+  /** Last measured stage box and pixel ratio, refreshed by the ResizeObserver.
+   *  Zero width/height means "not measured yet" — computeTileSize falls back. */
+  private viewport = { w: 0, h: 0, dpr: 1 };
+  private resizeRaf = 0;
+
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     const context = this.canvas.getContext('2d');
@@ -185,6 +194,73 @@ export class GameUI {
       throw new Error("Could not acquire 2D canvas context");
     }
     this.ctx = context;
+    this.stageEl = this.canvas.parentElement;
+    this.observeViewport();
+  }
+
+  /** Watch the stage box for size changes (window resize, sidebar reflow,
+   *  orientation) and repaint at the new fit. Coalesced into one rAF so a burst
+   *  of resize callbacks paints once. No-op in non-DOM/test environments. */
+  private observeViewport() {
+    if (!this.stageEl || typeof ResizeObserver === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
+    this.measureViewport();
+    const ro = new ResizeObserver(() => {
+      this.measureViewport();
+      if (this.resizeRaf) return;
+      this.resizeRaf = requestAnimationFrame(() => {
+        this.resizeRaf = 0;
+        this.paint();
+      });
+    });
+    ro.observe(this.stageEl);
+  }
+
+  private measureViewport() {
+    if (!this.stageEl) return;
+    const rect = this.stageEl.getBoundingClientRect();
+    this.viewport.w = rect.width;
+    this.viewport.h = rect.height;
+    // Cap the backing-store multiplier: huge boards on a retina display would
+    // otherwise allocate an enormous canvas for no visible gain.
+    const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
+    this.viewport.dpr = Math.min(Math.max(dpr, 1), 2);
+  }
+
+  /** Largest tile size (CSS px) that fits the whole board in the stage box.
+   *  Below MIN_TILE the board can't fit legibly, so we hold at MIN_TILE and let
+   *  paint() pan the overflow to keep the player centered. MAX_TILE keeps small
+   *  boards on big screens from ballooning. Falls back to 20 before first
+   *  measurement. */
+  private computeTileSize(cols: number, rows: number): number {
+    const PAD = 16; // breathing room so the map never kisses the rails
+    const MIN_TILE = 16;
+    const MAX_TILE = 40;
+    const { w, h } = this.viewport;
+    if (w <= 0 || h <= 0 || cols <= 0 || rows <= 0) return 20;
+    const availW = Math.max(1, w - PAD * 2);
+    const availH = Math.max(1, h - PAD * 2);
+    const fit = Math.floor(Math.min(availW / cols, availH / rows));
+    return Math.max(MIN_TILE, Math.min(MAX_TILE, fit));
+  }
+
+  /** When the rendered board is larger than the stage (small screens at the
+   *  MIN_TILE floor), translate the canvas so the player sits at the center,
+   *  clamped so we never pan past the board's edges. Otherwise the flex parent
+   *  centers it and no transform is needed. */
+  private applyViewTransform(s: Scene, cssTile: number, cssW: number, cssH: number) {
+    const { w: stageW, h: stageH } = this.viewport;
+    let tx = 0;
+    let ty = 0;
+    if (cssW > stageW && stageW > 0) {
+      const max = (cssW - stageW) / 2;
+      tx = Math.max(-max, Math.min(max, cssW / 2 - (s.player.x + 0.5) * cssTile));
+    }
+    if (cssH > stageH && stageH > 0) {
+      const max = (cssH - stageH) / 2;
+      ty = Math.max(-max, Math.min(max, cssH / 2 - (s.player.y + 0.5) * cssTile));
+    }
+    const transform = tx || ty ? `translate(${Math.round(tx)}px, ${Math.round(ty)}px)` : '';
+    if (this.canvas.style.transform !== transform) this.canvas.style.transform = transform;
   }
 
   public render(
@@ -210,11 +286,6 @@ export class GameUI {
     // without the turn-based engine having to drive every frame.
     this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon };
 
-    // Overlay store state only needs refreshing on real turns, not per frame.
-    ui.playerX = player.x;
-    ui.playerY = player.y;
-    ui.mapCols = cols;
-    ui.mapRows = rows;
     this.syncOverlays(map, visible, player, monsters, cols, rows, gameOver, gameWon);
 
     this.trackMovement(monsters);
@@ -231,17 +302,37 @@ export class GameUI {
     const t = ts ?? this.nowMs();
     this.fx = this.fx.filter(f => t - f.start < f.life);
 
+    // Derive the tile size from the available stage box so the dungeon fills the
+    // screen and reflows with it. Everything downstream draws off s.tileSize, so
+    // overriding it here scales tiles, glyphs, and effects together.
+    const cssTile = this.computeTileSize(s.cols, s.rows);
+    s.tileSize = cssTile;
+    const dpr = this.viewport.dpr;
+    const cssW = s.cols * cssTile;
+    const cssH = s.rows * cssTile;
+
     // Size the backing store to the board before painting. Done imperatively
     // (not via a Svelte binding) so the resize — which clears the canvas — always
     // happens BEFORE the paint, never after it. Guarded so same-size frames don't
     // clear: assigning canvas.width/height clears even when the value is unchanged.
-    const w = s.cols * s.tileSize;
-    const h = s.rows * s.tileSize;
+    // The backing store is rendered at devicePixelRatio while the CSS box stays in
+    // layout pixels, so upscaled boards stay crisp rather than interpolating.
+    const w = Math.round(cssW * dpr);
+    const h = Math.round(cssH * dpr);
     if (this.canvas.width !== w) this.canvas.width = w;
     if (this.canvas.height !== h) this.canvas.height = h;
+    const cw = `${cssW}px`;
+    const ch = `${cssH}px`;
+    if (this.canvas.style.width !== cw) this.canvas.style.width = cw;
+    if (this.canvas.style.height !== ch) this.canvas.style.height = ch;
+    this.applyViewTransform(s, cssTile, cssW, cssH);
 
     const style = getDungeonStyle(s.dungeonFloor);
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Draw in CSS pixels; the dpr scale on the base transform maps to the backing
+    // store. setTransform every frame keeps it correct even when the size guards
+    // above skip the (transform-resetting) width/height assignment.
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.ctx.clearRect(0, 0, cssW, cssH);
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
