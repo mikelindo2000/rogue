@@ -4,7 +4,6 @@
   import MonsterPortrait from './MonsterPortrait.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
-  import FloorTransitionSwitcher from './FloorTransitionSwitcher.svelte';
   import { getDungeonStyle } from '../../theme';
   import { backgroundUrl, createFloorBackgroundPicker } from '../backgrounds';
 
@@ -102,8 +101,7 @@
   <!-- Danger washes / above-board atmosphere (survival warning lives here). -->
   <EffectLayerHost effects={ui.visualEffects} target="stage-overlay" />
 
-  <!-- Dev: pick the floor-change effect live (prototype switcher). -->
-  <FloorTransitionSwitcher />
+
 
   {#if ui.stairsNearby}
     <div class="stairs-pill">
