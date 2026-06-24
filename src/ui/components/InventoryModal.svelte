@@ -342,7 +342,7 @@
               </span>
             </span>
             {#if g.slotView.upgrade}
-              <span class="spine-up" title="Better available">▲</span>
+              <span class="spine-up" title={g.slotView.upgrade.strict ? 'Strictly better available' : 'Better available'}>{g.slotView.upgrade.strict ? '▲▲' : '▲'}</span>
             {/if}
           </button>
         {:else}
@@ -688,35 +688,26 @@
     overflow: auto;
     background: var(--surface-app);
   }
-  /* Custom generated item art, faded behind the detail content (matches the
-     previous modal's treatment). */
+  /* Custom generated item art fills the whole pane (cropping is fine). No scrim;
+     text legibility comes from per-element shadows below. */
   .detail.has-art::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 0;
-    background: var(--item-art) right 6px top 10px / min(82%, 320px) auto no-repeat;
-    opacity: 0.8;
-    filter: saturate(1.05) contrast(1.08) brightness(1.12);
-    pointer-events: none;
-  }
-  .detail.has-art::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(
-      90deg,
-      var(--surface-app) 0%,
-      color-mix(in srgb, var(--surface-app) 90%, transparent) 40%,
-      color-mix(in srgb, var(--surface-app) 42%, transparent) 72%,
-      transparent 100%
-    );
+    background: var(--item-art) center / cover no-repeat;
+    filter: saturate(1.05) contrast(1.05);
     pointer-events: none;
   }
   .detail > * {
     position: relative;
     z-index: 2;
+  }
+  /* Keep text readable over the art without darkening the panel. */
+  .detail.has-art h3,
+  .detail.has-art p,
+  .detail.has-art .dura-row {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.7);
   }
   .hero {
     display: flex;

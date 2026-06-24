@@ -155,13 +155,16 @@ describe('loadout hub — pack item verbs', () => {
 });
 
 describe('loadout hub — gear', () => {
-  it('shows a candidate under its slot with a "Strictly better" badge', () => {
+  it('shows a candidate under its slot with a strictly-better arrow badge', () => {
     openHub({ items: [betterChestCell()], equipment: [chestSlot()] });
     // The chest slot is the only group → auto-selected; the equipped row plus
     // the Platemail candidate render in the list.
     const names = listRows().map((r) => r.querySelector('.name')?.textContent?.trim());
     expect(names).toContain('Platemail');
-    expect(document.body.textContent).toContain('Strictly better');
+    // Arrow-only badge: a ▲▲ marker labelled "Strictly better" (no text label).
+    const badge = document.querySelector('[aria-label="Strictly better"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe('▲▲');
   });
 
   it('equips the highlighted gear candidate on the "e" mnemonic', () => {

@@ -1,9 +1,12 @@
 <script lang="ts">
   import type { GearVerdict } from '../../gearCompare';
 
-  // Glanceable "is this better?" marker. `compact` renders glyph-only chips for
-  // tight spots (HUD slots, the inventory grid); the full form adds words for the
-  // loadout hub's candidate rows. Renders nothing for the equipped item itself.
+  // Glanceable "is this better?" marker, arrows only (no words):
+  //   ▲▲ green = strictly better (dominates equipped on every axis)
+  //   ▲  green = upgrade (higher primary stat)
+  //   ▼  red   = downgrade
+  //   ★  gold  = the single best option for the slot
+  // Renders nothing for a sidegrade or the equipped item itself.
   let {
     verdict,
     strictlyBetter = false,
@@ -22,22 +25,14 @@
 {#if show}
   <span class="badges" class:compact>
     {#if isBest}
-      <span class="badge best" title="Best option for this slot">
-        <span class="glyph">★</span>{#if !compact}<span class="text">Best</span>{/if}
-      </span>
+      <span class="g best" title="Best option for this slot" aria-label="Best">★</span>
     {/if}
     {#if strictlyBetter}
-      <span class="badge strict" title="Better than equipped in every way">
-        <span class="glyph">▲</span>{#if !compact}<span class="text">Strictly better</span>{/if}
-      </span>
+      <span class="g up" title="Strictly better than equipped" aria-label="Strictly better">▲▲</span>
     {:else if verdict === 'upgrade'}
-      <span class="badge up" title="Upgrade over equipped">
-        <span class="glyph">▲</span>{#if !compact}<span class="text">Upgrade</span>{/if}
-      </span>
+      <span class="g up" title="Upgrade over equipped" aria-label="Upgrade">▲</span>
     {:else if verdict === 'downgrade'}
-      <span class="badge down" title="Downgrade from equipped">
-        <span class="glyph">▼</span>{#if !compact}<span class="text">Downgrade</span>{/if}
-      </span>
+      <span class="g down" title="Downgrade from equipped" aria-label="Downgrade">▼</span>
     {/if}
   </span>
 {/if}
@@ -46,45 +41,25 @@
   .badges {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
   }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1px 6px;
-    border-radius: var(--r-pill);
-    border: 1px solid var(--tint-border);
-    background: var(--tint-bg);
-    color: var(--tint-fg);
-    font: 750 9px var(--font-display);
-    letter-spacing: var(--tracking-caps);
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-  .compact .badge {
-    padding: 0;
-    border: none;
-    background: none;
-    font-size: 10px;
-  }
-  .glyph {
+  .g {
     line-height: 1;
+    font: 800 12px var(--font-display);
+    letter-spacing: -2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  }
+  .compact .g {
+    font-size: 11px;
   }
   .best {
-    --tint-fg: var(--accent-strong);
-    --tint-bg: color-mix(in srgb, var(--accent-strong) 14%, transparent);
-    --tint-border: color-mix(in srgb, var(--accent-strong) 45%, var(--border-chip));
+    color: var(--accent-strong);
+    letter-spacing: 0;
   }
-  .strict,
   .up {
-    --tint-fg: var(--good-bright);
-    --tint-bg: color-mix(in srgb, var(--good) 14%, transparent);
-    --tint-border: color-mix(in srgb, var(--good) 45%, var(--border-chip));
+    color: var(--good-bright);
   }
   .down {
-    --tint-fg: var(--danger-soft);
-    --tint-bg: color-mix(in srgb, var(--danger) 12%, transparent);
-    --tint-border: color-mix(in srgb, var(--danger) 42%, var(--border-chip));
+    color: var(--danger-soft);
   }
 </style>
