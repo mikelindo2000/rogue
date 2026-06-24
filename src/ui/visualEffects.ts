@@ -18,7 +18,8 @@ export type VisualEffectKind =
   | 'survival-hunger'
   | 'survival-health'
   | 'survival-both'
-  | 'floor-green-fog';
+  | 'floor-green-fog'
+  | 'floor-airy-light';
 
 export interface VisualEffectInstance {
   /** Stable key for Svelte's keyed each; unique within the active list. */
@@ -76,6 +77,13 @@ interface FloorEffectRule {
 
 const FLOOR_EFFECTS: FloorEffectRule[] = [
   {
+    // The Sunless Halls (1) — a light, airy glow on the chrome only.
+    id: 'sunlit-airy',
+    floors: [1],
+    kind: 'floor-airy-light',
+    targets: [{ target: 'chrome', layer: LAYER.floorFog, opacity: 0.4 }],
+  },
+  {
     // The Whispering Mire (11) and The Fungal Warrens (13) — dank green floors.
     id: 'verdant-fog',
     floors: [11, 13],
@@ -89,7 +97,14 @@ const FLOOR_EFFECTS: FloorEffectRule[] = [
 
 /** The CSS class for an effect kind (single source for class naming). */
 function classFor(kind: VisualEffectKind): string {
-  return kind === 'floor-green-fog' ? 'fx-green-fog' : `fx-${kind}`;
+  switch (kind) {
+    case 'floor-green-fog':
+      return 'fx-green-fog';
+    case 'floor-airy-light':
+      return 'fx-airy-light';
+    default:
+      return `fx-${kind}`;
+  }
 }
 
 /** Build the ordered list of currently active visual effects for this frame. */

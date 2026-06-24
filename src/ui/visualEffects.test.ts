@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { visualEffectLayers, visualEffectStyle } from './visualEffects';
 
 // Mirrors format.test.ts's survival baseline so the two stay in lockstep.
-const base = { floor: 1, hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190 };
+// Floor 2 is a neutral floor with no atmosphere (floors 1/11/13 have effects).
+const base = { floor: 2, hp: 30, maxHp: 30, hunger: 800, hungerFatigued: 190 };
 
 describe('visualEffectLayers — survival migration', () => {
   it('produces no effects in a safe state', () => {
@@ -54,7 +55,7 @@ describe('visualEffectLayers — floor fog', () => {
     expect(visualEffectLayers({ ...base, floor: 12 }).some((e) => e.kind === 'floor-green-fog')).toBe(
       false
     );
-    expect(visualEffectLayers({ ...base, floor: 1 })).toEqual([]);
+    expect(visualEffectLayers({ ...base, floor: 12 })).toEqual([]);
   });
 
   it('layers floor fog beneath the survival warning when both are active', () => {
@@ -69,6 +70,28 @@ describe('visualEffectLayers — floor fog', () => {
   it('gives every active effect a unique id', () => {
     const ids = visualEffectLayers({ ...base, floor: 11, hp: 5, hunger: 100 }).map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('visualEffectLayers — floor 1 airy glow', () => {
+  it('adds a light, airy effect on the chrome only on floor 1', () => {
+    const effects = visualEffectLayers({ ...base, floor: 1 });
+    expect(effects).toHaveLength(1);
+    const fx = effects[0];
+    expect(fx.kind).toBe('floor-airy-light');
+    expect(fx.target).toBe('chrome');
+    expect(fx.className).toBe('fx-airy-light');
+    // Chrome-only: nothing lands on the stage.
+    expect(effects.some((e) => e.target.startsWith('stage'))).toBe(false);
+  });
+
+  it('still layers the survival overlay above the airy glow when both are active', () => {
+    const effects = visualEffectLayers({ ...base, floor: 1, hp: 5 });
+    const airy = effects.find((e) => e.kind === 'floor-airy-light');
+    const survival = effects.find((e) => e.kind === 'survival-health');
+    expect(airy).toBeTruthy();
+    expect(survival).toBeTruthy();
+    expect(airy!.layer).toBeLessThan(survival!.layer);
   });
 });
 

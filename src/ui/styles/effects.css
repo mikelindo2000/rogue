@@ -129,6 +129,40 @@
   }
 }
 
+/* ── Light, airy chrome glow (floor 1 atmosphere) ──────────────────────── */
+
+.fx-airy-light {
+  --fx-color-a: rgba(196, 220, 252, 0.55); /* pale sky */
+  --fx-color-b: rgba(232, 240, 255, 0.4); /* near-white haze */
+  opacity: var(--fx-opacity, 0.4);
+  background:
+    radial-gradient(85% 65% at 28% 0%, var(--fx-color-a), transparent 70%),
+    radial-gradient(70% 55% at 82% 108%, var(--fx-color-b), transparent 72%),
+    linear-gradient(180deg, rgba(214, 228, 252, 0.16), transparent 58%);
+  background-size:
+    160% 160%,
+    150% 150%,
+    100% 100%;
+  /* screen lifts the dark panels toward a brighter, lighter feel */
+  mix-blend-mode: screen;
+  animation: airy-drift 30s ease-in-out infinite alternate;
+}
+
+@keyframes airy-drift {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      0 0;
+  }
+  100% {
+    background-position:
+      22% 12%,
+      78% 88%,
+      0 0;
+  }
+}
+
 /* ── Reduced motion: drop drift/pulse, keep a static low-alpha effect. ──── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -138,7 +172,8 @@
     animation: none;
     opacity: var(--survival-pulse-min);
   }
-  .fx-green-fog {
+  .fx-green-fog,
+  .fx-airy-light {
     animation: none;
   }
 }
