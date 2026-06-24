@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ui, actions } from '../store.svelte';
-  import { pickOpeningEndRunArt } from '../endRunArt';
+  import { pickFallbackEndRunArt, pickOpeningEndRunArt } from '../endRunArt';
   import { buildEndRunView, type EndRunStat } from '../endRunView';
   import KeyCap from './primitives/KeyCap.svelte';
   import HowToPlay from './HowToPlay.svelte';
@@ -40,6 +40,8 @@
   let clearButton = $state<HTMLButtonElement | null>(null);
   let confirmClearButton = $state<HTMLButtonElement | null>(null);
   let creditRollKey = $state(0);
+  let selectedArtFile = $state<string | null>(null);
+  let renderedArtUrl = $state<string | null>(null);
 
   const summary = $derived(ui.endRunSummary);
   const view = $derived(
@@ -76,6 +78,18 @@
     }
   });
 
+  $effect(() => {
+    if (!endArt) {
+      selectedArtFile = null;
+      renderedArtUrl = null;
+      return;
+    }
+    if (selectedArtFile !== endArt.file) {
+      selectedArtFile = endArt.file;
+      renderedArtUrl = endArt.url;
+    }
+  });
+
   function selectTab(id: TabId) {
     activeTab = id;
     selectedHistory = 0;
@@ -91,6 +105,14 @@
   function closeArt() {
     artOpen = false;
     requestAnimationFrame(() => restartButton?.focus());
+  }
+
+  function handleArtError() {
+    if (!summary) return;
+    const fallback = pickFallbackEndRunArt(summary);
+    if (renderedArtUrl !== fallback.url) {
+      renderedArtUrl = fallback.url;
+    }
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -170,7 +192,7 @@
           aria-label="Close ending image and show run statistics"
           onclick={closeArt}
         >
-          <img src={endArt.url} alt="" />
+          <img src={renderedArtUrl ?? endArt.url} alt="" onerror={handleArtError} />
           <span class="art-shade"></span>
           <span class="art-copy">
             <span class="eyebrow">{view.outcomeLabel}</span>

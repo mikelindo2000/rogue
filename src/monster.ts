@@ -38,7 +38,8 @@ export function processMonsterAI(
   fx: AIFx = NO_FX,
   dark?: boolean[][],
   floor = 1,
-  onBlink?: (m: Monster) => void
+  onBlink?: (m: Monster) => void,
+  onPlayerDamaged?: (m: Monster, damage: number) => void
 ) {
   for (const m of monsters) {
     if (m.frozenTurns > 0) {
@@ -61,7 +62,7 @@ export function processMonsterAI(
     // action this turn.
     if (rt.pendingAttack) {
       if (turn >= rt.pendingAttack.resolveTurn) {
-        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx, floor);
+        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx, floor, onPlayerDamaged);
         if (rt.pendingBlink) {
           rt.pendingBlink = false;
           onBlink?.(m);
@@ -84,7 +85,7 @@ export function processMonsterAI(
       dark,
     });
 
-    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor);
+    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged);
     // An on-hit ability (leprechaun steal) may have requested a blink-away: the
     // monster hits, then vanishes to a random floor tile this same turn.
     if (rt.pendingBlink) {
@@ -107,7 +108,8 @@ function resolvePendingAttack(
   rng: RNG,
   turn: number,
   fx: AIFx,
-  floor: number
+  floor: number,
+  onPlayerDamaged?: (m: Monster, damage: number) => void
 ) {
   const pend = rt.pendingAttack!;
   rt.pendingAttack = undefined;
@@ -121,6 +123,7 @@ function resolvePendingAttack(
     const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
     const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: false, rng });
     player.hp -= dmg;
+    onPlayerDamaged?.(m, dmg);
     addLog(`${m.name}'s swoop hits for ${dmg}!`);
     applyOnHitAbilities(behavior, m, player, rng, floor).forEach(addLog);
   } else {
@@ -140,7 +143,8 @@ function applyAction(
   addLog: (msg: string) => void,
   rng: RNG,
   turn: number,
-  floor: number
+  floor: number,
+  onPlayerDamaged?: (m: Monster, damage: number) => void
 ) {
   switch (action.type) {
     case 'wait':
@@ -150,7 +154,7 @@ function applyAction(
       m.y += action.dy;
       return;
     case 'attack':
-      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor);
+      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged);
       return;
     case 'windup': {
       // Commit to a telegraphed strike: record the target tile + resolve turn.
@@ -178,7 +182,8 @@ function applyAttack(
   addLog: (msg: string) => void,
   rng: RNG,
   turn: number,
-  floor: number
+  floor: number,
+  onPlayerDamaged?: (m: Monster, damage: number) => void
 ) {
   const rt = ensureRuntime(m);
   const attack: AttackSpec = behavior.attacks.find((a) => a.id === attackId) ?? behavior.attacks[0];
@@ -193,6 +198,7 @@ function applyAttack(
   const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
   const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: isSwipe, rng });
   player.hp -= dmg;
+  onPlayerDamaged?.(m, dmg);
   addLog(isSwipe ? `${m.name} uses Swipe! hits for ${dmg} dmg.` : `${m.name} hits for ${dmg} dmg.`);
 
   if (attack.cooldown > 0) rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;

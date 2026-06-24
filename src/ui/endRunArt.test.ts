@@ -1,13 +1,21 @@
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RunSummaryV1 } from '../runStats';
 import { SCROLL_TYPES } from '../itemVisuals';
+import { MONSTER_DATABASE } from '../config';
+import { monsterId } from '../discovery';
 import {
+  ALL_END_RUN_ART_FILES,
   END_RUN_ART_FILES,
+  MONSTER_DEATH_ART_FILES,
   VICTORY_FINALE_ART_FILE,
   endRunArtUrl,
   pickEndRunArt,
+  pickFallbackEndRunArt,
   pickOpeningEndRunArt,
   selectEndRunArtScenario,
+  selectMonsterDeathArtId,
 } from './endRunArt';
 
 function summary(overrides: Partial<RunSummaryV1> = {}): RunSummaryV1 {
@@ -72,6 +80,20 @@ describe('end run art', () => {
     expect(END_RUN_ART_FILES).toContain('death-default-6.png');
   });
 
+  it('defines three ordinary death images for every monster', () => {
+    expect(MONSTER_DEATH_ART_FILES).toHaveLength(102);
+    expect(MONSTER_DEATH_ART_FILES).toContain('monster-orc-1.png');
+    expect(MONSTER_DEATH_ART_FILES).toContain('monster-marcus-the-brave-3.png');
+    expect(ALL_END_RUN_ART_FILES).toHaveLength(157);
+  });
+
+  it('keeps the monster death generator catalogue aligned with runtime monsters', () => {
+    const script = resolve(process.cwd(), 'scripts/gen-monster-death-art.mjs');
+    const generatedIds = JSON.parse(execFileSync(process.execPath, [script, '--list-ids'], { encoding: 'utf8' })) as string[];
+
+    expect(generatedIds).toEqual(MONSTER_DATABASE.map(monsterId));
+  });
+
   it('maps files to public ending URLs', () => {
     expect(endRunArtUrl('victory-default-3.png')).toBe('/endings/victory-default-3.png');
   });
@@ -91,6 +113,38 @@ describe('end run art', () => {
     const run = summary({ runId: 'stable', seed: 999, turns: 1234, score: 8000 });
     expect(pickEndRunArt(run)).toEqual(pickEndRunArt(run));
     expect(pickEndRunArt(run).file).toMatch(/^death-default-[1-6]\.png$/);
+  });
+
+  it('picks monster-specific art for ordinary monster deaths', () => {
+    const run = summary({ deathCause: 'monster', killedByMonsterId: 'orc' });
+    expect(selectMonsterDeathArtId(run)).toBe('orc');
+    expect(pickEndRunArt(run)).toMatchObject({ scenario: 'monster-death', monsterId: 'orc' });
+    expect(pickEndRunArt(run).file).toMatch(/^monster-orc-[1-3]\.png$/);
+  });
+
+  it('keeps special death scenarios ahead of ordinary monster death art', () => {
+    const base = { deathCause: 'monster' as const, killedByMonsterId: 'orc' };
+    expect(selectMonsterDeathArtId(summary({ ...base, floorReached: 20 }))).toBeNull();
+    expect(pickEndRunArt(summary({ ...base, floorReached: 20 })).file).toMatch(/^death-floor20-[1-6]\.png$/);
+    expect(selectMonsterDeathArtId(summary({ ...base, secretsFound: 3 }))).toBeNull();
+    expect(pickEndRunArt(summary({ ...base, secretsFound: 3 })).file).toMatch(/^wall-whisperer-[1-6]\.png$/);
+    expect(selectMonsterDeathArtId(summary({ ...base, monstersKilled: 40 }))).toBeNull();
+    expect(pickEndRunArt(summary({ ...base, monstersKilled: 40 })).file).toMatch(/^dungeon-cleaner-[1-6]\.png$/);
+    expect(selectMonsterDeathArtId(summary({ ...base, goldCollected: 1500 }))).toBeNull();
+    expect(pickEndRunArt(summary({ ...base, goldCollected: 1500 })).file).toMatch(/^chest-enthusiast-[1-6]\.png$/);
+  });
+
+  it('keeps starvation deaths on the starvation art path', () => {
+    const run = summary({ deathCause: 'starvation', killedByMonsterId: 'orc' });
+    expect(selectMonsterDeathArtId(run)).toBeNull();
+    expect(pickEndRunArt(run).file).toMatch(/^death-starvation-[1-6]\.png$/);
+  });
+
+  it('falls back to default death art for missing or unknown monster ids', () => {
+    const run = summary({ deathCause: 'monster', killedByMonsterId: 'does-not-exist' });
+    expect(selectMonsterDeathArtId(run)).toBeNull();
+    expect(pickEndRunArt(run).file).toMatch(/^death-default-[1-6]\.png$/);
+    expect(pickFallbackEndRunArt(run).file).toMatch(/^death-default-[1-6]\.png$/);
   });
 
   it('uses the dedicated finale artwork as the first victory image', () => {

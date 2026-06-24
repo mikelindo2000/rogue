@@ -2240,6 +2240,8 @@ export class GameEngine {
 
     // Monsters turn
     const hpBeforeMonsters = this.player.hp;
+    let lastDamagingMonsterId: string | undefined;
+    let killingMonsterId: string | undefined;
     processMonsterAI(
       this.monsters,
       this.player,
@@ -2266,6 +2268,12 @@ export class GameEngine {
           this.ui.fxDeath(ox, oy, m.symbol, m.color);
           this.addLog(`The ${m.name} blinks away!`);
         }
+      },
+      (m, damage) => {
+        if (damage <= 0) return;
+        const id = monsterId(m);
+        lastDamagingMonsterId = id;
+        if (!killingMonsterId && this.player.hp <= 0) killingMonsterId = id;
       }
     );
     if (this.player.hp < hpBeforeMonsters) {
@@ -2287,7 +2295,7 @@ export class GameEngine {
     if (this.player.hp <= 0) {
       this.gameOver = true;
       recordVitals(this.stats, this.player.hp, this.player.hunger);
-      this.finalizeRun('died', 'monster');
+      this.finalizeRun('died', 'monster', killingMonsterId ?? lastDamagingMonsterId);
       this.addLog("GAME OVER. Press R.");
       this.sound.emit({ type: 'player.death' });
     } else {
@@ -2341,7 +2349,7 @@ export class GameEngine {
     );
   }
 
-  private finalizeRun(outcome: 'won' | 'died', deathCause?: DeathCause): RunSummaryV1 {
+  private finalizeRun(outcome: 'won' | 'died', deathCause?: DeathCause, killedByMonsterId?: string): RunSummaryV1 {
     if (this.finalRunSummary?.runId === this.stats.runId) return this.finalRunSummary;
     const summary = buildRunSummary({
       outcome,
@@ -2353,6 +2361,7 @@ export class GameEngine {
       stats: this.stats,
       finalLogs: this.logs,
       deathCause,
+      killedByMonsterId,
     });
     this.finalRunSummary = summary;
     this.onRunFinished?.(summary);

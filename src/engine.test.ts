@@ -306,6 +306,72 @@ describe('GameEngine terminal run summaries', () => {
     expect(engine.finalRunSummary).toBe(summary);
   });
 
+  it('records the monster id that kills the player', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 3);
+    engine.player.hp = 1;
+    engine.player.hunger = 100;
+    engine.monsters = [{
+      x: 3,
+      y: 2,
+      symbol: 'O',
+      name: 'Orc',
+      hp: 24,
+      maxHp: 24,
+      atk: 12,
+      color: '#556b2f',
+      minFloor: 1,
+      frozenTurns: 0,
+    }];
+    setChanceRoll(engine, 0);
+
+    engine.processTurn();
+
+    expect(engine.gameOver).toBe(true);
+    expect(engine.finalRunSummary?.deathCause).toBe('monster');
+    expect(engine.finalRunSummary?.killedByMonsterId).toBe('orc');
+  });
+
+  it('keeps the first lethal monster id when later monsters also attack', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 1, 3);
+    engine.player.hp = 1;
+    engine.player.hunger = 100;
+    engine.monsters = [
+      {
+        x: 3,
+        y: 2,
+        symbol: 'O',
+        name: 'Orc',
+        hp: 24,
+        maxHp: 24,
+        atk: 12,
+        color: '#556b2f',
+        minFloor: 1,
+        frozenTurns: 0,
+      },
+      {
+        x: 1,
+        y: 2,
+        symbol: 'S',
+        name: 'Snake',
+        hp: 25,
+        maxHp: 25,
+        atk: 12,
+        color: '#ff0000',
+        minFloor: 2,
+        frozenTurns: 0,
+      },
+    ];
+    setChanceRoll(engine, 0);
+
+    engine.processTurn();
+
+    expect(engine.gameOver).toBe(true);
+    expect(engine.finalRunSummary?.deathCause).toBe('monster');
+    expect(engine.finalRunSummary?.killedByMonsterId).toBe('orc');
+  });
+
 });
 
 describe('GameEngine vital warning sounds', () => {

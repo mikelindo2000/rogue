@@ -16,6 +16,20 @@ Victories now use one dedicated finale opener before the stats screen:
 selector below, and victory scenario art remains available for stat/title
 expansion.
 
+Ordinary monster deaths can also use monster-specific art:
+
+```text
+public/endings/monster-<monster-id>-<variant>.png
+```
+
+Each current monster has three planned variants, generated from the prompt
+catalogue in `scripts/gen-monster-death-art.mjs`. Special deaths still override
+monster art: floor-20 deaths, starvation deaths, `wall-whisperer`,
+`dungeon-cleaner`, and `chest-enthusiast` all keep their scenario art. Unknown
+or missing monster ids fall back to `death-default-[1-6].png`, and the end-run
+screen also swaps to default death art if a selected monster image has not been
+generated yet.
+
 ## Current Recipe
 
 - Model: `Runpod/FLUX.2-klein-4B-mflux-4bit`
@@ -37,6 +51,24 @@ mflux-generate-flux2 \
   --seed 9100 \
   --prompt "$PROMPT" \
   --output public/endings/victory-default-1.png
+```
+
+Monster-death art uses the same local mflux model by default:
+
+```bash
+node scripts/gen-monster-death-art.mjs --dry-run
+node scripts/gen-monster-death-art.mjs
+node scripts/gen-monster-death-art.mjs --monster=orc --force
+```
+
+Environment overrides:
+
+```text
+ROGUE_MONSTER_DEATH_MODEL
+ROGUE_MONSTER_DEATH_BASE_MODEL
+ROGUE_MONSTER_DEATH_STEPS
+ROGUE_MONSTER_DEATH_WIDTH
+ROGUE_MONSTER_DEATH_HEIGHT
 ```
 
 ## Prompt Template
