@@ -1497,14 +1497,18 @@ export class GameUI {
   }
 
   private inventoryActions(player: Player, ref: InventoryRef): InventoryActionView[] {
+    // Every carried item the pack can show is droppable (equipped gear is never
+    // listed). Drop is always last so the primary verb stays the default action.
+    const drop: InventoryActionView = { action: 'drop', label: 'Drop' };
+
     if (ref.kind === 'food') {
-      return [{ action: 'use', label: 'Eat' }];
+      return [{ action: 'use', label: 'Eat' }, drop];
     }
     if (ref.kind === 'potion') {
-      return [{ action: 'use', label: 'Drink' }];
+      return [{ action: 'use', label: 'Drink' }, drop];
     }
     if (ref.kind === 'scroll') {
-      return [{ action: 'use', label: 'Read' }];
+      return [{ action: 'use', label: 'Read' }, drop];
     }
     if (ref.kind === 'wand') {
       const wand = player.inventory.wands[ref.index];
@@ -1514,7 +1518,7 @@ export class GameUI {
         label: 'Zap',
         disabled: recharging,
         reason: recharging ? `Recharging (${wand?.cooldownRemaining})` : undefined,
-      }];
+      }, drop];
     }
 
     if (ref.kind === 'weapon') {
@@ -1534,6 +1538,7 @@ export class GameUI {
         disabled: !off.ok,
         reason: off.ok ? undefined : off.reason,
       });
+      actions.push(drop);
       return actions;
     }
 
@@ -1544,7 +1549,7 @@ export class GameUI {
         label: `Equip ${titleCase(ref.slot)}`,
         disabled: !result.ok,
         reason: result.ok ? undefined : result.reason,
-      }];
+      }, drop];
     }
 
     const result = canEquip(player, { slot: 'offHand', value: `shield:${ref.index}` });
@@ -1553,7 +1558,7 @@ export class GameUI {
       label: 'Equip shield',
       disabled: !result.ok,
       reason: result.ok ? undefined : result.reason,
-    }];
+    }, drop];
   }
 
   /** Clear the accumulated UI log history and gutter numbering. Called by the

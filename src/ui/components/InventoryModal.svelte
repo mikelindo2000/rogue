@@ -93,6 +93,12 @@
     if (action) run(selected, action.action);
   }
 
+  function runDropAction() {
+    if (!selected) return;
+    const action = selected.actions.find((item) => !item.disabled && item.action === 'drop');
+    if (action) run(selected, action.action);
+  }
+
   function focusAction(delta: number) {
     const buttons = enabledActions();
     if (buttons.length === 0) return;
@@ -142,6 +148,11 @@
       // Rogue "read" verb, scoped to the modal: read the selected scroll.
       event.preventDefault();
       runDefaultAction();
+    } else if (event.key.toLowerCase() === 'd') {
+      // Rogue "drop" verb, scoped to the modal. Drop is never the default action,
+      // so Return still triggers the primary verb (read/drink/equip), not drop.
+      event.preventDefault();
+      runDropAction();
     }
   }
 
