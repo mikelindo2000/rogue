@@ -577,7 +577,7 @@
 <style>
   .body {
     display: grid;
-    grid-template-columns: minmax(190px, 220px) minmax(280px, 360px) minmax(250px, 300px);
+    grid-template-columns: minmax(190px, 220px) minmax(280px, 360px) minmax(250px, 1fr);
     width: min(84vw, 1000px);
     max-width: 100%;
     box-sizing: border-box;
@@ -921,7 +921,7 @@
   @media (max-width: 1040px) {
     .body {
       grid-template-columns: 1fr;
-      width: min(100%, 460px);
+      width: 100%;
       height: auto;
       max-height: none;
     }
