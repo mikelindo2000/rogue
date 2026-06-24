@@ -2,6 +2,7 @@ import { ARMOR_SLOTS, type GearItem, type Player } from '../types';
 import type { EquipOption, EquipSlotView, SlotUpgradeHint } from './store.svelte';
 import { titleCase, rarityVar } from './format';
 import { SLOT_ICON } from './icons';
+import { gearArtUrl } from './inventoryArt';
 import {
   availableEquipCount,
   gearHealthView,
@@ -15,6 +16,11 @@ import { bestIndex, compareGear } from './gearCompare';
 
 function availableLabel(count: number): string {
   return count === 1 ? '1 item available to equip' : `${count} items available to equip`;
+}
+
+/** Custom generated art for an equipped item, or '' when the slot is empty. */
+function slotArt(item: GearItem | undefined): string {
+  return item && item.name !== 'None' ? gearArtUrl(item) : '';
 }
 
 /** Glanceable HUD hint: is a generally-/strictly-better item in the pack?
@@ -65,6 +71,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     statLabel: gearStatText(main, 'attack'),
     rarityColor: rarityVar(main?.rarity),
     empty: !main || main.name === 'None',
+    artUrl: slotArt(main),
     availableCount: mainAvailable,
     availableLabel: availableLabel(mainAvailable),
     hasUpgrade: hasStatUpgrade(main, weapons.filter((_, i) => i !== mainIdx), 'attack'),
@@ -162,6 +169,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     statLabel: is2H ? 'Locked' : gearStatText(offGear, offKind),
     rarityColor: rarityVar(offRarity),
     empty: is2H || offName === 'None',
+    artUrl: is2H ? '' : slotArt(offGear),
     availableCount: offAvailable,
     availableLabel: availableLabel(offAvailable),
     hasUpgrade: offCandidates.some(({ item, kind }) => primaryUpgrade(offGear, offKind, item, kind)),
@@ -205,6 +213,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
       statLabel: gearStatText(cur, 'defense'),
       rarityColor: rarityVar(cur?.rarity),
       empty: !cur || cur.name === 'None',
+      artUrl: slotArt(cur),
       availableCount: available,
       availableLabel: availableLabel(available),
       hasUpgrade: hasStatUpgrade(cur, candidates, 'defense'),

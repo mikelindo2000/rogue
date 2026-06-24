@@ -65,6 +65,8 @@ export interface EquipSlotView {
   statLabel: string;
   rarityColor: string;
   empty: boolean;
+  /** Custom generated art for the equipped item (empty string when none). */
+  artUrl: string;
   availableCount: number;
   availableLabel: string;
   hasUpgrade: boolean;
