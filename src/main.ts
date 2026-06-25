@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const ui_ = new GameUI('gameCanvas');
   const engine = new GameEngine(ui_, audio);
+  let presentationAnimationsEnabled = false;
 
   // Both runtimes share one AudioContext; unlock them together on first gesture.
   const unlockAudio = () => {
@@ -80,6 +81,30 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.endRunComparison = comparison;
     ui.endRunHistory = updatedHistory.runs;
     ui.endRunRecords = computeRecords(updatedHistory);
+  };
+
+  const openEndRunSummary = (summary: RunSummaryV1) => {
+    publishEndRunSummary(summary);
+    const animateDeath = presentationAnimationsEnabled && summary.outcome === 'died';
+    if (!animateDeath) {
+      ui.endRunTransitionActive = false;
+      ui.endRunPresentationReady = true;
+      return;
+    }
+
+    ui.endRunPresentationReady = false;
+    ui.endRunTransitionActive = true;
+    ui_.beginDeathTransition({
+      outcome: summary.outcome,
+      runId: summary.runId,
+      floorReached: summary.floorReached,
+      deathCause: summary.deathCause,
+      killedByMonsterId: summary.killedByMonsterId,
+    }).finally(() => {
+      if (ui.endRunSummary?.runId !== summary.runId || !engine.gameOver || engine.gameWon) return;
+      ui.endRunTransitionActive = false;
+      ui.endRunPresentationReady = true;
+    });
   };
 
   // Autosave: trailing debounce around normal writes, plus an immediate flush
@@ -116,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMusic();
   };
   engine.onRunFinished = (summary) => {
-    publishEndRunSummary(summary);
+    openEndRunSummary(summary);
     scheduleSave();
     updateMusic();
   };
@@ -132,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     flushSave();
   }
   engine.draw();
+  presentationAnimationsEnabled = true;
   // Select the opening bed (plays once audio unlocks on first input).
   updateMusic();
 
@@ -147,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Movement is suspended while any popover menu or modal dialog is open.
-  const overlayOpen = () => !!document.querySelector('[role="menu"], [role="dialog"]');
+  const overlayOpen = () => ui.endRunTransitionActive || !!document.querySelector('[role="menu"], [role="dialog"]');
 
   // Wire the chrome's action hooks to the engine.
   actions.equip = (slot, value) => engine.equipGear(slot, value);
@@ -191,11 +217,14 @@ document.addEventListener('DOMContentLoaded', () => {
     syncAimingContext();
   };
   actions.restart = () => {
-    if (engine.gameOver || engine.gameWon) {
+    if ((engine.gameOver || engine.gameWon) && !ui.endRunTransitionActive) {
       suppressedEndedRunId = null;
       ui.endRunSummary = null;
       ui.endRunComparison = null;
       ui.endRunCopyStatus = '';
+      ui.endRunPresentationReady = true;
+      ui.endRunTransitionActive = false;
+      ui_.resetDeathTransition();
       // Pick up any board-size change made since this run started.
       engine.setBoardSize(ui.boardSize);
       engine.initGame();
@@ -210,6 +239,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.endRunSummary = null;
     ui.endRunComparison = null;
     ui.endRunCopyStatus = '';
+    ui.endRunPresentationReady = true;
+    ui.endRunTransitionActive = false;
+    ui_.resetDeathTransition();
     ui.settingsOpen = false;
     engine.setBoardSize(ui.boardSize);
     engine.initGame();
@@ -410,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Context-gated: restart only matters once the run is over, so during
       // active play 'r' opens the scroll chooser (the Rogue "read" verb).
       if (engine.gameOver || engine.gameWon) {
-        actions.restart();
+        if (!ui.endRunTransitionActive) actions.restart();
       } else {
         actions.readScroll();
       }

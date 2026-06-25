@@ -14,6 +14,7 @@ import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from
 import { visualEffectLayers } from './ui/visualEffects';
 import { MapStageController } from './ui/mapStage';
 import { FloorTransitionController, resolveFloorTransition, type FloorDir } from './ui/floorTransition';
+import { DeathTransitionController, chooseDeathTransition, type DeathTransitionRequest } from './ui/deathTransition';
 import { buildEquipmentView } from './ui/equipmentView';
 import {
   buildInventoryComparisons,
@@ -210,6 +211,9 @@ export class GameUI {
   /** Crossfades a snapshot of the floor being left against the incoming floor
    *  on stairs. Null without the `.map-transition`/`.map-ghost` wrappers. */
   private floorTransition: FloorTransitionController | null = null;
+  /** Plays the brief map-plane animation between player death and the end-run
+   *  art/stat screen. Null without the `.map-plane` wrapper. */
+  private deathTransition: DeathTransitionController | null = null;
 
   constructor(canvasId: string) {
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -247,6 +251,12 @@ export class GameUI {
         now: () => this.nowMs(),
         reducedMotion: reduced,
       });
+      this.deathTransition = new DeathTransitionController({
+        plane,
+        veil: viewport.querySelector('.map-death-veil'),
+        now: () => this.nowMs(),
+        reducedMotion: reduced,
+      });
     }
     this.observeViewport();
   }
@@ -271,6 +281,37 @@ export class GameUI {
     this.floorTransition.setReducedMotion(reduced);
     this.floorTransition.begin(dir, resolveFloorTransition(ui.floorTransition, reduced));
     this.ensureLoop();
+  }
+
+  /** Start the death presentation transition and resolve when the screen may
+   *  open. The selector is outcome-aware even though only death variants ship
+   *  today, so future victory/floor/cause-specific effects can slot in here. */
+  public beginDeathTransition(request: DeathTransitionRequest): Promise<void> {
+    if (!this.deathTransition) return Promise.resolve();
+    const reduced =
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const transition = chooseDeathTransition(request, reduced);
+    if (!transition) return Promise.resolve();
+    this.mapStage?.settle();
+    this.deathTransition.setReducedMotion(reduced);
+    const done = this.deathTransition.begin(transition);
+    this.ensureLoop();
+    if (typeof window === 'undefined') return done;
+    return Promise.race([
+      done,
+      new Promise<void>(resolve => {
+        window.setTimeout(() => {
+          this.deathTransition?.skipToEnd();
+          resolve();
+        }, transition.durationMs + 120);
+      }),
+    ]);
+  }
+
+  /** Clear any persisted death-transition inline styles when a new live run
+   *  begins or a test harness wants the plane back at rest. */
+  public resetDeathTransition(): void {
+    this.deathTransition?.reset();
   }
 
   /** Watch the stage box for size changes (window resize, sidebar reflow,
@@ -363,6 +404,7 @@ export class GameUI {
     this.scene = { map, explored, visible, player, monsters, items, traps, tileSize, cols, rows, dungeonFloor, gameOver, gameWon, monsterDetectionActive };
 
     this.syncOverlays(map, explored, visible, player, monsters, items, cols, rows, gameOver, gameWon);
+    if (!gameOver && !gameWon) this.deathTransition?.reset();
 
     this.trackMovement(monsters);
     this.paint();
@@ -384,6 +426,9 @@ export class GameUI {
     // Advance any in-flight floor transition (drives the .map-transition/.map-ghost
     // layers, separate elements from the rumble target).
     this.floorTransition?.applyFrame();
+    // Death transitions intentionally write last because they own the final
+    // presentation handoff from map to ending art.
+    this.deathTransition?.applyFrame();
 
     // Derive the tile size from the available stage box so the dungeon fills the
     // screen and reflows with it. Everything downstream draws off s.tileSize, so
@@ -719,6 +764,7 @@ export class GameUI {
     if (this.fx.length > 0 || this.nowMs() < this.animUntil) return true;
     if (this.mapStage?.isAnimating()) return true;
     if (this.floorTransition?.isAnimating()) return true;
+    if (this.deathTransition?.isAnimating()) return true;
     if (this.scene?.monsterDetectionActive) return true;
     // A live telegraph keeps pulsing until its attack resolves.
     const ms = this.scene?.monsters;

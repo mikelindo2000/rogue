@@ -72,6 +72,8 @@
        - `.map-plane` (inside it) is the MapStageController rumble target;
        - `.map-ghost` (sibling, hidden at rest) holds a snapshot of the floor
          being left, crossfaded against the live canvas during a transition.
+       - `.map-death-veil` is a map-local overlay for the death-transition
+         handoff before the ending art/stat screen opens.
        All shrink-wrap the canvas so the flex stage still centers it.
        See design/active/map_3d_plane_plan.md. -->
   <div class="map-viewport">
@@ -88,6 +90,7 @@
     <div class="map-ghost" aria-hidden="true">
       <canvas id="ghostCanvas"></canvas>
     </div>
+    <div class="map-death-veil" aria-hidden="true"></div>
 
     <!-- Combat portrait of the monster being fought. Sits inside .map-viewport so
          it anchors to a corner of the board canvas; GameUI only ever picks a
@@ -208,6 +211,14 @@
     transform-style: preserve-3d;
     transform-origin: center center;
     will-change: transform, opacity;
+  }
+  .map-death-veil {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    opacity: 0;
+    pointer-events: none;
+    will-change: opacity, background;
   }
   canvas {
     display: block;

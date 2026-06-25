@@ -251,6 +251,10 @@ export interface UIState {
   discovery: DiscoveryState;
   // end-run stats and browser-local records
   endRunSummary: RunSummaryV1 | null;
+  /** False while a pre-ending transition is delaying the art/stat screen. */
+  endRunPresentationReady: boolean;
+  /** True only during the short map-plane death handoff animation. */
+  endRunTransitionActive: boolean;
   endRunRecords: BrowserRecords | null;
   endRunComparison: RunRecordComparison | null;
   endRunHistory: RunSummaryV1[];
@@ -316,6 +320,8 @@ export const ui = $state<UIState>({
   floorTransition: 'zpush',
   discovery: emptyDiscovery(),
   endRunSummary: null,
+  endRunPresentationReady: true,
+  endRunTransitionActive: false,
   endRunRecords: null,
   endRunComparison: null,
   endRunHistory: [],

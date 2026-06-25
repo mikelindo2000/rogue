@@ -49,7 +49,7 @@
       ? buildEndRunView(summary, ui.endRunRecords, ui.endRunComparison, ui.endRunHistory)
       : null
   );
-  const isOpen = $derived(!!summary && (ui.gameOver || ui.gameWon));
+  const isOpen = $derived(!!summary && (ui.gameOver || ui.gameWon) && ui.endRunPresentationReady);
   const endArt = $derived(summary ? pickOpeningEndRunArt(summary) : null);
   const activeIndex = $derived(TABS.findIndex(t => t.id === activeTab));
   const activeStats: EndRunStat[] = $derived(
