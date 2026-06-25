@@ -64,7 +64,10 @@ export interface ReferenceCurve {
  *  the game changes. These remain deliberate, adjustable knobs. */
 export const DEFAULT_CURVE: ReferenceCurve = {
   baseHp: 30,
-  hpGrowth: 1.032,
+  // hpGrowth re-pointed after the XP/leveling realignment (level now ≈ floor/1.5):
+  // measured maxHp ≈ 30→158 over 20 floors, up from the old starved ~30→55. atk/def
+  // are unchanged (gear isn't affected by the XP fix).
+  hpGrowth: 1.091,
   baseAtk: 2,
   // Re-pointed after tier-gating gear drops (BALANCE.loot.tierMinFloor): early
   // weapon/armor power dropped, so the curve is humbler early and converges to the

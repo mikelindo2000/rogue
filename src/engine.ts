@@ -3,7 +3,7 @@ import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
-import { MONSTER_XP_TABLE, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
+import { monsterKillXp, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
 import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
 import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
 import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
@@ -1092,11 +1092,10 @@ export class GameEngine {
     saveDiscovery(this.discovery);
     this.ui.syncDiscovery(this.discovery);
 
-    let xpGained = 0;
-    const floorTable = MONSTER_XP_TABLE[this.player.level];
-    if (floorTable && floorTable[monster.name] !== undefined) {
-      xpGained = floorTable[monster.name] as number;
-    }
+    // XP is keyed on DUNGEON DEPTH (not player level): an under-levelled player
+    // still earns from what they fight, instead of flatlining once they fall
+    // behind floor. See monsterKillXp.
+    const xpGained = monsterKillXp(this.dungeonFloor, monster.name);
 
     if (xpGained > 0) {
       this.addLog(`Gained ${xpGained} Experience.`);
@@ -1107,8 +1106,6 @@ export class GameEngine {
         this.ui.updateDropdowns(this.player);
         this.sound.emit({ type: 'player.levelUp' });
       }
-    } else {
-      this.addLog(`No experience gained (Level delta too high).`);
     }
 
     if (monster.special === 'hero') {

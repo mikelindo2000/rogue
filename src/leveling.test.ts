@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createPlayer, gainXp } from './player';
-import { getScaledXpRequirements, BALANCE } from './config';
+import { getScaledXpRequirements, BALANCE, monsterKillXp, MONSTER_XP_TABLE, MONSTER_DATABASE } from './config';
 import { StatusEffects } from './types';
 
 const addLog = (_msg: string) => {};
@@ -8,6 +8,33 @@ const addLog = (_msg: string) => {};
 function zeroStatus(): StatusEffects {
   return { vigorTurns: 0, midasTurns: 0, strengthTurns: 0, invisTurns: 0, armorTurns: 0, monsterDetectionTurns: 0 };
 }
+
+describe('monsterKillXp (depth-indexed, no under-level spiral)', () => {
+  it('returns the floor-row value for a monster fought at its depth', () => {
+    expect(monsterKillXp(1, 'Brown Bat')).toBe(MONSTER_XP_TABLE[1]['Brown Bat']);
+    expect(monsterKillXp(17, 'Cyclops')).toBe(MONSTER_XP_TABLE[17]['Cyclops']);
+  });
+
+  it('pays out for deep monsters regardless of (low) player progress — the old spiral case', () => {
+    // The bug: when XP keyed on player.level, a low-level player fighting a deep
+    // monster got 0. Depth-indexing means every deep monster fought at-depth pays.
+    for (const t of MONSTER_DATABASE) {
+      if (t.special === 'boss') continue;
+      expect(monsterKillXp(t.minFloor, t.name)).toBeGreaterThan(0);
+    }
+  });
+
+  it('falls back to the nearest row for a monster lingering off its prime depth', () => {
+    // Nymph (minFloor 9) isn't in the floor-20 row; it should still pay its nearest
+    // listed value rather than 0.
+    expect(MONSTER_XP_TABLE[20]?.['Nymph']).toBeUndefined();
+    expect(monsterKillXp(20, 'Nymph')).toBeGreaterThan(0);
+  });
+
+  it('returns 0 for an unknown monster name', () => {
+    expect(monsterKillXp(5, 'Not A Monster')).toBe(0);
+  });
+});
 
 describe('gainXp', () => {
   it('returns false and does not change level for amount <= 0', () => {

@@ -257,11 +257,18 @@ export const RARITY_CONFIG: Record<string, RarityConfig> = {
   legendary: { name: "Legendary", color: "#ff8000", multiplier: 2.5 }
 };
 
+// Per-level XP thresholds (xp to go from level N to N+1), consumed on level-up.
+// Re-scaled June 2026 to the XP a run actually delivers (~40k over 20 floors,
+// measured via src/ai/run.ts): the old curve needed ~1.25M XP for level 20, so a
+// run reached only ~level 5 and HP (which only grows on level-up) flatlined. These
+// thresholds target level ≈ floor / 1.5 — ~level 13 / ~160-185 HP by floor 20 — so
+// leveling tracks the descent and HP grows into a real late-game buffer. Paired
+// with depth-indexed kill XP (monsterKillXp) which removed the under-level spiral.
 export const XP_REQUIREMENTS: Record<number, number> = {
-  1: 1400, 2: 3600, 3: 6500, 4: 10100, 5: 14400,
-  6: 19400, 7: 25200, 8: 31700, 9: 38900, 10: 47400,
-  11: 58600, 12: 71600, 13: 85700, 14: 95800, 15: 111800,
-  16: 129100, 17: 147500, 18: 167100, 19: 187900, 20: 209800
+  1: 400, 2: 700, 3: 1100, 4: 1200, 5: 1500,
+  6: 1900, 7: 2300, 8: 3000, 9: 4000, 10: 4800,
+  11: 5200, 12: 5800, 13: 7200, 14: 8800, 15: 10400,
+  16: 12000, 17: 13600, 18: 15200, 19: 16800, 20: 18400
 };
 
 export const MONSTER_XP_TABLE: Record<number, Record<string, number>> = {
@@ -284,8 +291,30 @@ export const MONSTER_XP_TABLE: Record<number, Record<string, number>> = {
   17: { "Troll": 289, "Trogdor the Troll": 674, "Golem": 449, "Gary the Golem": 1048, "Flying Serpent": 646, "Cyclops": 952, "Colossal Cyclops": 2682 },
   18: { "Golem": 337, "Gary the Golem": 786, "Flying Serpent": 485, "Cyclops": 714, "Colossal Cyclops": 2012, "Quinotaur": 1044 },
   19: { "Flying Serpent": 364, "Cyclops": 536, "Colossal Cyclops": 1509, "Quinotaur": 783, "Xelhua": 1139, "Zombie": 1139, "Zachary the Zombie": 3132 },
-  20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587.25, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349 }
+  20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587.25, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349, "Apperation": 900, "Agitated Apperation": 950, "Dragon": 1000 }
 };
+
+/**
+ * XP for killing `name` at dungeon `floor`. Indexed by DUNGEON DEPTH, not player
+ * level — so an under-levelled player still earns from what they actually fight.
+ * (The old engine lookup keyed on player.level, which gave 0 XP for any monster
+ * outside the player's level row; once you fell a few levels behind floor your XP
+ * income flatlined — a death spiral. Depth-indexing matches how spawns already
+ * work: variety tracks depth, not level.) Falls back to the nearest row that
+ * lists the monster, so a creature lingering past its prime still pays a reduced
+ * rate rather than 0. An explicit 0 in the table (a phased-out trash mob) stays 0.
+ */
+export function monsterKillXp(floor: number, name: string): number {
+  const exact = MONSTER_XP_TABLE[floor]?.[name];
+  if (exact !== undefined) return exact;
+  for (let d = 1; d <= 20; d++) {
+    const lo = MONSTER_XP_TABLE[floor - d]?.[name];
+    if (lo !== undefined) return lo;
+    const hi = MONSTER_XP_TABLE[floor + d]?.[name];
+    if (hi !== undefined) return hi;
+  }
+  return 0;
+}
 
 export const CHEST_GOLD_TABLE: Record<number, number> = {
   1: 15, 2: 25, 3: 30, 4: 45, 5: 60, 6: 80, 7: 100, 8: 120, 9: 150, 10: 160,
@@ -305,36 +334,42 @@ export const MONSTER_DATABASE: MonsterTemplate[] = [
   { symbol: 'I', name: 'Indus Worm', hp: 51, atk: 18, color: '#f5f5dc', minFloor: 7 },
   { symbol: 'P', name: 'Pygmy', hp: 58, atk: 22, color: '#d2b48c', minFloor: 8 },
   { symbol: 'P↑', name: 'Pantier Pygmy King', hp: 72, atk: 22, color: '#d2b48c', minFloor: 8, special: 'hero' },
-  // Floors 9-17 atk retuned June 2026 to a gentle threat ramp (~0.12→0.30 vs the
-  // recalibrated DEFAULT_CURVE) — turns the old "flat-easy then floor-17 cliff"
-  // into a slope with tense middle ground. See [[full-run-sim]] / src/ai/run.ts.
-  { symbol: 'N', name: 'Nymph', hp: 67, atk: 35, color: '#e6e6fa', minFloor: 9 },
-  { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 38, color: '#d3d3d3', minFloor: 10 },
-  { symbol: 'M', name: 'Minotaur', hp: 89, atk: 42, color: '#8b4513', minFloor: 11 },
-  { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 44, color: '#8b4513', minFloor: 11, special: 'hero' },
-  { symbol: 'U', name: 'Unicorn', hp: 102, atk: 45, color: '#ffffff', minFloor: 12 },
-  { symbol: 'Y', name: 'Yeti', hp: 117, atk: 48, color: '#ffffff', minFloor: 13 },
-  { symbol: 'T', name: 'Troll', hp: 135, atk: 50, color: '#00ff00', minFloor: 14 },
-  { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 51, color: '#00ff00', minFloor: 14, special: 'hero' },
-  { symbol: 'G', name: 'Golem', hp: 155, atk: 54, color: '#d2b48c', minFloor: 15 },
-  { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 55, color: '#d2b48c', minFloor: 15, special: 'hero' },
+  // Floors 9-17 atk tuned to a gentle threat ramp (~0.12→0.30) — turns the old
+  // "flat-easy then floor-17 cliff" into a slope with tense middle ground.
+  // Re-tuned June 2026 against the XP/HP realignment (player now reaches ~level 13
+  // / ~158 HP by floor 20, not ~50), so atk is ~25-65% higher than the prior pass
+  // to keep the same threat fraction of the bigger HP pool. See [[full-run-sim]].
+  { symbol: 'N', name: 'Nymph', hp: 67, atk: 39, color: '#e6e6fa', minFloor: 9 },
+  { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 44, color: '#d3d3d3', minFloor: 10 },
+  { symbol: 'M', name: 'Minotaur', hp: 89, atk: 49, color: '#8b4513', minFloor: 11 },
+  { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 52, color: '#8b4513', minFloor: 11, special: 'hero' },
+  { symbol: 'U', name: 'Unicorn', hp: 102, atk: 54, color: '#ffffff', minFloor: 12 },
+  { symbol: 'Y', name: 'Yeti', hp: 117, atk: 59, color: '#ffffff', minFloor: 13 },
+  { symbol: 'T', name: 'Troll', hp: 135, atk: 64, color: '#00ff00', minFloor: 14 },
+  { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 65, color: '#00ff00', minFloor: 14, special: 'hero' },
+  { symbol: 'G', name: 'Golem', hp: 155, atk: 68, color: '#d2b48c', minFloor: 15 },
+  { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 70, color: '#d2b48c', minFloor: 15, special: 'hero' },
   // Flying Serpent is a kiter (ranged poker): its bolt is telegraphed + chip
   // damage, connecting only a fraction of each turn, so its atk is NOT comparable
   // to a plain-melee row's (see the telegraph-gating gotcha in
-  // guides/monster-authoring.md). atk 85→70 sets it on the floor-16 ramp (shape-
-  // aware harness threat ~0.20); was the run's spiky deadliest floor, nudged down.
-  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 70, color: '#39ff14', minFloor: 16 },
-  // Cyclops pair atk 75/85 → 60/60: was the floor-17 difficulty cliff (threat
-  // 0.42/0.58). Filed down to fit the ramp (~0.27/0.30) so the wall becomes a slope.
-  { symbol: 'C', name: 'Cyclops', hp: 205, atk: 60, color: '#ffdab9', minFloor: 17 },
-  { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 60, color: '#ffdab9', minFloor: 17, special: 'hero' },
-  { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 47, color: '#ffff00', minFloor: 18 },
-  { symbol: 'V', name: 'Xelhua', hp: 271, atk: 49, color: '#ff0000', minFloor: 19 },
-  { symbol: 'Z', name: 'Zombie', hp: 275, atk: 49, color: '#00ff00', minFloor: 19 },
-  { symbol: 'Z↑', name: 'Zachary the Zombie', hp: 300, atk: 51, color: '#00ff00', minFloor: 19, special: 'hero' },
-  { symbol: 'A', name: 'Apperation', hp: 312, atk: 52, color: '#556666', minFloor: 20 },
-  { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 55, color: '#556666', minFloor: 20 },
-  { symbol: 'D', name: 'Dragon', hp: 380, atk: 44, color: '#00ff00', minFloor: 20 },
+  // guides/monster-authoring.md). atk 104 (threat ~0.20) — nudged below the raw
+  // ramp because, as a poke-kiter hitting a worn player, it was the run's spiky
+  // deadliest floor at the higher value.
+  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 104, color: '#39ff14', minFloor: 16 },
+  // Cyclops pair: brute archetype (heavy telegraphed slam). atk tuned so floor 17
+  // sits at the ramp peak (~0.26/0.30 threat) — the capstone, not the old cliff.
+  { symbol: 'C', name: 'Cyclops', hp: 205, atk: 92, color: '#ffdab9', minFloor: 17 },
+  { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 94, color: '#ffdab9', minFloor: 17, special: 'hero' },
+  // Floors 18-20 atk re-tuned to extend the ramp to its climax (~0.30→0.36 threat)
+  // against the new ~130-160 HP player — the prior values (tuned for ~50 HP) left
+  // the finale trivial once leveling was fixed. Bosses below are left untouched.
+  { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 86, color: '#ffff00', minFloor: 18 },
+  { symbol: 'V', name: 'Xelhua', hp: 271, atk: 90, color: '#ff0000', minFloor: 19 },
+  { symbol: 'Z', name: 'Zombie', hp: 275, atk: 89, color: '#00ff00', minFloor: 19 },
+  { symbol: 'Z↑', name: 'Zachary the Zombie', hp: 300, atk: 90, color: '#00ff00', minFloor: 19, special: 'hero' },
+  { symbol: 'A', name: 'Apperation', hp: 312, atk: 94, color: '#556666', minFloor: 20 },
+  { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 92, color: '#556666', minFloor: 20 },
+  { symbol: 'D', name: 'Dragon', hp: 380, atk: 86, color: '#00ff00', minFloor: 20 },
   { symbol: 'D↑', name: 'Dragon King', hp: 1050, atk: 27, color: '#00ff00', minFloor: 20, special: 'boss' },
   { symbol: 'M*', name: 'Marcus the Brave', hp: 900, atk: 25, color: '#ffd700', minFloor: 20, special: 'boss' }
 ];

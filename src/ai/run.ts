@@ -32,7 +32,8 @@ import { generateLevel } from '../map';
 import { createPlayer, getTotalDef, gainXp } from '../player';
 import {
   BALANCE,
-  MONSTER_XP_TABLE,
+  monsterKillXp,
+  CHEST_GOLD_TABLE,
   getScaledMonsterHP,
   getScaledMonsterAtk,
 } from '../config';
@@ -171,19 +172,7 @@ function monsterCombat(m: Monster): MonsterCombat {
   };
 }
 
-/** XP for killing `name` on `floor`, off the real per-floor reward table. Falls
- *  back to the nearest floor that lists the monster (heroes/odd depths), else 0. */
-function xpFor(floor: number, name: string): number {
-  const exact = MONSTER_XP_TABLE[floor]?.[name];
-  if (exact != null) return exact;
-  for (let d = 1; d <= 20; d++) {
-    const lo = MONSTER_XP_TABLE[floor - d]?.[name];
-    if (lo != null) return lo;
-    const hi = MONSTER_XP_TABLE[floor + d]?.[name];
-    if (hi != null) return hi;
-  }
-  return 0;
-}
+const clampLvl = (l: number) => Math.max(1, Math.min(20, l));
 
 // ---------------------------------------------------------------------------
 // Per-floor snapshot + single run.
@@ -233,10 +222,15 @@ export function simulateRun(seed: number, opts: RunOptions = {}): RunResult {
   for (let floor = 1; floor <= o.maxFloor && diedOnFloor === null; floor++) {
     const level = generateLevel(floor, player.level, BOARD_COLS, BOARD_ROWS, rng, {});
 
-    // --- Loot phase: equip upgrades, bank consumables. ---
+    // --- Loot phase: equip upgrades, bank consumables, open chests. ---
     for (const it of level.items) {
       if (it.type === 'gear') tryEquip(player, it.data);
       else if (it.type === 'potion' && it.data.potionType === 'healing') healPotions++;
+      else if (it.type === 'gold' && it.amount === undefined) {
+        // A chest (gold pile with no explicit amount) awards XP equal to its gold,
+        // mirroring checkItems. Recovered piles (explicit amount) give no XP.
+        gainXp(player, CHEST_GOLD_TABLE[clampLvl(player.level)] ?? 15, noLog, status);
+      }
     }
 
     // --- Combat phase: fight the floor's spawns in sequence. ---
@@ -280,7 +274,7 @@ export function simulateRun(seed: number, opts: RunOptions = {}): RunResult {
       }
 
       // XP can level the player up mid-floor (raising maxHp).
-      gainXp(player, xpFor(floor, m.name), noLog, status);
+      gainXp(player, monsterKillXp(floor, m.name), noLog, status);
 
       // A few steps to the next fight.
       hp = Math.min(player.maxHp, hp + o.regenBetweenFights * player.maxHp);
