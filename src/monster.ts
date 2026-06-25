@@ -283,12 +283,19 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
         // scope, the nymph path draws nothing from it — adding a per-hit random draw
         // to this shared path would desync seeded runs (see the RNG-parity gotcha).
         const stolen = potions.shift()!;
+        (m.stolenLoot ??= []).push({
+          type: 'potion',
+          symbol: '!',
+          color: '#ff66ff',
+          data: { potionType: stolen },
+        });
         logs.push(`${m.name} snatches your ${stolen} potion and vanishes!`);
         return true;
       }
       const amount = Math.min(player.gold, ab.magnitude ?? 0);
       if (amount > 0) {
         player.gold -= amount;
+        (m.stolenLoot ??= []).push({ type: 'gold', amount, symbol: '$', color: '#ffff55' });
         logs.push(`${m.name} snatches ${amount} gold and vanishes!`);
         return true;
       }

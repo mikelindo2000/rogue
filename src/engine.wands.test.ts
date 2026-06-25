@@ -497,10 +497,12 @@ describe('control-effect completeness', () => {
     expect(engine.player.hp).toBe(hpBefore); // did not attack
   });
 
-  it('polymorph clears ai runtime, freeze and cancellation state', () => {
+  it('polymorph clears ai runtime, freeze, cancellation, and carried loot state', () => {
     const engine = setup();
     const orc = mkMonster(5, 2, { hp: 40, maxHp: 200, frozenTurns: 4, canceledTurns: 3 });
     orc.ai = { state: 'hunting', cooldowns: {}, swipeToggle: false };
+    orc.gold = 50;
+    orc.stolenLoot = [{ type: 'potion', symbol: '!', color: '#ff66ff', data: { potionType: 'healing' } }];
     engine.monsters = [orc];
     give(engine, 'polymorph');
     engine.zapWand(0, 1, 0);
@@ -510,6 +512,8 @@ describe('control-effect completeness', () => {
     expect(m.ai?.state).not.toBe('hunting');
     expect(m.frozenTurns).toBe(0);
     expect(m.canceledTurns ?? 0).toBe(0);
+    expect(m.gold).toBeUndefined();
+    expect(m.stolenLoot).toBeUndefined();
     expect(m.hp).toBe(m.maxHp);
   });
 

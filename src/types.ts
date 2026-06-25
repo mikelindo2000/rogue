@@ -208,6 +208,10 @@ export interface Monster {
    *  here; on death it spills onto the floor as a recoverable pile (plus a base
    *  hoard for gold-carriers). Absent/0 ⇒ drops nothing. */
   gold?: number;
+  /** Items stolen by this monster and possibly recoverable on death. Nymphs use
+   *  this for snatched potions/gold; each entry is already shaped like a floor
+   *  item minus coordinates so it can be dropped on the corpse tile. */
+  stolenLoot?: ItemSpawn[];
   /** Turns remaining under a Wand of Cancellation: special archetype behavior
    *  (telegraphed attacks, on-hit abilities, dodge) is suppressed while > 0.
    *  Decremented in processMonsterAI. Optional — absent means not cancelled. */

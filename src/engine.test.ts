@@ -1583,6 +1583,62 @@ describe('monster gold drops', () => {
     expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
   });
 
+  it('a slain nymph has a 66 percent chance to drop a stolen potion', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0); // below 2/3: recovered
+    const nymph: Monster = {
+      x: 3, y: 2, symbol: 'N', name: 'Nymph', hp: 1, maxHp: 1, atk: 1,
+      color: '#ff66ff', minFloor: 9, frozenTurns: 0,
+      stolenLoot: [{ type: 'potion', symbol: '!', color: '#ff66ff', data: { potionType: 'healing' } }],
+    };
+
+    kill(engine, nymph);
+
+    const potion = engine.items.find((i) => i.type === 'potion');
+    expect(potion).toMatchObject({ type: 'potion', x: 3, y: 2, data: { potionType: 'healing' } });
+    expect(engine.logs).toContain('The Nymph drops your stolen healing potion!');
+  });
+
+  it('a slain nymph reports when stolen loot is lost', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.99); // above 2/3: lost
+    const nymph: Monster = {
+      x: 3, y: 2, symbol: 'N', name: 'Nymph', hp: 1, maxHp: 1, atk: 1,
+      color: '#ff66ff', minFloor: 9, frozenTurns: 0,
+      stolenLoot: [{ type: 'gold', amount: 50, symbol: '$', color: '#ffff55' }],
+    };
+
+    engine.monsters = [nymph];
+    (engine as any).handleMonsterDeath(nymph);
+
+    expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
+    expect(engine.logs).toContain('Your stolen 50 gold was lost.');
+  });
+
+  it('a nymph that snatches a potion actually blinks away through the engine turn', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0);
+    engine.map[2][2] = TILE.FLOOR;
+    engine.map[2][3] = TILE.FLOOR;
+    engine.map[2][6] = TILE.FLOOR;
+    engine.player.inventory.potions = ['healing'];
+    const nymph: Monster = {
+      x: 3, y: 2, symbol: 'N', name: 'Nymph', hp: 20, maxHp: 20, atk: 1,
+      color: '#ff66ff', minFloor: 9, frozenTurns: 0,
+    };
+    engine.monsters = [nymph];
+
+    engine.processTurn();
+
+    expect(engine.player.inventory.potions).toEqual([]);
+    expect(nymph.stolenLoot).toEqual([
+      { type: 'potion', symbol: '!', color: '#ff66ff', data: { potionType: 'healing' } },
+    ]);
+    expect(nymph.x).toBe(6);
+    expect(nymph.y).toBe(2);
+    expect(engine.logs).toContain('The Nymph blinks away!');
+  });
+
   it('the Dragon King boss drops no hoard (only the plain guardian Dragon does)', () => {
     // Guards against a one-slug typo turning the endgame boss into a gold piñata:
     // 'Dragon King' resolves to the default archetype, not 'guardian'.

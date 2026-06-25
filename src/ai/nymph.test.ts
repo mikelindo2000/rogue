@@ -32,7 +32,7 @@ function playerWith(potions: PotionType[], gold = 0): Player {
 }
 
 describe('Nymph', () => {
-  it('resolves to the nymph archetype with a stealItem onHit + thenFlee kit', () => {
+  it('resolves to the nymph archetype with a stealItem onHit + flee/blink kit', () => {
     const b = resolveBehavior({ name: 'Nymph' });
     expect(b.id).toBe('nymph');
     expect(archetypeOf({ name: 'Nymph' })).toBe('nymph');
@@ -41,6 +41,7 @@ describe('Nymph', () => {
     expect(steal).toBeDefined();
     expect(steal!.trigger).toBe('onHit');
     expect(steal!.thenFlee).toBe(true);
+    expect(steal!.thenBlink).toBe(true);
     // It bails when wounded, like the trickster.
     expect(b.defense.fleeBelowHpPct).toBeGreaterThan(0);
     // DIRECT melee mirrors the trickster: plain melee, no windup, multiplier 1.
@@ -48,7 +49,7 @@ describe('Nymph', () => {
     expect(b.attacks[0].damageMultiplier).toBe(1);
   });
 
-  it('steals an item (a potion) from the inventory and then flees', () => {
+  it('steals an item (a potion), carries it, and then flees and blinks', () => {
     const b = resolveBehavior({ name: 'Nymph' });
     const m = nymph();
     const player = playerWith(['healing', 'strength'], 200);
@@ -59,6 +60,10 @@ describe('Nymph', () => {
     expect(player.gold).toBe(200); // a potion was available, so gold is untouched
     expect(logs.join(' ')).toMatch(/snatches your \w+ potion and vanishes/);
     expect(m.ai?.state).toBe('fleeing');
+    expect(m.ai?.pendingBlink).toBe(true);
+    expect(m.stolenLoot).toEqual([
+      { type: 'potion', symbol: '!', color: '#ff66ff', data: { potionType: 'healing' } },
+    ]);
   });
 
   it('does not corrupt equipped state — only the potions array shrinks', () => {
@@ -89,6 +94,8 @@ describe('Nymph', () => {
     expect(player.gold).toBeLessThan(200);
     expect(logs.join(' ')).toMatch(/snatches \d+ gold and vanishes/);
     expect(m.ai?.state).toBe('fleeing');
+    expect(m.ai?.pendingBlink).toBe(true);
+    expect(m.stolenLoot).toEqual([{ type: 'gold', amount: 50, symbol: '$', color: '#ffff55' }]);
   });
 
   it('produces a valid harness reading at its first floor (band tuned via run.ts)', () => {

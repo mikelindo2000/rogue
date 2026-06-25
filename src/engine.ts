@@ -67,6 +67,7 @@ import {
  *  rather than a walk through already-cleared levels. Set to false for a calm
  *  victory-lap ascent instead. */
 const AMULET_REGENERATES_ASCENT = true;
+const STOLEN_LOOT_RECOVERY_CHANCE = 2 / 3;
 
 /** Convert a carried gear item into a floor-ready gear payload. `category` must
  *  survive the round-trip so re-pickup routes the item back to the right bucket
@@ -1168,6 +1169,7 @@ export class GameEngine {
       }
     }
     recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
+    this.dropStolenLoot(monster);
     this.dropMonsterGold(monster);
     this.monsters = this.monsters.filter(m => m !== monster);
     if (this.gameWon) this.recordWinTurn();
@@ -1941,6 +1943,8 @@ export class GameEngine {
     monster.frozenTurns = 0;
     monster.canceledTurns = 0;
     monster.swipeTurn = false;
+    monster.gold = undefined;
+    monster.stolenLoot = undefined;
     monster.ai = undefined;
     return tmpl.name;
   }
@@ -1956,6 +1960,29 @@ export class GameEngine {
     if (total <= 0) return;
     this.items.push({ type: 'gold', amount: total, symbol: '$', color: '#ffff55', x: monster.x, y: monster.y });
     this.addLog(`The ${monster.name} drops ${total} gold!`);
+  }
+
+  /** Nymphs may have consumed, broken, or spent what they stole before death.
+   *  Each carried stolen item gets one recovery roll when the monster dies. */
+  private dropStolenLoot(monster: Monster) {
+    const loot = monster.stolenLoot ?? [];
+    if (loot.length === 0) return;
+    for (const item of loot) {
+      const label = this.stolenLootLabel(item);
+      if (this.rng.chance(STOLEN_LOOT_RECOVERY_CHANCE)) {
+        this.items.push({ ...item, x: monster.x, y: monster.y } as Item);
+        this.addLog(`The ${monster.name} drops your stolen ${label}!`);
+      } else {
+        this.addLog(`Your stolen ${label} was lost.`);
+      }
+    }
+    monster.stolenLoot = [];
+  }
+
+  private stolenLootLabel(item: ItemSpawn): string {
+    if (item.type === 'potion') return `${item.data.potionType} potion`;
+    if (item.type === 'gold') return `${item.amount ?? 0} gold`;
+    return item.type;
   }
 
   /** The base hoard a gold-carrier sits on, by archetype (on top of any gold it
