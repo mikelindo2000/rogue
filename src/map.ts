@@ -8,7 +8,7 @@ import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisu
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
 import { assert, devAssert } from './assert';
-import { placeTraps } from './traps';
+import { allowedTrapKindsForFloor, placeTraps, trapBudgetForFloor, trapCost } from './traps';
 
 /** Flood fill over walkable tiles: is (tx,ty) reachable from (sx,sy)? */
 function isReachable(
@@ -753,6 +753,10 @@ function blocksMazeEntryConnectivity(
   return entries.some(entry => !reachableEntries.has(posKey(entry.x, entry.y)));
 }
 
+function isAdjacentChebyshev(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 1;
+}
+
 function selectMazeMonsterSite(
   map: string[][],
   rect: RoomRect,
@@ -882,6 +886,121 @@ function spawnMazeDetails(
     });
   }
   return details;
+}
+
+function selectMazeTrapSite(
+  map: string[][],
+  rect: RoomRect,
+  sites: ReadonlyArray<MazeContentSite>,
+  items: ReadonlyArray<Item>,
+  playerX: number,
+  playerY: number,
+  stairsDownX: number,
+  stairsDownY: number,
+  cols: number,
+  rows: number
+): MazeContentSite | null {
+  const entries = mazeEntryTiles(map, rect);
+  const cache = items.find(item => inRect(rect, item.x, item.y)) ?? null;
+  const distanceFromCache = cache ? mazeDistancesFrom(map, rect, cache) : null;
+  const safeSites = sites.filter(site => {
+    if (site.kind === 'deepPath') return false;
+    if (entries.some(entry => isAdjacentChebyshev(site, entry))) return false;
+    if (cache && isAdjacentChebyshev(site, cache)) return false;
+    if (isOnMazeEntryShortestPath(map, rect, site, entries)) return false;
+    if (blocksMazeEntryConnectivity(map, rect, site, entries)) return false;
+    if (stairsDownX >= 0 && stairsDownY >= 0) {
+      const blocked = new Set([posKey(site.x, site.y)]);
+      if (!isReachableAvoiding(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows, blocked)) return false;
+    }
+    return true;
+  });
+  if (safeSites.length === 0) return null;
+
+  return [...safeSites].sort((a, b) => {
+    const score = (site: MazeContentSite) => {
+      const cacheDistance = distanceFromCache?.get(posKey(site.x, site.y)) ?? Number.POSITIVE_INFINITY;
+      if (site.kind === 'deadEnd') return 0;
+      if (cacheDistance >= 2 && cacheDistance <= 4) return 1;
+      return 2;
+    };
+    const aCacheDistance = distanceFromCache?.get(posKey(a.x, a.y)) ?? Number.POSITIVE_INFINITY;
+    const bCacheDistance = distanceFromCache?.get(posKey(b.x, b.y)) ?? Number.POSITIVE_INFINITY;
+    return (
+      score(a) - score(b) ||
+      Math.abs(aCacheDistance - 3) - Math.abs(bCacheDistance - 3) ||
+      b.distanceFromEntry - a.distanceFromEntry ||
+      b.degree - a.degree
+    );
+  })[0] ?? null;
+}
+
+function maybeSpawnMazeTrap(
+  map: string[][],
+  mazeRects: ReadonlyArray<RoomRect>,
+  dungeonFloor: number,
+  items: ReadonlyArray<Item>,
+  monsters: ReadonlyArray<Monster>,
+  mazeDetails: ReadonlyArray<MazeDetail>,
+  existingTraps: ReadonlyArray<TrapState>,
+  blockedPositions: ReadonlyArray<{ x: number; y: number }>,
+  playerX: number,
+  playerY: number,
+  stairsDownX: number,
+  stairsDownY: number,
+  cols: number,
+  rows: number,
+  rng: RNG,
+  trapdoorAllowed?: boolean
+): TrapState | null {
+  const content = BALANCE.map.mazeContent;
+  if (dungeonFloor < content.mazeTrapMinFloor || dungeonFloor >= 20) return null;
+  if (mazeRects.length === 0 || !rng.chance(content.mazeTrapChance)) return null;
+
+  const spent = existingTraps.reduce((sum, trap) => sum + trapCost(trap.kind), 0);
+  const remainingBudget = trapBudgetForFloor(dungeonFloor) - spent;
+  if (remainingBudget <= 0) return null;
+
+  const allowed = allowedTrapKindsForFloor(dungeonFloor)
+    .filter(kind => trapCost(kind) <= remainingBudget)
+    .filter(kind => kind !== 'trapdoor' || trapdoorAllowed !== false)
+    .filter(kind => kind !== 'trapdoor' || dungeonFloor < BALANCE.map.traps.trapdoorLastFloor);
+  if (allowed.length === 0) return null;
+
+  for (const rect of mazeRects) {
+    const site = selectMazeTrapSite(
+      map,
+      rect,
+      collectMazeContentSites(map, [rect], {
+        items,
+        monsters,
+        blockedPositions: [
+          ...blockedPositions,
+          ...mazeDetails,
+          ...existingTraps,
+        ],
+      }),
+      items,
+      playerX,
+      playerY,
+      stairsDownX,
+      stairsDownY,
+      cols,
+      rows
+    );
+    if (!site) continue;
+    const kind = rng.pick(allowed);
+    return {
+      id: `f${dungeonFloor}-${kind}-${site.x}-${site.y}`,
+      kind,
+      x: site.x,
+      y: site.y,
+      revealed: false,
+      armed: true,
+    };
+  }
+
+  return null;
 }
 
 export function generateLevel(
@@ -1263,6 +1382,29 @@ export function generateLevel(
     rng,
     trapdoorAllowed: opts.trapdoorAllowed,
   });
+  const mazeTrap = maybeSpawnMazeTrap(
+    map,
+    mazeRects,
+    dungeonFloor,
+    items,
+    monsters,
+    mazeDetails,
+    traps,
+    [
+      { x: playerX, y: playerY },
+      { x: stairsUpX, y: stairsUpY },
+      { x: stairsDownX, y: stairsDownY },
+    ],
+    playerX,
+    playerY,
+    stairsDownX,
+    stairsDownY,
+    cols,
+    rows,
+    rng,
+    opts.trapdoorAllowed
+  );
+  if (mazeTrap) traps.push(mazeTrap);
 
   return {
     map,

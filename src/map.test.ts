@@ -43,13 +43,17 @@ function reachable(map: string[][], sx: number, sy: number, tx: number, ty: numb
 }
 
 const ORTHOGONAL_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const;
+const tileKey = (x: number, y: number) => `${x},${y}`;
+
+function adjacentChebyshev(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 1;
+}
 
 function reachableAvoiding(map: string[][], sx: number, sy: number, tx: number, ty: number, blocked: Set<string>): boolean {
-  const key = (x: number, y: number) => `${x},${y}`;
-  if (blocked.has(key(sx, sy)) || blocked.has(key(tx, ty))) return false;
+  if (blocked.has(tileKey(sx, sy)) || blocked.has(tileKey(tx, ty))) return false;
   const seen = new Set<string>();
   const queue: Array<[number, number]> = [[sx, sy]];
-  seen.add(key(sx, sy));
+  seen.add(tileKey(sx, sy));
   while (queue.length > 0) {
     const [x, y] = queue.shift()!;
     if (x === tx && y === ty) return true;
@@ -57,8 +61,8 @@ function reachableAvoiding(map: string[][], sx: number, sy: number, tx: number, 
       const nx = x + dx;
       const ny = y + dy;
       if (ny < 0 || ny >= map.length || nx < 0 || nx >= map[ny].length) continue;
-      if (blocked.has(key(nx, ny)) || !isWalkable(map[ny][nx])) continue;
-      const k = key(nx, ny);
+      if (blocked.has(tileKey(nx, ny)) || !isWalkable(map[ny][nx])) continue;
+      const k = tileKey(nx, ny);
       if (seen.has(k)) continue;
       seen.add(k);
       queue.push([nx, ny]);
@@ -462,7 +466,7 @@ describe('generateLevel', () => {
     }
   });
 
-  it('places traps only on safe optional room floor tiles', () => {
+  it('places non-maze traps only on safe optional room floor tiles', () => {
     for (let floor = 4; floor < 20; floor++) {
       for (let seed = 1; seed <= 40; seed++) {
         const lvl = gen(floor, seed);
@@ -482,6 +486,7 @@ describe('generateLevel', () => {
         ));
 
         for (const trap of lvl.traps) {
+          if (lvl.mazeRects.some(rect => inRect(rect, trap.x, trap.y))) continue;
           expect(lvl.map[trap.y][trap.x], `floor ${floor} seed ${seed} trap ${trap.id}`).toBe(TILE.FLOOR);
           expect(lvl.dark[trap.y][trap.x], `floor ${floor} seed ${seed} trap ${trap.id} in dark room`).toBe(false);
           expect(lvl.items.some(it => it.x === trap.x && it.y === trap.y)).toBe(false);
@@ -1096,6 +1101,98 @@ describe('maze cells', () => {
       for (let seed = 1; seed <= 500; seed++) {
         const lvl = gen(floor, seed);
         expect(lvl.mazeDetails, `floor ${floor} seed ${seed}: searchable detail on ineligible floor`).toHaveLength(0);
+      }
+    }
+  });
+
+  it('spawns safe optional maze traps on eligible floors (floors 7..19, seeds 1..500)', () => {
+    let mazeCount = 0;
+    let mazeTrapCount = 0;
+
+    for (let floor = 7; floor < 20; floor++) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        for (const rect of lvl.mazeRects) {
+          mazeCount++;
+          const mazeTraps = lvl.traps.filter(trap => inRect(rect, trap.x, trap.y));
+          mazeTrapCount += mazeTraps.length;
+          expect(mazeTraps.length, `floor ${floor} seed ${seed}: more than one maze trap`).toBeLessThanOrEqual(1);
+
+          const mazeItems = lvl.items.filter(item => inRect(rect, item.x, item.y));
+          const mazeMonsters = lvl.monsters.filter(monster => inRect(rect, monster.x, monster.y));
+          const mazeDetails = lvl.mazeDetails.filter(detail => inRect(rect, detail.x, detail.y));
+          const entries = mazeEntryTiles(lvl.map, rect);
+          const entryDistances = entries.map(entry => mazeDistancesFrom(lvl.map, rect, entry));
+
+          for (const trap of mazeTraps) {
+            const trapKey = tileKey(trap.x, trap.y);
+            expect(allowedTrapKindsForFloor(floor), `floor ${floor} seed ${seed}: disallowed trap kind`).toContain(trap.kind);
+            expect(trap.revealed, `floor ${floor} seed ${seed}: maze trap starts revealed`).toBe(false);
+            expect(trap.armed, `floor ${floor} seed ${seed}: maze trap starts unarmed`).toBe(true);
+            expect(lvl.map[trap.y][trap.x], `floor ${floor} seed ${seed}: trap not on maze corridor`).toBe(TILE.CORRIDOR);
+            expect(isWalkable(lvl.map[trap.y][trap.x]), `floor ${floor} seed ${seed}: trap not walkable`).toBe(true);
+
+            expect(mazeItems.some(item => item.x === trap.x && item.y === trap.y), `floor ${floor} seed ${seed}: trap overlaps cache/item`).toBe(false);
+            expect(mazeMonsters.some(monster => monster.x === trap.x && monster.y === trap.y), `floor ${floor} seed ${seed}: trap overlaps denizen/monster`).toBe(false);
+            expect(mazeDetails.some(detail => detail.x === trap.x && detail.y === trap.y), `floor ${floor} seed ${seed}: trap overlaps detail`).toBe(false);
+            expect(
+              (trap.x === lvl.stairsUpX && trap.y === lvl.stairsUpY) || (trap.x === lvl.stairsDownX && trap.y === lvl.stairsDownY),
+              `floor ${floor} seed ${seed}: trap overlaps stairs`
+            ).toBe(false);
+
+            expect(entries.some(entry => adjacentChebyshev(trap, entry)), `floor ${floor} seed ${seed}: trap adjacent to maze entry`).toBe(false);
+            expect(mazeItems.some(item => adjacentChebyshev(trap, item)), `floor ${floor} seed ${seed}: trap adjacent to cache`).toBe(false);
+
+            const degree = ORTHOGONAL_DIRS.filter(([dx, dy]) => isWalkable(lvl.map[trap.y + dy]?.[trap.x + dx])).length;
+            const kind = degree <= 1 ? 'deadEnd' : degree >= 3 ? 'branch' : 'deepPath';
+            expect(['deadEnd', 'branch'], `floor ${floor} seed ${seed}: trap placed at ${kind}`).toContain(kind);
+            expect(degree, `floor ${floor} seed ${seed}: trap on two-neighbour through-route candidate`).not.toBe(2);
+
+            for (let a = 0; a < entries.length; a++) {
+              const throughA = entryDistances[a].get(trapKey);
+              if (throughA === undefined) continue;
+              for (let b = a + 1; b < entries.length; b++) {
+                const shortest = entryDistances[a].get(tileKey(entries[b].x, entries[b].y));
+                const throughB = entryDistances[b].get(trapKey);
+                expect(
+                  shortest !== undefined && throughB !== undefined && throughA + throughB === shortest,
+                  `floor ${floor} seed ${seed}: trap lies on maze-entry shortest path`
+                ).toBe(false);
+              }
+            }
+
+            if (entries.length > 1) {
+              const blocked = new Set([trapKey]);
+              const reachableEntries = mazeDistancesFrom(lvl.map, rect, entries[0], blocked);
+              for (const entry of entries) {
+                expect(
+                  reachableEntries.has(tileKey(entry.x, entry.y)),
+                  `floor ${floor} seed ${seed}: trap is a maze-entry chokepoint`
+                ).toBe(true);
+              }
+            }
+
+            expect(
+              reachableAvoiding(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsDownX, lvl.stairsDownY, new Set([trapKey])),
+              `floor ${floor} seed ${seed}: trap blocks player-to-stairs traversal`
+            ).toBe(true);
+          }
+        }
+      }
+    }
+
+    expect(mazeCount, 'expected to sweep many eligible mazes').toBeGreaterThan(50);
+    expect(mazeTrapCount, 'expected rare optional maze traps across the sweep').toBeGreaterThan(0);
+  });
+
+  it('spawns no maze traps before floor 7 or on floor 20 (seeds 1..500)', () => {
+    for (const floor of [1, 2, 3, 4, 5, 6, 20]) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        expect(
+          lvl.traps.some(trap => lvl.mazeRects.some(rect => inRect(rect, trap.x, trap.y))),
+          `floor ${floor} seed ${seed}: maze trap on ineligible floor`
+        ).toBe(false);
       }
     }
   });
