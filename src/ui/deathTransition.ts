@@ -133,6 +133,10 @@ export function chooseDeathTransition(
   return DEATH_TRANSITION_LIST[Math.min(DEATH_TRANSITION_LIST.length - 1, idx)];
 }
 
+export function getDeathTransition(id: string): DeathTransition | null {
+  return DEATH_TRANSITIONS[id] ?? null;
+}
+
 export interface DeathTransitionLayers {
   plane: HTMLElement | null;
   veil: HTMLElement | null;

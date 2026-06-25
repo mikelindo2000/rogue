@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const engine = new GameEngine(ui_, audio);
   let presentationAnimationsEnabled = false;
 
+  if (import.meta.env.DEV) {
+    (window as Window & {
+      __roguePreviewDeathTransition?: (id: string) => Promise<void>;
+    }).__roguePreviewDeathTransition = (id: string) => ui_.previewDeathTransition(id);
+  }
+
   // Both runtimes share one AudioContext; unlock them together on first gesture.
   const unlockAudio = () => {
     audio.unlock();

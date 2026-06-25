@@ -5,6 +5,7 @@ import {
   DEATH_TRANSITION_LIST,
   DEATH_TRANSITIONS,
   REDUCED_DEATH_TRANSITION,
+  getDeathTransition,
   type DeathTransition,
   type DeathTransitionContext,
 } from './deathTransition';
@@ -49,6 +50,11 @@ describe('death transition registry', () => {
 
   it('uses the dissolve fallback under reduced motion', () => {
     expect(chooseDeathTransition(request(), true, () => 0)?.id).toBe(REDUCED_DEATH_TRANSITION);
+  });
+
+  it('looks up transitions by id for dev previews', () => {
+    expect(getDeathTransition('torch-out')?.id).toBe('torch-out');
+    expect(getDeathTransition('missing')).toBeNull();
   });
 
   it('keeps every transition brief', () => {

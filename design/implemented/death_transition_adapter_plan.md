@@ -42,9 +42,12 @@ styles before the live map renders again.
 Adding a variant should be one registry entry plus tests that sample the effect
 at the start/end and cover any distinctive motion.
 
+Dev builds expose `window.__roguePreviewDeathTransition(id)` for browser proof
+and tuning. It plays a named registry entry through the same `GameUI` controller
+without changing the real random death-selection path.
+
 ## Shipped Variants
 
 - `last-spiral` — blur, desaturate, rotate, and recede the map into darkness.
 - `torch-out` — dim the board while a radial shadow closes down around the map.
 - `fold-shut` — rotate and compress the plane as if the dungeon folds closed.
-

@@ -14,7 +14,7 @@ import { rarityVar, hungerView, survivalWarningView, floorName, titleCase } from
 import { visualEffectLayers } from './ui/visualEffects';
 import { MapStageController } from './ui/mapStage';
 import { FloorTransitionController, resolveFloorTransition, type FloorDir } from './ui/floorTransition';
-import { DeathTransitionController, chooseDeathTransition, type DeathTransitionRequest } from './ui/deathTransition';
+import { DeathTransitionController, chooseDeathTransition, getDeathTransition, type DeathTransitionRequest } from './ui/deathTransition';
 import { buildEquipmentView } from './ui/equipmentView';
 import {
   buildInventoryComparisons,
@@ -312,6 +312,18 @@ export class GameUI {
    *  begins or a test harness wants the plane back at rest. */
   public resetDeathTransition(): void {
     this.deathTransition?.reset();
+  }
+
+  /** Dev/proof helper: play a specific transition id against the live map plane. */
+  public previewDeathTransition(id: string): Promise<void> {
+    if (!this.deathTransition) return Promise.resolve();
+    const transition = getDeathTransition(id);
+    if (!transition) return Promise.reject(new Error(`Unknown death transition: ${id}`));
+    this.mapStage?.settle();
+    this.deathTransition.setReducedMotion(false);
+    const done = this.deathTransition.begin(transition);
+    this.ensureLoop();
+    return done;
   }
 
   /** Watch the stage box for size changes (window resize, sidebar reflow,
