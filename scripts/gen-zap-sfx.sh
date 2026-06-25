@@ -44,8 +44,8 @@ PY
   fi
 }
 
-gen 1 0.7 0.55 "A wand unleashing a crackling bolt of arcane energy, a sharp magical zap with a brief electric sizzle"
-gen 2 0.8 0.55 "A magic staff discharging a focused beam of power, a whooshing arcane release with a glassy shimmer tail"
-gen 3 0.7 0.55 "A quick wand zap firing a spark of raw magic, a snapping crackle into a soft humming fizzle"
+gen 1 0.7 0.55 "A wand unleashing a bolt of arcane energy, an airy electric whoosh with a soft crackling current, smooth and energetic, no metallic clang or ring"
+gen 2 0.8 0.55 "A magic staff releasing a focused beam of power, a sweeping electric whoosh with a low humming arcane charge, breathy and soft, not metallic or glassy"
+gen 3 0.7 0.55 "A quick wand zap firing raw magic, a swift electric whoosh trailing into a soft humming fizzle, airy and smooth, not clangy or tinny"
 
 echo "Done. Generated $(ls "$OUT_DIR"/item-zap-*.mp3 | wc -l | tr -d ' ') zap variants in $OUT_DIR"

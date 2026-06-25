@@ -214,9 +214,9 @@ regular monsters and ~1.4–1.7s for bosses (Dragon King, Marcus the Brave), at
 | `item-gold-01.mp3` | `item.pickup` (gold) | 0.7 | 0.55 | A handful of gold coins scooped up with a bright jingling clink |
 | `consume-potion-01.mp3` | `item.consume` (potion) | 0.9 | 0.5 | Uncorking and gulping a magic potion, liquid glug with a soft magical shimmer |
 | `consume-food-01.mp3` | `item.consume` (food) | 0.8 | 0.5 | Eating dry rations, a few quick chewing bites and a satisfied swallow |
-| `item-zap-01.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A wand unleashing a crackling bolt of arcane energy, a sharp magical zap with a brief electric sizzle |
-| `item-zap-02.mp3` | `item.zap` (wand) | 0.8 | 0.55 | A magic staff discharging a focused beam of power, a whooshing arcane release with a glassy shimmer tail |
-| `item-zap-03.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A quick wand zap firing a spark of raw magic, a snapping crackle into a soft humming fizzle |
+| `item-zap-01.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A wand unleashing a bolt of arcane energy, an airy electric whoosh with a soft crackling current, smooth and energetic, no metallic clang or ring |
+| `item-zap-02.mp3` | `item.zap` (wand) | 0.8 | 0.55 | A magic staff releasing a focused beam of power, a sweeping electric whoosh with a low humming arcane charge, breathy and soft, not metallic or glassy |
+| `item-zap-03.mp3` | `item.zap` (wand) | 0.7 | 0.55 | A quick wand zap firing raw magic, a swift electric whoosh trailing into a soft humming fizzle, airy and smooth, not clangy or tinny |
 
 `item.zap` uses one generic cue (`item-zap`, three variants the service
 randomizes) via `resolveZapClip`. Per-effect zaps (fire vs lightning) can be
