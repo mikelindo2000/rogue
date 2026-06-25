@@ -299,24 +299,29 @@ export const MONSTER_DATABASE: MonsterTemplate[] = [
   { symbol: 'I', name: 'Indus Worm', hp: 51, atk: 18, color: '#f5f5dc', minFloor: 7 },
   { symbol: 'P', name: 'Pygmy', hp: 58, atk: 22, color: '#d2b48c', minFloor: 8 },
   { symbol: 'P↑', name: 'Pantier Pygmy King', hp: 72, atk: 22, color: '#d2b48c', minFloor: 8, special: 'hero' },
-  { symbol: 'N', name: 'Nymph', hp: 67, atk: 23, color: '#e6e6fa', minFloor: 9 },
-  { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 25, color: '#d3d3d3', minFloor: 10 },
-  { symbol: 'M', name: 'Minotaur', hp: 89, atk: 30, color: '#8b4513', minFloor: 11 },
-  { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 32, color: '#8b4513', minFloor: 11, special: 'hero' },
-  { symbol: 'U', name: 'Unicorn', hp: 102, atk: 32, color: '#ffffff', minFloor: 12 },
-  { symbol: 'Y', name: 'Yeti', hp: 117, atk: 34, color: '#ffffff', minFloor: 13 },
-  { symbol: 'T', name: 'Troll', hp: 135, atk: 36, color: '#00ff00', minFloor: 14 },
-  { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 37, color: '#00ff00', minFloor: 14, special: 'hero' },
-  { symbol: 'G', name: 'Golem', hp: 155, atk: 39, color: '#d2b48c', minFloor: 15 },
-  { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 41, color: '#d2b48c', minFloor: 15, special: 'hero' },
-  // atk 42 → 85: the Flying Serpent is a kiter (ranged poker). Its bolt is
-  // telegraphed + chip damage, so it connects only a fraction of each turn and
-  // reads "easy" at the plain-melee base atk (see the §3 telegraph-gating gotcha
-  // in guides/monster-authoring.md). Bumped to land the FAIR band at floor 16
-  // (harness threat ~0.42, mid-fair). Not comparable to a plain-melee row's atk.
-  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 85, color: '#39ff14', minFloor: 16 },
-  { symbol: 'C', name: 'Cyclops', hp: 205, atk: 75, color: '#ffdab9', minFloor: 17 },
-  { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 85, color: '#ffdab9', minFloor: 17, special: 'hero' },
+  // Floors 9-17 atk retuned June 2026 to a gentle threat ramp (~0.12→0.30 vs the
+  // recalibrated DEFAULT_CURVE) — turns the old "flat-easy then floor-17 cliff"
+  // into a slope with tense middle ground. See [[full-run-sim]] / src/ai/run.ts.
+  { symbol: 'N', name: 'Nymph', hp: 67, atk: 35, color: '#e6e6fa', minFloor: 9 },
+  { symbol: 'R', name: 'Rabid Ostrich', hp: 77, atk: 38, color: '#d3d3d3', minFloor: 10 },
+  { symbol: 'M', name: 'Minotaur', hp: 89, atk: 42, color: '#8b4513', minFloor: 11 },
+  { symbol: 'M↑', name: 'Michael the Minotaur', hp: 96, atk: 44, color: '#8b4513', minFloor: 11, special: 'hero' },
+  { symbol: 'U', name: 'Unicorn', hp: 102, atk: 45, color: '#ffffff', minFloor: 12 },
+  { symbol: 'Y', name: 'Yeti', hp: 117, atk: 48, color: '#ffffff', minFloor: 13 },
+  { symbol: 'T', name: 'Troll', hp: 135, atk: 50, color: '#00ff00', minFloor: 14 },
+  { symbol: 'T↑', name: 'Trogdor the Troll', hp: 150, atk: 51, color: '#00ff00', minFloor: 14, special: 'hero' },
+  { symbol: 'G', name: 'Golem', hp: 155, atk: 54, color: '#d2b48c', minFloor: 15 },
+  { symbol: 'G↑', name: 'Gary the Golem', hp: 170, atk: 55, color: '#d2b48c', minFloor: 15, special: 'hero' },
+  // Flying Serpent is a kiter (ranged poker): its bolt is telegraphed + chip
+  // damage, connecting only a fraction of each turn, so its atk is NOT comparable
+  // to a plain-melee row's (see the telegraph-gating gotcha in
+  // guides/monster-authoring.md). atk 85→70 sets it on the floor-16 ramp (shape-
+  // aware harness threat ~0.20); was the run's spiky deadliest floor, nudged down.
+  { symbol: 'F', name: 'Flying Serpent', hp: 178, atk: 70, color: '#39ff14', minFloor: 16 },
+  // Cyclops pair atk 75/85 → 60/60: was the floor-17 difficulty cliff (threat
+  // 0.42/0.58). Filed down to fit the ramp (~0.27/0.30) so the wall becomes a slope.
+  { symbol: 'C', name: 'Cyclops', hp: 205, atk: 60, color: '#ffdab9', minFloor: 17 },
+  { symbol: 'C↑', name: 'Colossal Cyclops', hp: 225, atk: 60, color: '#ffdab9', minFloor: 17, special: 'hero' },
   { symbol: 'Q', name: 'Quinotaur', hp: 236, atk: 47, color: '#ffff00', minFloor: 18 },
   { symbol: 'V', name: 'Xelhua', hp: 271, atk: 49, color: '#ff0000', minFloor: 19 },
   { symbol: 'Z', name: 'Zombie', hp: 275, atk: 49, color: '#00ff00', minFloor: 19 },

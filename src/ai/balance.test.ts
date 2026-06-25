@@ -22,7 +22,7 @@ describe('reference player curve', () => {
     expect(f1.def).toBe(DEFAULT_CURVE.startDef);
 
     const f20 = expectedPlayerAtFloor(20);
-    expect(f20.maxHp).toBe(Math.round(30 * Math.pow(1.15, 19)));
+    expect(f20.maxHp).toBe(Math.round(DEFAULT_CURVE.baseHp * Math.pow(DEFAULT_CURVE.hpGrowth, 19)));
     expect(f20.weaponDmg).toBe(DEFAULT_CURVE.endWeaponDmg);
     expect(f20.def).toBe(DEFAULT_CURVE.endDef);
 

@@ -48,16 +48,28 @@ export interface ReferenceCurve {
   maxFloor: number;
 }
 
-/** The default reference curve, calibrated to the current content (start gear
- *  → dragon-tier gear over 20 floors). These are deliberate, adjustable knobs. */
+/** The default reference curve.
+ *
+ *  CALIBRATED to the full-run Monte-Carlo (src/ai/run.ts, 400 runs, June 2026) —
+ *  i.e. what the real loot/XP generators actually hand a greedy-equip player, not
+ *  a hand-guessed ramp. The earlier guess (weaponDmg 2→22, def 0→22, hpGrowth
+ *  1.15 with level≈floor) was wildly pessimistic on gear and optimistic on HP; it
+ *  graded every monster against a strawman. The measured reality:
+ *    - gear is FAR stronger: atk ≈ 14→80, def ≈ 7→171 over 20 floors,
+ *    - but the player is badly UNDER-LEVELLED: only ≈ lvl 5 / 56 HP by floor 20,
+ *      so HP barely grows (hpGrowth retuned to reproduce the measured 30→56;
+ *      level≈floor is kept as a harmless fiction — only maxHp reads it).
+ *  Real atk/def are mildly convex (midgame a touch softer than this linear fit);
+ *  floors 17-20 are survivorship-biased high. Re-run run.ts and re-point these as
+ *  the game changes. These remain deliberate, adjustable knobs. */
 export const DEFAULT_CURVE: ReferenceCurve = {
   baseHp: 30,
-  hpGrowth: 1.15,
+  hpGrowth: 1.033,
   baseAtk: 2,
-  startWeaponDmg: 2,
-  endWeaponDmg: 22,
-  startDef: 0,
-  endDef: 22,
+  startWeaponDmg: 12,
+  endWeaponDmg: 78,
+  startDef: 7,
+  endDef: 171,
   attacksPerTurn: 1,
   maxFloor: 20,
 };
