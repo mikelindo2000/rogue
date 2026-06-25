@@ -75,6 +75,9 @@ export const BALANCE = {
       cacheChance: 0.55,
       mazeMonsterMinFloor: 5,
       mazeMonsterChance: 0.35,
+      searchableDetailMinFloor: 6,
+      searchableDetailChance: 0.35,
+      searchableDetailScrollChance: 0.3,
       // Cumulative roll thresholds for one visible cache in an eligible maze.
       cacheGoldCut: 0.45,
       cachePotionScrollCut: 0.70,

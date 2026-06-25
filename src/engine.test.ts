@@ -72,6 +72,7 @@ const makeRunner = (sound?: RecordingSink, ui = makeUi()) => {
   engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.dark = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.items = [];
+  engine.mazeDetails = [];
   engine.monsters = [];
   engine.traps = [];
   engine.trapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
@@ -490,6 +491,125 @@ describe('GameEngine secret-door search', () => {
     expect(found).toBe(false);
     expect(engine.turn).toBe(0);
     expect(engine.map[2][3]).toBe(TILE.SECRET_DOOR);
+  });
+});
+
+describe('GameEngine searchable maze details', () => {
+  it('reveals a nearby loose stone reward through explicit search', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.CORRIDOR;
+    engine.mazeDetails = [{
+      id: 'loose-stone-test',
+      kind: 'loose_stone',
+      x: 3,
+      y: 2,
+      revealed: false,
+      reward: { type: 'gold', symbol: '$', color: '#ffff55' },
+    }];
+
+    const found = engine.search();
+
+    expect(found).toBe(true);
+    expect(engine.mazeDetails[0].revealed).toBe(true);
+    expect(engine.items).toContainEqual({ type: 'gold', symbol: '$', color: '#ffff55', x: 3, y: 2 });
+    expect(engine.turn).toBe(1);
+    expect(engine.logs).toContain('You pry loose a stone and uncover something.');
+  });
+
+  it('does not duplicate a loose stone reward on repeated searches', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.CORRIDOR;
+    engine.mazeDetails = [{
+      id: 'loose-stone-test',
+      kind: 'loose_stone',
+      x: 3,
+      y: 2,
+      revealed: false,
+      reward: { type: 'gold', symbol: '$', color: '#ffff55' },
+    }];
+
+    expect(engine.search()).toBe(true);
+    expect(engine.search()).toBe(false);
+
+    expect(engine.mazeDetails[0].revealed).toBe(true);
+    expect(engine.items.filter(item => item.x === 3 && item.y === 2)).toHaveLength(1);
+  });
+
+  it('preserves failed adjacent secret-door searches over loose stone reveals', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][1] = TILE.SECRET_DOOR;
+    engine.map[2][3] = TILE.CORRIDOR;
+    engine.mazeDetails = [{
+      id: 'loose-stone-test',
+      kind: 'loose_stone',
+      x: 3,
+      y: 2,
+      revealed: false,
+      reward: { type: 'gold', symbol: '$', color: '#ffff55' },
+    }];
+    setChanceRoll(engine, 0.99);
+
+    const found = engine.search();
+
+    expect(found).toBe(false);
+    expect(engine.map[2][1]).toBe(TILE.SECRET_DOOR);
+    expect(engine.mazeDetails[0].revealed).toBe(false);
+    expect(engine.items).toHaveLength(0);
+  });
+
+  it('round-trips loose stone state through snapshot restore', () => {
+    const engine = makeRunner();
+    engine.map[2][2] = TILE.CORRIDOR;
+    engine.map[2][3] = TILE.CORRIDOR;
+    engine.mazeDetails = [{
+      id: 'loose-stone-test',
+      kind: 'loose_stone',
+      x: 3,
+      y: 2,
+      revealed: false,
+      reward: { type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'light' } },
+    }];
+
+    const restored = makeRunner();
+    expect(restored.restore(engine.snapshot())).toBe(true);
+    expect(restored.mazeDetails).toEqual(engine.mazeDetails);
+
+    expect(restored.search()).toBe(true);
+    expect(restored.items).toContainEqual({ type: 'scroll', symbol: '?', color: '#fff', data: { scrollType: 'light' }, x: 3, y: 2 });
+  });
+
+  it('keeps revealed loose stone state after leaving and returning to a floor', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 2, 5, TILE.CORRIDOR);
+    engine.map[2][5] = TILE.STAIRS_DOWN;
+    engine.mazeDetails = [{
+      id: 'loose-stone-test',
+      kind: 'loose_stone',
+      x: 3,
+      y: 2,
+      revealed: false,
+      reward: { type: 'gold', symbol: '$', color: '#ffff55' },
+    }];
+
+    expect(engine.search()).toBe(true);
+    engine.handlePlayerMove(1, 0); // pick up revealed gold
+    engine.handlePlayerMove(1, 0);
+    engine.handlePlayerMove(1, 0);
+    expect(engine.dungeonFloor).toBe(2);
+
+    engine.monsters = [];
+    stepOffAndBackOnto(engine, TILE.STAIRS_UP);
+    expect(engine.dungeonFloor).toBe(1);
+
+    engine.handlePlayerMove(-1, 0);
+    engine.handlePlayerMove(-1, 0);
+    const itemCount = engine.items.length;
+    expect(engine.search()).toBe(false);
+    expect(engine.mazeDetails[0].revealed).toBe(true);
+    expect(engine.items).toHaveLength(itemCount);
   });
 });
 

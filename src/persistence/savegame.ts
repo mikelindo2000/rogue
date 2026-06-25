@@ -6,7 +6,7 @@
  * lives here because TypeScript types do not protect parsed JSON.
  */
 
-import { ARMOR_SLOTS, type Player, type Monster, type Item, type StatusEffects, type TrapEffects, type TrapState } from '../types';
+import { ARMOR_SLOTS, type Player, type Monster, type Item, type MazeDetail, type StatusEffects, type TrapEffects, type TrapState } from '../types';
 import type { FloorState } from '../engine';
 import type { BoardSizeId } from '../boards';
 import { SCROLL_TYPES, WAND_TYPES } from '../itemVisuals';
@@ -89,6 +89,7 @@ export interface SaveGameV2 {
   dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
+  mazeDetails?: MazeDetail[];
   traps?: TrapState[];
   trapEffects?: TrapEffects;
   floorStates: [number, FloorState][];
@@ -155,6 +156,28 @@ function validateTrapArray(traps: unknown, map: unknown): traps is TrapState[] {
     const row = map[y];
     if (!Array.isArray(row) || x < 0 || x >= row.length) return false;
     if (typeof trap.revealed !== 'boolean' || typeof trap.armed !== 'boolean') return false;
+  }
+  return true;
+}
+
+function validateMazeDetailArray(details: unknown, map: unknown): details is MazeDetail[] {
+  if (!Array.isArray(details) || !Array.isArray(map)) return false;
+  for (const detail of details) {
+    if (!isObject(detail)) return false;
+    if (typeof detail.id !== 'string' || detail.kind !== 'loose_stone') return false;
+    if (!Number.isInteger(detail.x) || !Number.isInteger(detail.y)) return false;
+    const x = detail.x as number;
+    const y = detail.y as number;
+    if (y < 0 || y >= map.length) return false;
+    const row = map[y];
+    if (!Array.isArray(row) || x < 0 || x >= row.length) return false;
+    if (typeof detail.revealed !== 'boolean') return false;
+    const reward = detail.reward;
+    if (!isObject(reward) || typeof reward.type !== 'string') return false;
+    if (typeof reward.symbol !== 'string' || typeof reward.color !== 'string') return false;
+    if (reward.type === 'gold') continue;
+    if (reward.type === 'scroll' && isObject(reward.data) && KNOWN_SCROLL_TYPES.has(reward.data.scrollType as string)) continue;
+    return false;
   }
   return true;
 }
@@ -250,6 +273,9 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
   if (raw.traps !== undefined) {
     if (!validateTrapArray(raw.traps, raw.map)) return null;
   }
+  if (raw.mazeDetails !== undefined) {
+    if (!validateMazeDetailArray(raw.mazeDetails, raw.map)) return null;
+  }
 
   let trapEffects: TrapEffects = { bearTrapTurns: 0, sleepTurns: 0, strengthDrained: 0, confusedTurns: 0 };
   if (raw.trapEffects !== undefined) {
@@ -296,6 +322,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
       }
     }
     if (fs.traps !== undefined && !validateTrapArray(fs.traps, fs.map)) return null;
+    if (fs.mazeDetails !== undefined && !validateMazeDetailArray(fs.mazeDetails, fs.map)) return null;
   }
 
   // Basic player structure — restore() and the HUD dereference these directly.
@@ -340,6 +367,7 @@ export function validateSaveGame(raw: unknown): SaveGameV2 | null {
     ...(raw as unknown as Omit<SaveGameV2, 'stats'>),
     player,
     statusEffects,
+    mazeDetails: (raw.mazeDetails as MazeDetail[] | undefined) ?? [],
     traps: (raw.traps as TrapState[] | undefined) ?? [],
     trapEffects,
     stats,

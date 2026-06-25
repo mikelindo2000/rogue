@@ -1,4 +1,4 @@
-import { Item, ItemSpawn, Monster, MonsterTemplate, TrapState } from './types';
+import { Item, ItemSpawn, MazeDetail, Monster, MonsterTemplate, TrapState } from './types';
 import { MONSTER_DATABASE, BALANCE } from './config';
 import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
@@ -677,6 +677,13 @@ function makeMazeCacheSpawn(floor: number, rng: RNG): ItemSpawn {
   return makeGearSpawn(floor, rng) ?? makeScrollSpawn(floor, rng);
 }
 
+function makeMazeDetailReward(floor: number, rng: RNG): ItemSpawn {
+  const content = BALANCE.map.mazeContent;
+  return rng.chance(content.searchableDetailScrollChance)
+    ? makeScrollSpawn(floor, rng)
+    : { type: 'gold', symbol: '$', color: '#ffff55' };
+}
+
 function selectMazeCacheSite(sites: ReadonlyArray<MazeContentSite>): MazeContentSite | null {
   const deepest = (candidates: MazeContentSite[]) =>
     candidates.sort((a, b) => b.distanceFromEntry - a.distanceFromEntry || b.degree - a.degree)[0] ?? null;
@@ -834,6 +841,49 @@ function spawnMazeDenizens(
   }
 }
 
+function selectMazeDetailSite(sites: ReadonlyArray<MazeContentSite>): MazeContentSite | null {
+  const candidates = [...sites];
+  candidates.sort((a, b) => {
+    const kindScore = (site: MazeContentSite) =>
+      site.kind === 'deadEnd' ? 0 : site.kind === 'branch' ? 1 : 2;
+    return kindScore(a) - kindScore(b) || b.distanceFromEntry - a.distanceFromEntry || b.degree - a.degree;
+  });
+  return candidates[0] ?? null;
+}
+
+function spawnMazeDetails(
+  map: string[][],
+  mazeRects: ReadonlyArray<RoomRect>,
+  dungeonFloor: number,
+  items: Item[],
+  monsters: Monster[],
+  blockedPositions: ReadonlyArray<{ x: number; y: number }>,
+  rng: RNG
+): MazeDetail[] {
+  const content = BALANCE.map.mazeContent;
+  if (dungeonFloor < content.searchableDetailMinFloor || dungeonFloor >= 20) return [];
+
+  const details: MazeDetail[] = [];
+  for (const rect of mazeRects) {
+    if (!rng.chance(content.searchableDetailChance)) continue;
+    const site = selectMazeDetailSite(collectMazeContentSites(map, [rect], {
+      items,
+      monsters,
+      blockedPositions,
+    }));
+    if (!site) continue;
+    details.push({
+      id: `maze-detail-${dungeonFloor}-${site.x}-${site.y}`,
+      kind: 'loose_stone',
+      x: site.x,
+      y: site.y,
+      revealed: false,
+      reward: makeMazeDetailReward(dungeonFloor, rng),
+    });
+  }
+  return details;
+}
+
 export function generateLevel(
   dungeonFloor: number,
   // Kept for signature stability; monster variety is now gated on dungeon depth
@@ -859,6 +909,7 @@ export function generateLevel(
   playerY: number;
   monsters: Monster[];
   items: Item[];
+  mazeDetails: MazeDetail[];
   traps: TrapState[];
   stairsUpX: number;
   stairsUpY: number;
@@ -1195,6 +1246,11 @@ export function generateLevel(
     { x: stairsUpX, y: stairsUpY },
     { x: stairsDownX, y: stairsDownY },
   ], playerX, playerY, stairsDownX, stairsDownY, cols, rows, rng);
+  const mazeDetails = spawnMazeDetails(map, mazeRects, dungeonFloor, items, monsters, [
+    { x: playerX, y: playerY },
+    { x: stairsUpX, y: stairsUpY },
+    { x: stairsDownX, y: stairsDownY },
+  ], rng);
 
   const traps = placeTraps({
     map,
@@ -1216,6 +1272,7 @@ export function generateLevel(
     playerY,
     monsters,
     items,
+    mazeDetails,
     traps,
     stairsUpX,
     stairsUpY,

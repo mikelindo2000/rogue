@@ -1039,6 +1039,66 @@ describe('maze cells', () => {
       }
     }
   });
+
+  it('spawns safe searchable loose-stone details on eligible floors (floors 6..19, seeds 1..500)', () => {
+    let mazeCount = 0;
+    let detailCount = 0;
+
+    for (let floor = 6; floor < 20; floor++) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        for (const rect of lvl.mazeRects) {
+          mazeCount++;
+          const mazeDetails = lvl.mazeDetails.filter(detail => inRect(rect, detail.x, detail.y));
+          detailCount += mazeDetails.length;
+          expect(mazeDetails.length, `floor ${floor} seed ${seed}: more than one searchable detail in maze`).toBeLessThanOrEqual(1);
+
+          for (const detail of mazeDetails) {
+            expect(detail.kind, `floor ${floor} seed ${seed}: unexpected detail kind`).toBe('loose_stone');
+            expect(detail.revealed, `floor ${floor} seed ${seed}: generated detail starts revealed`).toBe(false);
+            expect(['gold', 'scroll'], `floor ${floor} seed ${seed}: unsupported detail reward`).toContain(detail.reward.type);
+            if (detail.reward.type === 'scroll') {
+              expect(SCROLLS[detail.reward.data.scrollType], `floor ${floor} seed ${seed}: unknown detail scroll reward`).toBeDefined();
+            }
+            expect(lvl.map[detail.y][detail.x], `floor ${floor} seed ${seed}: detail not on corridor`).toBe(TILE.CORRIDOR);
+            expect(isWalkable(lvl.map[detail.y][detail.x]), `floor ${floor} seed ${seed}: detail not walkable`).toBe(true);
+            expect(
+              reachable(lvl.map, lvl.playerX, lvl.playerY, detail.x, detail.y),
+              `floor ${floor} seed ${seed}: detail requires secret discovery`
+            ).toBe(true);
+            expect(
+              lvl.items.some(item => item.x === detail.x && item.y === detail.y),
+              `floor ${floor} seed ${seed}: detail overlaps cache/item`
+            ).toBe(false);
+            expect(
+              lvl.monsters.some(monster => monster.x === detail.x && monster.y === detail.y),
+              `floor ${floor} seed ${seed}: detail overlaps denizen/monster`
+            ).toBe(false);
+            expect(
+              lvl.traps.some(trap => trap.x === detail.x && trap.y === detail.y),
+              `floor ${floor} seed ${seed}: detail overlaps trap`
+            ).toBe(false);
+            expect(
+              (detail.x === lvl.stairsUpX && detail.y === lvl.stairsUpY) || (detail.x === lvl.stairsDownX && detail.y === lvl.stairsDownY),
+              `floor ${floor} seed ${seed}: detail overlaps stairs`
+            ).toBe(false);
+          }
+        }
+      }
+    }
+
+    expect(mazeCount, 'expected to sweep many eligible mazes').toBeGreaterThan(50);
+    expect(detailCount, 'expected searchable maze details across the sweep').toBeGreaterThan(0);
+  });
+
+  it('spawns no searchable maze details before floor 6 or on floor 20 (seeds 1..500)', () => {
+    for (const floor of [1, 2, 3, 4, 5, 20]) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        expect(lvl.mazeDetails, `floor ${floor} seed ${seed}: searchable detail on ineligible floor`).toHaveLength(0);
+      }
+    }
+  });
 });
 
 describe('board sizes', () => {

@@ -1,4 +1,4 @@
-import { Player, Monster, Item, ItemSpawn, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
+import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import { GameUI } from './ui';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
@@ -84,6 +84,7 @@ export interface FloorState {
   dark?: boolean[][];
   monsters: Monster[];
   items: Item[];
+  mazeDetails?: MazeDetail[];
   traps?: TrapState[];
 }
 
@@ -102,6 +103,7 @@ export class GameEngine {
   public player: Player;
   public monsters: Monster[] = [];
   public items: Item[] = [];
+  public mazeDetails: MazeDetail[] = [];
   public traps: TrapState[] = [];
   public dungeonFloor: number = 1;
   public gameOver: boolean = false;
@@ -263,6 +265,7 @@ export class GameEngine {
     this.player.y = levelData.playerY;
     this.monsters = levelData.monsters;
     this.items = levelData.items;
+    this.mazeDetails = levelData.mazeDetails;
     this.traps = levelData.traps;
     if (this.traps.some(trap => trap.kind === 'trapdoor')) this.trapdoorGeneratedThisRun = true;
 
@@ -508,8 +511,18 @@ export class GameEngine {
     recordSearch(this.stats);
     const trapSearch = this.tryRevealNearbyTrap(BALANCE.map.traps.revealChance);
     const trap = trapSearch.trap;
-    const found = trap !== null || (!trapSearch.attempted && this.tryRevealNearbySecret(0.25));
-    this.addLog(trap ? TRAP_REVEAL_MESSAGES[trap.kind] : found ? "You found a hidden door." : "You search carefully.");
+    let message = "You search carefully.";
+    let found = trap !== null;
+    if (trap) {
+      message = TRAP_REVEAL_MESSAGES[trap.kind];
+    } else if (!trapSearch.attempted && this.tryRevealNearbySecret(0.25)) {
+      found = true;
+      message = "You found a hidden door.";
+    } else if (!trapSearch.attempted && !this.hasNearbySecretDoor() && this.tryRevealNearbyMazeDetail()) {
+      found = true;
+      message = "You pry loose a stone and uncover something.";
+    }
+    this.addLog(message);
     this.processTurn();
     return found;
   }
@@ -546,6 +559,16 @@ export class GameEngine {
     return false;
   }
 
+  private hasNearbySecretDoor(): boolean {
+    for (const [dx, dy] of [
+      [0, -1], [1, -1], [1, 0], [1, 1],
+      [0, 1], [-1, 1], [-1, 0], [-1, -1],
+    ]) {
+      if (isSecretDoor(this.map[this.player.y + dy]?.[this.player.x + dx])) return true;
+    }
+    return false;
+  }
+
   private tryRevealNearbyTrap(chance: number): { attempted: boolean; trap: TrapState | null } {
     for (const [dx, dy] of [
       [0, -1], [1, -1], [1, 0], [1, 1],
@@ -559,6 +582,26 @@ export class GameEngine {
       return { attempted: true, trap };
     }
     return { attempted: false, trap: null };
+  }
+
+  private tryRevealNearbyMazeDetail(): boolean {
+    for (const [dx, dy] of [
+      [0, 0],
+      [0, -1], [1, -1], [1, 0], [1, 1],
+      [0, 1], [-1, 1], [-1, 0], [-1, -1],
+    ]) {
+      const x = this.player.x + dx;
+      const y = this.player.y + dy;
+      const detail = this.mazeDetails.find(d => !d.revealed && d.x === x && d.y === y);
+      if (!detail) continue;
+      if (this.items.some(item => item.x === detail.x && item.y === detail.y)) return false;
+      if (this.monsters.some(monster => monster.x === detail.x && monster.y === detail.y)) return false;
+      if (this.trapAt(detail.x, detail.y)?.armed) return false;
+      detail.revealed = true;
+      this.items.push({ ...structuredClone(detail.reward), x: detail.x, y: detail.y } as Item);
+      return true;
+    }
+    return false;
   }
 
   private revealSecretDoor(x: number, y: number) {
@@ -941,6 +984,7 @@ export class GameEngine {
       dark: this.dark.map(row => [...row]),
       monsters: structuredClone(this.monsters),
       items: structuredClone(this.items),
+      mazeDetails: structuredClone(this.mazeDetails),
       traps: structuredClone(this.traps),
     });
   }
@@ -956,6 +1000,7 @@ export class GameEngine {
       this.visible = this.blankBoolGrid();
       this.monsters = structuredClone(saved.monsters);
       this.items = structuredClone(saved.items);
+      this.mazeDetails = structuredClone(saved.mazeDetails ?? []);
       this.traps = structuredClone(saved.traps ?? []);
     } else {
       this.generateFloor();
@@ -2473,12 +2518,14 @@ export class GameEngine {
       dark: this.dark.map(r => [...r]),
       monsters: structuredClone(this.monsters),
       items: structuredClone(this.items),
+      mazeDetails: structuredClone(this.mazeDetails),
       floorStates: Array.from(this.floorStates.entries()).map(([f, s]) => [f, {
         map: s.map.map(r => [...r]),
         explored: s.explored.map(r => [...r]),
         dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
+        mazeDetails: structuredClone(s.mazeDetails ?? []),
         traps: structuredClone(s.traps ?? []),
       }]),
       searchHintShown: this.searchHintShown,
@@ -2522,6 +2569,7 @@ export class GameEngine {
       this.rooms = [];
       this.monsters = structuredClone(save.monsters);
       this.items = structuredClone(save.items);
+      this.mazeDetails = structuredClone(save.mazeDetails ?? []);
       this.traps = structuredClone(save.traps ?? []);
       this.floorStates = new Map(save.floorStates.map(([f, s]) => [f, {
         map: s.map.map(r => [...r]),
@@ -2529,6 +2577,7 @@ export class GameEngine {
         dark: (s.dark ?? this.blankBoolGrid()).map(r => [...r]),
         monsters: structuredClone(s.monsters),
         items: structuredClone(s.items),
+        mazeDetails: structuredClone(s.mazeDetails ?? []),
         traps: structuredClone(s.traps ?? []),
       }]));
       this.searchHintShown = save.searchHintShown;

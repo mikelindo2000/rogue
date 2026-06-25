@@ -174,6 +174,17 @@ type DistributiveOmit<T, K extends keyof any> = T extends unknown ? Omit<T, K> :
 /** An item ready to place, minus its coordinates. */
 export type ItemSpawn = DistributiveOmit<Item, 'x' | 'y'>;
 
+export type MazeDetailKind = 'loose_stone';
+
+export interface MazeDetail {
+  id: string;
+  kind: MazeDetailKind;
+  x: number;
+  y: number;
+  revealed: boolean;
+  reward: ItemSpawn;
+}
+
 export interface Monster {
   x: number;
   y: number;
