@@ -49,5 +49,6 @@ gen 1 0.9 0.6 "Deep heavy weapon impact, a massive blow landing on flesh and bon
 gen 2 1.0 0.6 "Bone-crunching heavy hit, thick low-frequency thud followed by a short cavern rumble and falling grit"
 gen 3 0.9 0.6 "Powerful blunt impact, deep sub-bass boom with a brief rumbling aftershock through dungeon stone"
 gen 4 1.0 0.6 "Massive crushing strike, heavy meaty smack into a low earthen rumble, dust and pebbles trembling"
+gen 5 1.0 0.6 "Sudden crushing hit with a chest-deep stone boom, low dungeon floor vibration and a short gritty aftershock"
 
 echo "Done. Generated $(ls "$OUT_DIR"/combat-rumble-*.mp3 | wc -l | tr -d ' ') rumble variants in $OUT_DIR"

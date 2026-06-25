@@ -138,9 +138,10 @@ influence is `prompt_influence`.
 | `combat-rumble-02.mp3` | `combat.heavyHit` | 1.0 | 0.6 | Bone-crunching heavy hit, thick low-frequency thud followed by a short cavern rumble and falling grit |
 | `combat-rumble-03.mp3` | `combat.heavyHit` | 0.9 | 0.6 | Powerful blunt impact, deep sub-bass boom with a brief rumbling aftershock through dungeon stone |
 | `combat-rumble-04.mp3` | `combat.heavyHit` | 1.0 | 0.6 | Massive crushing strike, heavy meaty smack into a low earthen rumble, dust and pebbles trembling |
+| `combat-rumble-05.mp3` | `combat.heavyHit` | 1.0 | 0.6 | Sudden crushing hit with a chest-deep stone boom, low dungeon floor vibration and a short gritty aftershock |
 
 `combat.heavyHit` plays *in addition to* `combat.hit` on a heavy blow (see `isHeavyHit`
-in `src/combat.ts`) and is paired with the map screen-shake. The four variants are
+in `src/combat.ts`) and is paired with the map screen-shake. The five variants are
 randomized by the service so a string of big hits doesn't repeat. Regenerate with
 `scripts/gen-combat-rumble-sfx.sh`.
 

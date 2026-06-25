@@ -46,9 +46,9 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'combat-swing': { id: 'combat-swing', variants: [sfx('combat-swing-01.mp3')], channel: 'combat', volume: 0.5, cooldownMs: 60 },
   'combat-hit': { id: 'combat-hit', variants: [sfx('combat-hit-01.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 70, maxVoices: 3, preload: true },
   'player-hit': { id: 'player-hit', variants: [sfx('player-hit-01.mp3')], channel: 'combat', volume: 0.95, cooldownMs: 120, preload: true },
-  // heavy-hit rumble (accompanies the map screen-shake). Four variants so a run
+  // heavy-hit rumble (accompanies the map screen-shake). Five variants so a run
   // of big blows doesn't sound like one looping sample.
-  'combat-rumble': { id: 'combat-rumble', variants: [sfx('combat-rumble-01.mp3'), sfx('combat-rumble-02.mp3'), sfx('combat-rumble-03.mp3'), sfx('combat-rumble-04.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 160, maxVoices: 2, preload: true },
+  'combat-rumble': { id: 'combat-rumble', variants: [sfx('combat-rumble-01.mp3'), sfx('combat-rumble-02.mp3'), sfx('combat-rumble-03.mp3'), sfx('combat-rumble-04.mp3'), sfx('combat-rumble-05.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 160, maxVoices: 2, preload: true },
   'combat-miss': { id: 'combat-miss', variants: [sfx('combat-miss-01.mp3')], channel: 'combat', volume: 0.7, cooldownMs: 80, preload: true },
   // death — generic + per-archetype + boss
   'death-default': { id: 'death-default', variants: [sfx('death-default-01.mp3')], channel: 'combat', volume: 0.9, preload: true },
