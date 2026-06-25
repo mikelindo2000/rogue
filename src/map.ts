@@ -560,6 +560,93 @@ export function collectMazeContentSites(
   return sites;
 }
 
+function makeScrollSpawn(floor: number, rng: RNG): ItemSpawn {
+  const scrollType = pickScrollForFloor(floor, rng);
+  return {
+    type: 'scroll',
+    symbol: '?',
+    color: scrollVisual(scrollType).mapColor,
+    data: { scrollType },
+  };
+}
+
+function makePotionSpawn(rng: RNG): ItemSpawn {
+  const chosenP = rng.pick(POTION_TYPES);
+  return {
+    type: 'potion',
+    symbol: '!',
+    color: potionVisual(chosenP).mapColor,
+    data: { potionType: chosenP },
+  };
+}
+
+function makeWandSpawn(floor: number, rng: RNG): ItemSpawn {
+  const wand = pickWandForFloor(floor, rng);
+  return {
+    type: 'wand',
+    symbol: '/',
+    color: wandVisual(wand.wandType).mapColor,
+    data: wand,
+  };
+}
+
+function makeGearSpawn(floor: number, rng: RNG): ItemSpawn | null {
+  const rarity = rollLootRarity(floor, rng);
+  const gear = generateGearItem(floor, rarity, rng);
+  if (!gear) return null;
+  const cat = gear.category;
+  const isWeapon = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff';
+  return { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear };
+}
+
+function makeMazeCacheSpawn(floor: number, rng: RNG): ItemSpawn {
+  const cache = BALANCE.map.mazeContent;
+  const roll = rng.next();
+  if (roll < cache.cacheGoldCut) return { type: 'gold', symbol: '$', color: '#ffff55' };
+  if (roll < cache.cachePotionScrollCut) {
+    return rng.chance(cache.potionChance) ? makePotionSpawn(rng) : makeScrollSpawn(floor, rng);
+  }
+  if (roll < cache.cacheFoodCut) return { type: 'food', symbol: '%', color: '#ff9900' };
+  if (roll < cache.cacheWandCut) {
+    return floor >= BALANCE.wands.spawnMinFloor ? makeWandSpawn(floor, rng) : makeScrollSpawn(floor, rng);
+  }
+  return makeGearSpawn(floor, rng) ?? makeScrollSpawn(floor, rng);
+}
+
+function selectMazeCacheSite(sites: ReadonlyArray<MazeContentSite>): MazeContentSite | null {
+  const deepest = (candidates: MazeContentSite[]) =>
+    candidates.sort((a, b) => b.distanceFromEntry - a.distanceFromEntry || b.degree - a.degree)[0] ?? null;
+  return (
+    deepest(sites.filter(site => site.kind === 'deadEnd')) ??
+    deepest(sites.filter(site => site.kind === 'branch')) ??
+    deepest([...sites])
+  );
+}
+
+function spawnMazeCaches(
+  map: string[][],
+  mazeRects: ReadonlyArray<RoomRect>,
+  dungeonFloor: number,
+  items: Item[],
+  monsters: Monster[],
+  blockedPositions: ReadonlyArray<{ x: number; y: number }>,
+  rng: RNG
+): void {
+  const cache = BALANCE.map.mazeContent;
+  if (dungeonFloor < cache.cacheMinFloor || dungeonFloor >= 20) return;
+
+  for (const rect of mazeRects) {
+    if (!rng.chance(cache.cacheChance)) continue;
+    const site = selectMazeCacheSite(collectMazeContentSites(map, [rect], {
+      items,
+      monsters,
+      blockedPositions,
+    }));
+    if (!site) continue;
+    items.push({ ...makeMazeCacheSpawn(dungeonFloor, rng), x: site.x, y: site.y } as Item);
+  }
+}
+
 export function generateLevel(
   dungeonFloor: number,
   // Kept for signature stability; monster variety is now gated on dungeon depth
@@ -761,6 +848,7 @@ export function generateLevel(
   // Maze cells are off the real-room list but must stay reachable; (l,t) is the
   // DFS origin, always a carved corridor.
   const mazeRooms = rooms.filter((rm): rm is Room => rm !== null && rm.maze === true);
+  const mazeRects: RoomRect[] = mazeRooms.map(({ l, t, r, b, cx, cy }) => ({ l, t, r, b, cx, cy }));
   assert(realRooms.length >= 2, `floor ${dungeonFloor}: need >=2 real rooms, got ${realRooms.length}`);
 
   const startRoom = realRooms[0];
@@ -858,57 +946,28 @@ export function generateLevel(
         if (rand < spawn.goldCut) {
           spawnAt(room, { type: 'gold', symbol: '$', color: '#ffff55' });
         } else if (rand < spawn.potionCut) {
-          const chosenP = rng.pick(POTION_TYPES);
-          spawnAt(room, {
-            type: 'potion',
-            symbol: '!',
-            color: potionVisual(chosenP).mapColor,
-            data: { potionType: chosenP },
-          });
+          spawnAt(room, makePotionSpawn(rng));
         } else if (rand < spawn.scrollCut) {
           // Every scroll is now a named, carryable scroll picked from the
           // floor-gated catalog (repair included). Read on demand, never on
           // pickup. See design/planning/scrolls_overhaul_plan.md.
-          const scrollType = pickScrollForFloor(dungeonFloor, rng);
-          spawnAt(room, {
-            type: 'scroll',
-            symbol: '?',
-            color: scrollVisual(scrollType).mapColor,
-            data: { scrollType },
-          });
+          spawnAt(room, makeScrollSpawn(dungeonFloor, rng));
         } else if (dungeonFloor >= BALANCE.wands.spawnMinFloor && rand < spawn.wandCut) {
           // A small slice of the consumable roll, gated to deeper floors, is a
           // zappable wand/staff. Rarer wands are gated further by floor inside
           // pickWandForFloor (it rolls the gear rarity curve).
-          const wand = pickWandForFloor(dungeonFloor, rng);
-          spawnAt(room, {
-            type: 'wand',
-            symbol: '/',
-            color: wandVisual(wand.wandType).mapColor,
-            data: wand,
-          });
+          spawnAt(room, makeWandSpawn(dungeonFloor, rng));
         } else {
           // Leftover slice (the old repair-scroll fallback, plus the wand slice on
           // shallow floors where wands are gated out) is another catalog scroll.
-          const scrollType = pickScrollForFloor(dungeonFloor, rng);
-          spawnAt(room, {
-            type: 'scroll',
-            symbol: '?',
-            color: scrollVisual(scrollType).mapColor,
-            data: { scrollType },
-          });
+          spawnAt(room, makeScrollSpawn(dungeonFloor, rng));
         }
       }
 
       // Spawn gear
       if (rng.chance(spawn.gearChance)) {
-        const rarity = rollLootRarity(dungeonFloor, rng);
-        const gear = generateGearItem(dungeonFloor, rarity, rng);
-        if (gear) {
-          const cat = gear.category;
-          const isWeapon = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff';
-          spawnAt(room, { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear });
-        }
+        const gearSpawn = makeGearSpawn(dungeonFloor, rng);
+        if (gearSpawn) spawnAt(room, gearSpawn);
       }
 
       // Spawn monsters. Variety is gated on dungeon DEPTH, not player level —
@@ -939,6 +998,12 @@ export function generateLevel(
     }
   }
 
+  spawnMazeCaches(map, mazeRects, dungeonFloor, items, monsters, [
+    { x: playerX, y: playerY },
+    { x: stairsUpX, y: stairsUpY },
+    { x: stairsDownX, y: stairsDownY },
+  ], rng);
+
   const traps = placeTraps({
     map,
     dark,
@@ -964,8 +1029,6 @@ export function generateLevel(
     stairsUpY,
     stairsDownX,
     stairsDownY,
-    mazeRects: rooms
-      .filter((rm): rm is Room => rm !== null && rm.maze === true)
-      .map(({ l, t, r, b, cx, cy }) => ({ l, t, r, b, cx, cy })),
+    mazeRects,
   };
 }

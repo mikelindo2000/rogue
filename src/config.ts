@@ -70,6 +70,16 @@ export const BALANCE = {
     // the floor never drops below its real-room safety floor.
     mazeRoomMinFloor: 4,
     mazeRoomChance: 0.12,
+    mazeContent: {
+      cacheMinFloor: 4,
+      cacheChance: 0.55,
+      // Cumulative roll thresholds for one visible cache in an eligible maze.
+      cacheGoldCut: 0.45,
+      cachePotionScrollCut: 0.70,
+      cacheFoodCut: 0.85,
+      cacheWandCut: 0.95,
+      potionChance: 0.5,
+    },
     spawn: {
       foodChance: 0.28,
       consumableChance: 0.65,

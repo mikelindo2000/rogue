@@ -825,17 +825,68 @@ describe('maze cells', () => {
     throw new Error('expected to find a generated maze site to test exclusions');
   });
 
-  it('spawns no items or monsters inside a maze region (seeds 1..80, floors 6..19)', () => {
-    const inRect = (r: { l: number; t: number; r: number; b: number }, x: number, y: number) =>
-      x >= r.l && x <= r.r && y >= r.t && y <= r.b;
-    for (let floor = 6; floor < 20; floor++) {
-      for (let seed = 1; seed <= 80; seed++) {
+  it('spawns only safe visible cache items in mazes; never maze monsters (floors 4..19, seeds 1..500)', () => {
+    let mazeCount = 0;
+    let cacheCount = 0;
+    const itemKey = (x: number, y: number) => `${x},${y}`;
+
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 500; seed++) {
         const lvl = gen(floor, seed);
-        if (lvl.mazeRects.length === 0) continue;
-        for (const rect of lvl.mazeRects) {
-          expect(lvl.items.some(it => inRect(rect, it.x, it.y)), `floor ${floor} seed ${seed}: item in maze`).toBe(false);
-          expect(lvl.monsters.some(m => inRect(rect, m.x, m.y)), `floor ${floor} seed ${seed}: monster in maze`).toBe(false);
+        const occupiedItems = new Map<string, number>();
+        for (const item of lvl.items) {
+          const key = itemKey(item.x, item.y);
+          occupiedItems.set(key, (occupiedItems.get(key) ?? 0) + 1);
         }
+
+        for (const rect of lvl.mazeRects) {
+          mazeCount++;
+          const mazeItems = lvl.items.filter(item => inRect(rect, item.x, item.y));
+          cacheCount += mazeItems.length;
+          expect(mazeItems.length, `floor ${floor} seed ${seed}: more than one cache in maze`).toBeLessThanOrEqual(1);
+          expect(
+            lvl.monsters.some(monster => inRect(rect, monster.x, monster.y)),
+            `floor ${floor} seed ${seed}: monster in maze`
+          ).toBe(false);
+
+          for (const item of mazeItems) {
+            expect(lvl.map[item.y][item.x], `floor ${floor} seed ${seed}: cache not on corridor`).toBe(TILE.CORRIDOR);
+            expect(isWalkable(lvl.map[item.y][item.x]), `floor ${floor} seed ${seed}: cache not walkable`).toBe(true);
+            expect(inRect(rect, item.x, item.y), `floor ${floor} seed ${seed}: cache outside maze rect`).toBe(true);
+            expect(
+              reachable(lvl.map, lvl.playerX, lvl.playerY, item.x, item.y),
+              `floor ${floor} seed ${seed}: cache requires secret discovery`
+            ).toBe(true);
+            expect(occupiedItems.get(itemKey(item.x, item.y)), `floor ${floor} seed ${seed}: item overlap`).toBe(1);
+            expect(
+              lvl.monsters.some(monster => monster.x === item.x && monster.y === item.y),
+              `floor ${floor} seed ${seed}: cache overlaps monster`
+            ).toBe(false);
+            expect(
+              lvl.traps.some(trap => trap.x === item.x && trap.y === item.y),
+              `floor ${floor} seed ${seed}: cache overlaps trap`
+            ).toBe(false);
+            expect(
+              (item.x === lvl.stairsUpX && item.y === lvl.stairsUpY) || (item.x === lvl.stairsDownX && item.y === lvl.stairsDownY),
+              `floor ${floor} seed ${seed}: cache overlaps stairs`
+            ).toBe(false);
+          }
+        }
+      }
+    }
+
+    expect(mazeCount, 'expected to sweep many eligible mazes').toBeGreaterThan(50);
+    expect(cacheCount, 'expected visible maze caches across the sweep').toBeGreaterThan(0);
+  });
+
+  it('spawns no maze cache items on floors 1-3 or floor 20 (seeds 1..500)', () => {
+    for (const floor of [1, 2, 3, 20]) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        expect(
+          lvl.items.some(item => lvl.mazeRects.some(rect => inRect(rect, item.x, item.y))),
+          `floor ${floor} seed ${seed}: cache on ineligible floor`
+        ).toBe(false);
       }
     }
   });
