@@ -114,6 +114,88 @@ const ORTHOGONAL_DIRS: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
 ];
 
+const posKey = (x: number, y: number) => `${x},${y}`;
+
+function isReachableAvoiding(
+  map: string[][],
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  cols: number,
+  rows: number,
+  blocked: ReadonlySet<string>
+): boolean {
+  if (blocked.has(posKey(sx, sy)) || blocked.has(posKey(tx, ty))) return false;
+  const seen = new Set<number>([sy * cols + sx]);
+  const stack: [number, number][] = [[sx, sy]];
+  while (stack.length) {
+    const [x, y] = stack.pop()!;
+    if (x === tx && y === ty) return true;
+    for (const [dx, dy] of ORTHOGONAL_DIRS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      if (blocked.has(posKey(nx, ny))) continue;
+      const seenKey = ny * cols + nx;
+      if (seen.has(seenKey) || !isWalkable(map[ny][nx])) continue;
+      seen.add(seenKey);
+      stack.push([nx, ny]);
+    }
+  }
+  return false;
+}
+
+const inRect = (rect: RoomRect, x: number, y: number) =>
+  x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b;
+
+const isRectBoundary = (rect: RoomRect, x: number, y: number) =>
+  x === rect.l || x === rect.r || y === rect.t || y === rect.b;
+
+const isMazeCorridor = (map: string[][], rect: RoomRect, x: number, y: number) =>
+  inRect(rect, x, y) && map[y]?.[x] === TILE.CORRIDOR;
+
+function mazeEntryTiles(map: string[][], rect: RoomRect): Array<{ x: number; y: number }> {
+  const entries: Array<{ x: number; y: number }> = [];
+  for (let y = rect.t; y <= rect.b; y++) {
+    for (let x = rect.l; x <= rect.r; x++) {
+      if (!isMazeCorridor(map, rect, x, y) || !isRectBoundary(rect, x, y)) continue;
+      const hasOutsideCorridor = ORTHOGONAL_DIRS.some(([dx, dy]) => {
+        const nx = x + dx;
+        const ny = y + dy;
+        return !inRect(rect, nx, ny) && map[ny]?.[nx] === TILE.CORRIDOR;
+      });
+      if (hasOutsideCorridor) entries.push({ x, y });
+    }
+  }
+  return entries;
+}
+
+function mazeDistancesFrom(
+  map: string[][],
+  rect: RoomRect,
+  start: { x: number; y: number },
+  blocked: ReadonlySet<string> = new Set()
+): Map<string, number> {
+  const distances = new Map<string, number>();
+  if (!isMazeCorridor(map, rect, start.x, start.y) || blocked.has(posKey(start.x, start.y))) return distances;
+  const queue = [start];
+  distances.set(posKey(start.x, start.y), 0);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const nextDistance = distances.get(posKey(current.x, current.y))! + 1;
+    for (const [dx, dy] of ORTHOGONAL_DIRS) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const nextKey = posKey(nx, ny);
+      if (distances.has(nextKey) || blocked.has(nextKey) || !isMazeCorridor(map, rect, nx, ny)) continue;
+      distances.set(nextKey, nextDistance);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return distances;
+}
+
 /** Minimal union-find for building a spanning tree over grid cells. */
 class DisjointSet {
   private parent: number[];
@@ -487,57 +569,39 @@ export function collectMazeContentSites(
 ): MazeContentSite[] {
   const sites: MazeContentSite[] = [];
   const blocked = new Set<string>();
-  const key = (x: number, y: number) => `${x},${y}`;
   for (const position of [
     ...(options.items ?? []),
     ...(options.monsters ?? []),
     ...(options.blockedPositions ?? []),
   ]) {
-    blocked.add(key(position.x, position.y));
+    blocked.add(posKey(position.x, position.y));
   }
 
-  const inRect = (rect: RoomRect, x: number, y: number) =>
-    x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b;
-  const isBoundary = (rect: RoomRect, x: number, y: number) =>
-    x === rect.l || x === rect.r || y === rect.t || y === rect.b;
-  const isMazeCorridor = (rect: RoomRect, x: number, y: number) =>
-    inRect(rect, x, y) && map[y]?.[x] === TILE.CORRIDOR;
   const isForbiddenNeighbour = (x: number, y: number) =>
     map[y]?.[x] === TILE.DOOR ||
     map[y]?.[x] === TILE.SECRET_DOOR ||
     STAIR_TILES.has(map[y]?.[x]) ||
-    blocked.has(key(x, y));
+    blocked.has(posKey(x, y));
   const isExcludedByAdjacency = (x: number, y: number) => {
-    if (blocked.has(key(x, y))) return true;
+    if (blocked.has(posKey(x, y))) return true;
     return ORTHOGONAL_DIRS.some(([dx, dy]) => isForbiddenNeighbour(x + dx, y + dy));
   };
 
   for (const rect of mazeRects) {
-    const entries: Array<{ x: number; y: number }> = [];
-    for (let y = rect.t; y <= rect.b; y++) {
-      for (let x = rect.l; x <= rect.r; x++) {
-        if (!isMazeCorridor(rect, x, y) || !isBoundary(rect, x, y)) continue;
-        const hasOutsideCorridor = ORTHOGONAL_DIRS.some(([dx, dy]) => {
-          const nx = x + dx;
-          const ny = y + dy;
-          return !inRect(rect, nx, ny) && map[ny]?.[nx] === TILE.CORRIDOR;
-        });
-        if (hasOutsideCorridor) entries.push({ x, y });
-      }
-    }
+    const entries = mazeEntryTiles(map, rect);
     if (entries.length === 0) continue;
 
     const distance = new Map<string, number>();
     const queue = [...entries];
-    for (const entry of entries) distance.set(key(entry.x, entry.y), 0);
+    for (const entry of entries) distance.set(posKey(entry.x, entry.y), 0);
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const nextDistance = distance.get(key(current.x, current.y))! + 1;
+      const nextDistance = distance.get(posKey(current.x, current.y))! + 1;
       for (const [dx, dy] of ORTHOGONAL_DIRS) {
         const nx = current.x + dx;
         const ny = current.y + dy;
-        const nextKey = key(nx, ny);
-        if (distance.has(nextKey) || !isMazeCorridor(rect, nx, ny)) continue;
+        const nextKey = posKey(nx, ny);
+        if (distance.has(nextKey) || !isMazeCorridor(map, rect, nx, ny)) continue;
         distance.set(nextKey, nextDistance);
         queue.push({ x: nx, y: ny });
       }
@@ -545,8 +609,8 @@ export function collectMazeContentSites(
 
     for (let y = rect.t; y <= rect.b; y++) {
       for (let x = rect.l; x <= rect.r; x++) {
-        if (!isMazeCorridor(rect, x, y) || isBoundary(rect, x, y)) continue;
-        const distanceFromEntry = distance.get(key(x, y));
+        if (!isMazeCorridor(map, rect, x, y) || isRectBoundary(rect, x, y)) continue;
+        const distanceFromEntry = distance.get(posKey(x, y));
         if (distanceFromEntry === undefined || distanceFromEntry <= 1) continue;
         if (isExcludedByAdjacency(x, y)) continue;
 
@@ -644,6 +708,129 @@ function spawnMazeCaches(
     }));
     if (!site) continue;
     items.push({ ...makeMazeCacheSpawn(dungeonFloor, rng), x: site.x, y: site.y } as Item);
+  }
+}
+
+function isOnMazeEntryShortestPath(
+  map: string[][],
+  rect: RoomRect,
+  site: MazeContentSite,
+  entries: ReadonlyArray<{ x: number; y: number }>
+): boolean {
+  if (entries.length < 2) return false;
+  const distances = entries.map(entry => mazeDistancesFrom(map, rect, entry));
+  const siteKey = posKey(site.x, site.y);
+  for (let a = 0; a < entries.length; a++) {
+    const throughA = distances[a].get(siteKey);
+    if (throughA === undefined) continue;
+    for (let b = a + 1; b < entries.length; b++) {
+      const shortest = distances[a].get(posKey(entries[b].x, entries[b].y));
+      const throughB = distances[b].get(siteKey);
+      if (shortest !== undefined && throughB !== undefined && throughA + throughB === shortest) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function blocksMazeEntryConnectivity(
+  map: string[][],
+  rect: RoomRect,
+  site: MazeContentSite,
+  entries: ReadonlyArray<{ x: number; y: number }>
+): boolean {
+  if (entries.length < 2) return false;
+  const blocked = new Set([posKey(site.x, site.y)]);
+  const reachableEntries = mazeDistancesFrom(map, rect, entries[0], blocked);
+  return entries.some(entry => !reachableEntries.has(posKey(entry.x, entry.y)));
+}
+
+function selectMazeMonsterSite(
+  map: string[][],
+  rect: RoomRect,
+  sites: ReadonlyArray<MazeContentSite>,
+  items: ReadonlyArray<Item>,
+  playerX: number,
+  playerY: number,
+  stairsDownX: number,
+  stairsDownY: number,
+  cols: number,
+  rows: number
+): MazeContentSite | null {
+  const entries = mazeEntryTiles(map, rect);
+  const cache = items.find(item => inRect(rect, item.x, item.y)) ?? null;
+  const distanceFromCache = cache ? mazeDistancesFrom(map, rect, cache) : null;
+  const safeSites = sites.filter(site => {
+    if (site.kind !== 'branch' && site.kind !== 'deepPath') return false;
+    if (cache && site.x === cache.x && site.y === cache.y) return false;
+    if (isOnMazeEntryShortestPath(map, rect, site, entries)) return false;
+    if (blocksMazeEntryConnectivity(map, rect, site, entries)) return false;
+    if (stairsDownX >= 0 && stairsDownY >= 0) {
+      const blocked = new Set([posKey(site.x, site.y)]);
+      if (!isReachableAvoiding(map, playerX, playerY, stairsDownX, stairsDownY, cols, rows, blocked)) return false;
+    }
+    return true;
+  });
+  if (safeSites.length === 0) return null;
+
+  const cacheNear = distanceFromCache
+    ? safeSites.filter(site => {
+      const distance = distanceFromCache.get(posKey(site.x, site.y));
+      return distance !== undefined && distance >= 2 && distance <= 4;
+    })
+    : [];
+  const candidates = cacheNear.length > 0 ? cacheNear : safeSites;
+  return [...candidates].sort((a, b) => {
+    const aCacheDistance = distanceFromCache?.get(posKey(a.x, a.y)) ?? Number.POSITIVE_INFINITY;
+    const bCacheDistance = distanceFromCache?.get(posKey(b.x, b.y)) ?? Number.POSITIVE_INFINITY;
+    const aCacheScore = aCacheDistance >= 2 && aCacheDistance <= 4 ? 0 : Math.abs(aCacheDistance - 3);
+    const bCacheScore = bCacheDistance >= 2 && bCacheDistance <= 4 ? 0 : Math.abs(bCacheDistance - 3);
+    return (
+      aCacheScore - bCacheScore ||
+      (a.kind === 'branch' ? 0 : 1) - (b.kind === 'branch' ? 0 : 1) ||
+      b.distanceFromEntry - a.distanceFromEntry ||
+      b.degree - a.degree
+    );
+  })[0] ?? null;
+}
+
+function spawnMazeDenizens(
+  map: string[][],
+  mazeRects: ReadonlyArray<RoomRect>,
+  dungeonFloor: number,
+  items: Item[],
+  monsters: Monster[],
+  blockedPositions: ReadonlyArray<{ x: number; y: number }>,
+  playerX: number,
+  playerY: number,
+  stairsDownX: number,
+  stairsDownY: number,
+  cols: number,
+  rows: number,
+  rng: RNG
+): void {
+  const content = BALANCE.map.mazeContent;
+  if (dungeonFloor < content.mazeMonsterMinFloor || dungeonFloor >= 20) return;
+
+  for (const rect of mazeRects) {
+    if (!rng.chance(content.mazeMonsterChance)) continue;
+    const tmpl = pickDepthMonster(dungeonFloor, rng);
+    if (!tmpl) continue;
+    const site = selectMazeMonsterSite(
+      map,
+      rect,
+      collectMazeContentSites(map, [rect], { items, monsters, blockedPositions }),
+      items,
+      playerX,
+      playerY,
+      stairsDownX,
+      stairsDownY,
+      cols,
+      rows
+    );
+    if (!site) continue;
+    monsters.push({ ...tmpl, x: site.x, y: site.y, frozenTurns: 0 });
   }
 }
 
@@ -1003,6 +1190,11 @@ export function generateLevel(
     { x: stairsUpX, y: stairsUpY },
     { x: stairsDownX, y: stairsDownY },
   ], rng);
+  spawnMazeDenizens(map, mazeRects, dungeonFloor, items, monsters, [
+    { x: playerX, y: playerY },
+    { x: stairsUpX, y: stairsUpY },
+    { x: stairsDownX, y: stairsDownY },
+  ], playerX, playerY, stairsDownX, stairsDownY, cols, rows, rng);
 
   const traps = placeTraps({
     map,

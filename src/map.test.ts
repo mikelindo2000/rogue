@@ -5,6 +5,7 @@ import { makeRng } from './rng';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
 import { SCROLLS, isScrollImplemented } from './scrolls';
+import { BALANCE, MONSTER_DATABASE } from './config';
 import type { ScrollType } from './types';
 import { BOARD_SIZES, type BoardConfig } from './boards';
 
@@ -43,6 +44,29 @@ function reachable(map: string[][], sx: number, sy: number, tx: number, ty: numb
 
 const ORTHOGONAL_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const;
 
+function reachableAvoiding(map: string[][], sx: number, sy: number, tx: number, ty: number, blocked: Set<string>): boolean {
+  const key = (x: number, y: number) => `${x},${y}`;
+  if (blocked.has(key(sx, sy)) || blocked.has(key(tx, ty))) return false;
+  const seen = new Set<string>();
+  const queue: Array<[number, number]> = [[sx, sy]];
+  seen.add(key(sx, sy));
+  while (queue.length > 0) {
+    const [x, y] = queue.shift()!;
+    if (x === tx && y === ty) return true;
+    for (const [dx, dy] of ORTHOGONAL_DIRS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (ny < 0 || ny >= map.length || nx < 0 || nx >= map[ny].length) continue;
+      if (blocked.has(key(nx, ny)) || !isWalkable(map[ny][nx])) continue;
+      const k = key(nx, ny);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      queue.push([nx, ny]);
+    }
+  }
+  return false;
+}
+
 function inRect(r: { l: number; t: number; r: number; b: number }, x: number, y: number): boolean {
   return x >= r.l && x <= r.r && y >= r.t && y <= r.b;
 }
@@ -77,6 +101,34 @@ function mazeDistances(map: string[][], rect: { l: number; t: number; r: number;
       const ny = current.y + dy;
       const nextKey = key(nx, ny);
       if (distances.has(nextKey) || !inRect(rect, nx, ny) || map[ny]?.[nx] !== TILE.CORRIDOR) continue;
+      distances.set(nextKey, nextDistance);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return distances;
+}
+
+function mazeDistancesFrom(
+  map: string[][],
+  rect: { l: number; t: number; r: number; b: number },
+  start: { x: number; y: number },
+  blocked: Set<string> = new Set()
+): Map<string, number> {
+  const distances = new Map<string, number>();
+  const queue = [start];
+  const key = (x: number, y: number) => `${x},${y}`;
+  if (blocked.has(key(start.x, start.y)) || !inRect(rect, start.x, start.y) || map[start.y]?.[start.x] !== TILE.CORRIDOR) {
+    return distances;
+  }
+  distances.set(key(start.x, start.y), 0);
+  while (queue.length) {
+    const current = queue.shift()!;
+    const nextDistance = distances.get(key(current.x, current.y))! + 1;
+    for (const [dx, dy] of ORTHOGONAL_DIRS) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const nextKey = key(nx, ny);
+      if (distances.has(nextKey) || blocked.has(nextKey) || !inRect(rect, nx, ny) || map[ny]?.[nx] !== TILE.CORRIDOR) continue;
       distances.set(nextKey, nextDistance);
       queue.push({ x: nx, y: ny });
     }
@@ -825,7 +877,7 @@ describe('maze cells', () => {
     throw new Error('expected to find a generated maze site to test exclusions');
   });
 
-  it('spawns only safe visible cache items in mazes; never maze monsters (floors 4..19, seeds 1..500)', () => {
+  it('spawns only safe visible cache items in mazes (floors 4..19, seeds 1..500)', () => {
     let mazeCount = 0;
     let cacheCount = 0;
     const itemKey = (x: number, y: number) => `${x},${y}`;
@@ -844,10 +896,6 @@ describe('maze cells', () => {
           const mazeItems = lvl.items.filter(item => inRect(rect, item.x, item.y));
           cacheCount += mazeItems.length;
           expect(mazeItems.length, `floor ${floor} seed ${seed}: more than one cache in maze`).toBeLessThanOrEqual(1);
-          expect(
-            lvl.monsters.some(monster => inRect(rect, monster.x, monster.y)),
-            `floor ${floor} seed ${seed}: monster in maze`
-          ).toBe(false);
 
           for (const item of mazeItems) {
             expect(lvl.map[item.y][item.x], `floor ${floor} seed ${seed}: cache not on corridor`).toBe(TILE.CORRIDOR);
@@ -879,6 +927,95 @@ describe('maze cells', () => {
     expect(cacheCount, 'expected visible maze caches across the sweep').toBeGreaterThan(0);
   });
 
+  it('spawns safe optional maze denizens on eligible floors (floors 5..19, seeds 1..500)', () => {
+    let mazeCount = 0;
+    let mazeMonsterCount = 0;
+    const key = (x: number, y: number) => `${x},${y}`;
+
+    for (let floor = 5; floor < 20; floor++) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        for (const rect of lvl.mazeRects) {
+          mazeCount++;
+          const mazeMonsters = lvl.monsters.filter(monster => inRect(rect, monster.x, monster.y));
+          mazeMonsterCount += mazeMonsters.length;
+          expect(mazeMonsters.length, `floor ${floor} seed ${seed}: more than one denizen in maze`).toBeLessThanOrEqual(1);
+
+          for (const monster of mazeMonsters) {
+            const monsterKey = key(monster.x, monster.y);
+            const template = MONSTER_DATABASE.find(candidate => candidate.name === monster.name);
+            expect(template, `floor ${floor} seed ${seed}: unknown maze monster ${monster.name}`).toBeDefined();
+            expect(template?.special, `floor ${floor} seed ${seed}: special encounter in maze`).toBeUndefined();
+            expect(template?.minFloor, `floor ${floor} seed ${seed}: monster spawned too early`).toBeLessThanOrEqual(floor);
+            expect(template?.minFloor, `floor ${floor} seed ${seed}: monster outside depth band`).toBeGreaterThanOrEqual(floor - BALANCE.monster.spawnDepthBand);
+
+            expect(lvl.map[monster.y][monster.x], `floor ${floor} seed ${seed}: denizen not on corridor`).toBe(TILE.CORRIDOR);
+            expect(isWalkable(lvl.map[monster.y][monster.x]), `floor ${floor} seed ${seed}: denizen not walkable`).toBe(true);
+            expect(
+              reachable(lvl.map, lvl.playerX, lvl.playerY, monster.x, monster.y),
+              `floor ${floor} seed ${seed}: denizen requires secret discovery`
+            ).toBe(true);
+            expect(
+              lvl.items.some(item => item.x === monster.x && item.y === monster.y),
+              `floor ${floor} seed ${seed}: denizen overlaps item/cache`
+            ).toBe(false);
+            expect(
+              lvl.traps.some(trap => trap.x === monster.x && trap.y === monster.y),
+              `floor ${floor} seed ${seed}: denizen overlaps trap`
+            ).toBe(false);
+            expect(
+              (monster.x === lvl.stairsUpX && monster.y === lvl.stairsUpY) || (monster.x === lvl.stairsDownX && monster.y === lvl.stairsDownY),
+              `floor ${floor} seed ${seed}: denizen overlaps stairs`
+            ).toBe(false);
+
+            const degree = ORTHOGONAL_DIRS.filter(([dx, dy]) => isWalkable(lvl.map[monster.y + dy]?.[monster.x + dx])).length;
+            const kind = degree >= 3 ? 'branch' : degree <= 1 ? 'deadEnd' : 'deepPath';
+            expect(['branch', 'deepPath'], `floor ${floor} seed ${seed}: denizen placed at ${kind}`).toContain(kind);
+
+            const entries = mazeEntryTiles(lvl.map, rect);
+            expect(
+              entries.some(entry => Math.abs(entry.x - monster.x) + Math.abs(entry.y - monster.y) <= 1),
+              `floor ${floor} seed ${seed}: denizen adjacent to maze entry`
+            ).toBe(false);
+
+            const entryDistances = entries.map(entry => mazeDistancesFrom(lvl.map, rect, entry));
+            for (let a = 0; a < entries.length; a++) {
+              const throughA = entryDistances[a].get(monsterKey);
+              if (throughA === undefined) continue;
+              for (let b = a + 1; b < entries.length; b++) {
+                const shortest = entryDistances[a].get(key(entries[b].x, entries[b].y));
+                const throughB = entryDistances[b].get(monsterKey);
+                expect(
+                  shortest !== undefined && throughB !== undefined && throughA + throughB === shortest,
+                  `floor ${floor} seed ${seed}: denizen lies on maze-entry shortest path`
+                ).toBe(false);
+              }
+            }
+
+            if (entries.length > 1) {
+              const blocked = new Set([monsterKey]);
+              const reachableEntries = mazeDistancesFrom(lvl.map, rect, entries[0], blocked);
+              for (const entry of entries) {
+                expect(
+                  reachableEntries.has(key(entry.x, entry.y)),
+                  `floor ${floor} seed ${seed}: denizen is a maze-entry chokepoint`
+                ).toBe(true);
+              }
+            }
+
+            expect(
+              reachableAvoiding(lvl.map, lvl.playerX, lvl.playerY, lvl.stairsDownX, lvl.stairsDownY, new Set([monsterKey])),
+              `floor ${floor} seed ${seed}: denizen blocks player-to-stairs traversal`
+            ).toBe(true);
+          }
+        }
+      }
+    }
+
+    expect(mazeCount, 'expected to sweep many eligible mazes').toBeGreaterThan(50);
+    expect(mazeMonsterCount, 'expected optional maze denizens across the sweep').toBeGreaterThan(0);
+  });
+
   it('spawns no maze cache items on floors 1-3 or floor 20 (seeds 1..500)', () => {
     for (const floor of [1, 2, 3, 20]) {
       for (let seed = 1; seed <= 500; seed++) {
@@ -886,6 +1023,18 @@ describe('maze cells', () => {
         expect(
           lvl.items.some(item => lvl.mazeRects.some(rect => inRect(rect, item.x, item.y))),
           `floor ${floor} seed ${seed}: cache on ineligible floor`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('spawns no maze denizens before floor 5 or on floor 20 (seeds 1..500)', () => {
+    for (const floor of [1, 2, 3, 4, 20]) {
+      for (let seed = 1; seed <= 500; seed++) {
+        const lvl = gen(floor, seed);
+        expect(
+          lvl.monsters.some(monster => lvl.mazeRects.some(rect => inRect(rect, monster.x, monster.y))),
+          `floor ${floor} seed ${seed}: denizen on ineligible floor`
         ).toBe(false);
       }
     }
