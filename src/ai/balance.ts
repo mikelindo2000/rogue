@@ -64,12 +64,15 @@ export interface ReferenceCurve {
  *  the game changes. These remain deliberate, adjustable knobs. */
 export const DEFAULT_CURVE: ReferenceCurve = {
   baseHp: 30,
-  hpGrowth: 1.033,
+  hpGrowth: 1.032,
   baseAtk: 2,
-  startWeaponDmg: 12,
-  endWeaponDmg: 78,
-  startDef: 7,
-  endDef: 171,
+  // Re-pointed after tier-gating gear drops (BALANCE.loot.tierMinFloor): early
+  // weapon/armor power dropped, so the curve is humbler early and converges to the
+  // ungated numbers by ~floor 15. atk ≈ 10→78, def ≈ 4→165 measured.
+  startWeaponDmg: 8,
+  endWeaponDmg: 76,
+  startDef: 4,
+  endDef: 165,
   attacksPerTurn: 1,
   maxFloor: 20,
 };

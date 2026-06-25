@@ -97,6 +97,25 @@ describe('generateGearItem', () => {
     expect(stat(legendary)).toBeGreaterThanOrEqual(stat(common));
   });
 
+  it('gates gear tiers by floor: no top-tier (Titan Maul etc.) drops before its threshold', () => {
+    const [, t1min, t2min] = BALANCE.loot.tierMinFloor;
+    const tierNames = (i: number) =>
+      new Set(Object.values(GEAR_POOL).map((p) => p[i]?.name).filter(Boolean));
+    const t1 = tierNames(1);
+    const t2 = tierNames(2);
+    const baseName = (n: string) => n.replace(/ \+\d+$/, '');
+
+    for (let seed = 1; seed <= 1500; seed++) {
+      // Below the tier-1 gate: only tier-0 base templates may appear.
+      const below1 = generateGearItem(t1min - 1, 'common', makeRng(seed))!;
+      expect(t1.has(baseName(below1.name))).toBe(false);
+      expect(t2.has(baseName(below1.name))).toBe(false);
+      // Below the tier-2 gate: tier-2 (Titan Maul, Dragon Slayer, Platemail…) is barred.
+      const below2 = generateGearItem(t2min - 1, 'common', makeRng(seed + 99_999))!;
+      expect(t2.has(baseName(below2.name))).toBe(false);
+    }
+  });
+
   it('is deterministic: same (floor, rarity, seed) yields deeply equal gear', () => {
     for (let seed = 1; seed <= 50; seed++) {
       const a = generateGearItem(8, 'rare', makeRng(seed));

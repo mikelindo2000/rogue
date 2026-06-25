@@ -26,7 +26,13 @@ export function generateGearItem(floor: number, rarity: Rarity, rng: RNG): Floor
   const pool = GEAR_POOL[cat];
   if (!pool || pool.length === 0) return null;
 
-  const template: FloorGear = { ...rng.pick(pool), category: cat };
+  // Tier gating: a category's pool is ordered weakest→strongest; only tiers
+  // unlocked at this depth can drop (tier 0 is always available). This is why a
+  // Titan Maul can't appear on floor 1. One rng.pick either way, so the draw
+  // count — and thus the rest of level generation — is unchanged.
+  const tierMin = BALANCE.loot.tierMinFloor;
+  const eligible = pool.filter((_, i) => floor >= (tierMin[i] ?? tierMin[tierMin.length - 1]));
+  const template: FloorGear = { ...rng.pick(eligible.length ? eligible : pool), category: cat };
   const rConfig = RARITY_CONFIG[rarity || 'common'];
   const mult = rConfig.multiplier;
   template.rarity = rarity;

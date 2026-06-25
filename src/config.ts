@@ -201,6 +201,12 @@ export const BALANCE = {
     uncommonFloorScale: 0.01,
     gearDmgFloorScale: 1.5,
     gearDefFloorScale: 1.0,
+    // Tier gating: each GEAR_POOL category is ordered weakest→strongest (3 tiers).
+    // A tier only enters the drop pool once the floor reaches its threshold
+    // (mirrors scroll/wand minFloor gating), so top-tier gear (Titan Maul, Dragon
+    // Slayer, Platemail…) can't one-shot floor-1 monsters. Index = tier position
+    // in the category array. Tames both early weapon spikes and fast def scaling.
+    tierMinFloor: [1, 4, 8],
   },
   // Wands/staves: zapped at range, never consume charges. Power is gated by a
   // per-item cooldown (caps burst) plus a flat hunger cost per zap (caps
