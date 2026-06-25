@@ -29,6 +29,14 @@
 </section>
 
 <style>
+  /* Flex column so the grid can scroll within whatever vertical space the rail
+     gives it, instead of overflowing and crowding the message log on short
+     viewports. Mirrors the scrollable pattern in Equipment.svelte. */
+  .inventory {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
   header {
     padding: 14px 14px 6px;
   }
@@ -43,5 +51,9 @@
     gap: 7px;
     padding: 6px 12px 14px;
     border-bottom: 1px solid var(--border-subtle);
+    /* min-height:0 lets the grid shrink below its content height so overflow-y
+       can take over and scroll the rows that don't fit. */
+    min-height: 0;
+    overflow-y: auto;
   }
 </style>
