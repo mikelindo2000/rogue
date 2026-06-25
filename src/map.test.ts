@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
-import { generateLevel, darkRoomChance, mazeRoomChance } from './map';
+import { generateLevel, darkRoomChance, mazeRoomChance, collectMazeContentSites } from './map';
 import { makeRng } from './rng';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { allowedTrapKindsForFloor, trapBudgetForFloor, trapCost } from './traps';
@@ -39,6 +39,49 @@ function reachable(map: string[][], sx: number, sy: number, tx: number, ty: numb
     }
   }
   return false;
+}
+
+const ORTHOGONAL_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]] as const;
+
+function inRect(r: { l: number; t: number; r: number; b: number }, x: number, y: number): boolean {
+  return x >= r.l && x <= r.r && y >= r.t && y <= r.b;
+}
+
+function isRectBoundary(r: { l: number; t: number; r: number; b: number }, x: number, y: number): boolean {
+  return x === r.l || x === r.r || y === r.t || y === r.b;
+}
+
+function mazeEntryTiles(map: string[][], rect: { l: number; t: number; r: number; b: number }): Array<{ x: number; y: number }> {
+  const entries: Array<{ x: number; y: number }> = [];
+  for (let y = rect.t; y <= rect.b; y++) {
+    for (let x = rect.l; x <= rect.r; x++) {
+      if (map[y][x] !== TILE.CORRIDOR || !isRectBoundary(rect, x, y)) continue;
+      if (ORTHOGONAL_DIRS.some(([dx, dy]) => !inRect(rect, x + dx, y + dy) && map[y + dy]?.[x + dx] === TILE.CORRIDOR)) {
+        entries.push({ x, y });
+      }
+    }
+  }
+  return entries;
+}
+
+function mazeDistances(map: string[][], rect: { l: number; t: number; r: number; b: number }): Map<string, number> {
+  const distances = new Map<string, number>();
+  const queue = mazeEntryTiles(map, rect);
+  const key = (x: number, y: number) => `${x},${y}`;
+  for (const entry of queue) distances.set(key(entry.x, entry.y), 0);
+  while (queue.length) {
+    const current = queue.shift()!;
+    const nextDistance = distances.get(key(current.x, current.y))! + 1;
+    for (const [dx, dy] of ORTHOGONAL_DIRS) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const nextKey = key(nx, ny);
+      if (distances.has(nextKey) || !inRect(rect, nx, ny) || map[ny]?.[nx] !== TILE.CORRIDOR) continue;
+      distances.set(nextKey, nextDistance);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return distances;
 }
 
 describe('generateLevel', () => {
@@ -714,6 +757,72 @@ describe('maze cells', () => {
         }
       }
     }
+  });
+
+  it('derives classified maze content sites from generated corridor geometry', () => {
+    const seenKinds = new Set<string>();
+    let checked = 0;
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 240; seed++) {
+        const lvl = gen(floor, seed);
+        for (const rect of lvl.mazeRects) {
+          const distances = mazeDistances(lvl.map, rect);
+          const entries = mazeEntryTiles(lvl.map, rect);
+          const sites = collectMazeContentSites(lvl.map, [rect]);
+          for (const site of sites) {
+            checked++;
+            seenKinds.add(site.kind);
+            expect(inRect(rect, site.x, site.y), `floor ${floor} seed ${seed}: site outside maze`).toBe(true);
+            expect(isRectBoundary(rect, site.x, site.y), `floor ${floor} seed ${seed}: boundary site`).toBe(false);
+            expect(lvl.map[site.y][site.x], `floor ${floor} seed ${seed}: non-corridor site`).toBe(TILE.CORRIDOR);
+            expect(entries.some(entry => Math.abs(entry.x - site.x) + Math.abs(entry.y - site.y) <= 1), `floor ${floor} seed ${seed}: entry-adjacent site`).toBe(false);
+            expect(site.distanceFromEntry, `floor ${floor} seed ${seed}: wrong distance for (${site.x},${site.y})`).toBe(distances.get(`${site.x},${site.y}`));
+            expect(site.distanceFromEntry, `floor ${floor} seed ${seed}: shallow site`).toBeGreaterThan(1);
+
+            const degree = ORTHOGONAL_DIRS.filter(([dx, dy]) => isWalkable(lvl.map[site.y + dy]?.[site.x + dx])).length;
+            expect(site.degree, `floor ${floor} seed ${seed}: wrong degree for (${site.x},${site.y})`).toBe(degree);
+            const expectedKind = degree <= 1 ? 'deadEnd' : degree >= 3 ? 'branch' : 'deepPath';
+            expect(site.kind, `floor ${floor} seed ${seed}: wrong kind for (${site.x},${site.y})`).toBe(expectedKind);
+            expect(
+              ORTHOGONAL_DIRS.some(([dx, dy]) => {
+                const ch = lvl.map[site.y + dy]?.[site.x + dx];
+                return ch === TILE.DOOR || ch === TILE.SECRET_DOOR || STAIR_TILES.has(ch ?? '');
+              }),
+              `floor ${floor} seed ${seed}: site adjacent to protected tile`
+            ).toBe(false);
+          }
+        }
+      }
+    }
+
+    expect(checked, 'expected generated mazes to produce eligible sites').toBeGreaterThan(50);
+    expect(seenKinds).toEqual(new Set(['deadEnd', 'branch', 'deepPath']));
+  });
+
+  it('excludes generated maze sites adjacent to caller-supplied blocked occupants', () => {
+    for (let floor = 4; floor < 20; floor++) {
+      for (let seed = 1; seed <= 240; seed++) {
+        const lvl = gen(floor, seed);
+        const rect = lvl.mazeRects[0];
+        if (!rect) continue;
+        const [site] = collectMazeContentSites(lvl.map, [rect]);
+        if (!site) continue;
+
+        const hasSite = (positions: ReturnType<typeof collectMazeContentSites>) =>
+          positions.some(candidate => candidate.x === site.x && candidate.y === site.y);
+        expect(hasSite(collectMazeContentSites(lvl.map, [rect], {
+          items: [{ x: site.x + 1, y: site.y }],
+        }))).toBe(false);
+        expect(hasSite(collectMazeContentSites(lvl.map, [rect], {
+          monsters: [{ x: site.x, y: site.y + 1 }],
+        }))).toBe(false);
+        expect(hasSite(collectMazeContentSites(lvl.map, [rect], {
+          blockedPositions: [{ x: site.x, y: site.y }],
+        }))).toBe(false);
+        return;
+      }
+    }
+    throw new Error('expected to find a generated maze site to test exclusions');
   });
 
   it('spawns no items or monsters inside a maze region (seeds 1..80, floors 6..19)', () => {

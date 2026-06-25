@@ -79,6 +79,22 @@ export interface RoomRect {
   cy: number;
 }
 
+export type MazeContentSiteKind = 'deadEnd' | 'branch' | 'deepPath';
+
+export interface MazeContentSite {
+  x: number;
+  y: number;
+  kind: MazeContentSiteKind;
+  distanceFromEntry: number;
+  degree: number;
+}
+
+export interface MazeContentSiteOptions {
+  items?: ReadonlyArray<Pick<Item, 'x' | 'y'>>;
+  monsters?: ReadonlyArray<Pick<Monster, 'x' | 'y'>>;
+  blockedPositions?: ReadonlyArray<{ x: number; y: number }>;
+}
+
 interface DoorCandidate {
   x: number;
   y: number;
@@ -90,6 +106,13 @@ interface Edge {
   b: number; // index of the east (h) or south (v) cell
   dir: Dir;
 }
+
+const ORTHOGONAL_DIRS: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
 /** Minimal union-find for building a spanning tree over grid cells. */
 class DisjointSet {
@@ -455,6 +478,86 @@ export function mazeRoomChance(floor: number): number {
   const M = BALANCE.map;
   if (floor < M.mazeRoomMinFloor || floor >= 20) return 0;
   return M.mazeRoomChance;
+}
+
+export function collectMazeContentSites(
+  map: string[][],
+  mazeRects: ReadonlyArray<RoomRect>,
+  options: MazeContentSiteOptions = {}
+): MazeContentSite[] {
+  const sites: MazeContentSite[] = [];
+  const blocked = new Set<string>();
+  const key = (x: number, y: number) => `${x},${y}`;
+  for (const position of [
+    ...(options.items ?? []),
+    ...(options.monsters ?? []),
+    ...(options.blockedPositions ?? []),
+  ]) {
+    blocked.add(key(position.x, position.y));
+  }
+
+  const inRect = (rect: RoomRect, x: number, y: number) =>
+    x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b;
+  const isBoundary = (rect: RoomRect, x: number, y: number) =>
+    x === rect.l || x === rect.r || y === rect.t || y === rect.b;
+  const isMazeCorridor = (rect: RoomRect, x: number, y: number) =>
+    inRect(rect, x, y) && map[y]?.[x] === TILE.CORRIDOR;
+  const isForbiddenNeighbour = (x: number, y: number) =>
+    map[y]?.[x] === TILE.DOOR ||
+    map[y]?.[x] === TILE.SECRET_DOOR ||
+    STAIR_TILES.has(map[y]?.[x]) ||
+    blocked.has(key(x, y));
+  const isExcludedByAdjacency = (x: number, y: number) => {
+    if (blocked.has(key(x, y))) return true;
+    return ORTHOGONAL_DIRS.some(([dx, dy]) => isForbiddenNeighbour(x + dx, y + dy));
+  };
+
+  for (const rect of mazeRects) {
+    const entries: Array<{ x: number; y: number }> = [];
+    for (let y = rect.t; y <= rect.b; y++) {
+      for (let x = rect.l; x <= rect.r; x++) {
+        if (!isMazeCorridor(rect, x, y) || !isBoundary(rect, x, y)) continue;
+        const hasOutsideCorridor = ORTHOGONAL_DIRS.some(([dx, dy]) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          return !inRect(rect, nx, ny) && map[ny]?.[nx] === TILE.CORRIDOR;
+        });
+        if (hasOutsideCorridor) entries.push({ x, y });
+      }
+    }
+    if (entries.length === 0) continue;
+
+    const distance = new Map<string, number>();
+    const queue = [...entries];
+    for (const entry of entries) distance.set(key(entry.x, entry.y), 0);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const nextDistance = distance.get(key(current.x, current.y))! + 1;
+      for (const [dx, dy] of ORTHOGONAL_DIRS) {
+        const nx = current.x + dx;
+        const ny = current.y + dy;
+        const nextKey = key(nx, ny);
+        if (distance.has(nextKey) || !isMazeCorridor(rect, nx, ny)) continue;
+        distance.set(nextKey, nextDistance);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+
+    for (let y = rect.t; y <= rect.b; y++) {
+      for (let x = rect.l; x <= rect.r; x++) {
+        if (!isMazeCorridor(rect, x, y) || isBoundary(rect, x, y)) continue;
+        const distanceFromEntry = distance.get(key(x, y));
+        if (distanceFromEntry === undefined || distanceFromEntry <= 1) continue;
+        if (isExcludedByAdjacency(x, y)) continue;
+
+        const degree = ORTHOGONAL_DIRS.filter(([dx, dy]) => isWalkable(map[y + dy]?.[x + dx])).length;
+        const kind: MazeContentSiteKind = degree <= 1 ? 'deadEnd' : degree >= 3 ? 'branch' : 'deepPath';
+        sites.push({ x, y, kind, distanceFromEntry, degree });
+      }
+    }
+  }
+
+  return sites;
 }
 
 export function generateLevel(
