@@ -291,7 +291,7 @@ export const MONSTER_XP_TABLE: Record<number, Record<string, number>> = {
   17: { "Troll": 289, "Trogdor the Troll": 674, "Golem": 449, "Gary the Golem": 1048, "Flying Serpent": 646, "Cyclops": 952, "Colossal Cyclops": 2682 },
   18: { "Golem": 337, "Gary the Golem": 786, "Flying Serpent": 485, "Cyclops": 714, "Colossal Cyclops": 2012, "Quinotaur": 1044 },
   19: { "Flying Serpent": 364, "Cyclops": 536, "Colossal Cyclops": 1509, "Quinotaur": 783, "Xelhua": 1139, "Zombie": 1139, "Zachary the Zombie": 3132 },
-  20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587.25, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349, "Apperation": 900, "Agitated Apperation": 950, "Dragon": 1000 }
+  20: { "Cyclops": 402, "Colossal Cyclops": 1132, "Quinotaur": 587, "Xelhua": 854, "Zombie": 854, "Zachary the Zombie": 2349, "Apperation": 900, "Agitated Apperation": 950, "Dragon": 1000 }
 };
 
 /**
@@ -368,7 +368,10 @@ export const MONSTER_DATABASE: MonsterTemplate[] = [
   { symbol: 'Z', name: 'Zombie', hp: 275, atk: 89, color: '#00ff00', minFloor: 19 },
   { symbol: 'Z↑', name: 'Zachary the Zombie', hp: 300, atk: 90, color: '#00ff00', minFloor: 19, special: 'hero' },
   { symbol: 'A', name: 'Apperation', hp: 312, atk: 94, color: '#556666', minFloor: 20 },
-  { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 92, color: '#556666', minFloor: 20 },
+  // Agitated is the tougher 'A↑' variant — keep its atk above the base Apperation
+  // (the auto-balancer landed both at the same threat target, which inverted them
+  // because Agitated's extra HP lengthens the fight; bumped so it reads as tougher).
+  { symbol: 'A↑', name: 'Agitated Apperation', hp: 330, atk: 98, color: '#556666', minFloor: 20 },
   { symbol: 'D', name: 'Dragon', hp: 380, atk: 86, color: '#00ff00', minFloor: 20 },
   { symbol: 'D↑', name: 'Dragon King', hp: 1050, atk: 27, color: '#00ff00', minFloor: 20, special: 'boss' },
   { symbol: 'M*', name: 'Marcus the Brave', hp: 900, atk: 25, color: '#ffd700', minFloor: 20, special: 'boss' }

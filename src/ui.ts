@@ -1521,7 +1521,6 @@ export class GameUI {
     ui.equipment = buildEquipmentView(player);
     const inv = this.buildInventory(player);
     ui.inventoryItems = inv.cells;
-    ui.inventory = inv.cells.slice(0, ui.inventoryMax);
     ui.inventoryCount = inv.count;
     ui.potions = buildPotionOptions(player.inventory.potions);
   }

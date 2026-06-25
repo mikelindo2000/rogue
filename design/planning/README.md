@@ -95,3 +95,7 @@ next document, since it unlocks the final phase of all three.
   profiles, room archetypes, corridor/hall variety, and less predictable monster
   placement while preserving reachability, secret-door fairness, dark-room rules,
   trap safety, and floor-20 finale constraints.
+- **[Maze Hall Interest](maze_hall_interest_plan.md)** — turns the currently empty
+  maze halls into optional risk/reward pockets with visible caches first, then
+  denizens, searchable details, and rare hazards while keeping progression,
+  keyboard play, and reachability fair.

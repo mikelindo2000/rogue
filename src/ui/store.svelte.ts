@@ -200,8 +200,9 @@ export interface UIState {
   // panels
   equipment: EquipSlotView[];
   inventoryItems: InventoryCell[];
-  inventory: InventoryCell[];
   inventoryCount: number;
+  /** Baseline slot count drawn in the HUD grid; the grid grows past this when
+   *  the pack holds more items (the inventory itself is uncapped). */
   inventoryMax: number;
   potions: PotionOption[];
   logs: LogLineView[];
@@ -289,7 +290,6 @@ export const ui = $state<UIState>({
   foodMax: 4,
   equipment: [],
   inventoryItems: [],
-  inventory: [],
   inventoryCount: 0,
   inventoryMax: 20,
   potions: [],

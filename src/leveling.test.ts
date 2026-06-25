@@ -34,6 +34,18 @@ describe('monsterKillXp (depth-indexed, no under-level spiral)', () => {
   it('returns 0 for an unknown monster name', () => {
     expect(monsterKillXp(5, 'Not A Monster')).toBe(0);
   });
+
+  it('has no orphan XP-table entries (every reward name is a real monster)', () => {
+    // The two tables are coupled by hand-typed name strings; this guards the
+    // reverse direction (a typo'd/stale XP row that no monster matches). The
+    // forward direction (every monster pays at its floor) is asserted above.
+    const dbNames = new Set(MONSTER_DATABASE.map((m) => m.name));
+    for (const row of Object.values(MONSTER_XP_TABLE)) {
+      for (const name of Object.keys(row)) {
+        expect(dbNames, `XP table lists "${name}" but no monster has that name`).toContain(name);
+      }
+    }
+  });
 });
 
 describe('gainXp', () => {

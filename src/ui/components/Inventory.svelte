@@ -3,8 +3,13 @@
   import SectionLabel from './primitives/SectionLabel.svelte';
   import ItemSlot from './ItemSlot.svelte';
 
+  // Render every carried item, not just the first inventoryMax. The pack has no
+  // real capacity cap (only food is limited), so we draw one cell per item and
+  // pad with empty slots up to inventoryMax — that keeps the familiar 4-row grid
+  // when the pack is light, then grows and scrolls once it overflows.
+  const slotCount = $derived(Math.max(ui.inventoryMax, ui.inventoryItems.length));
   const cells = $derived(
-    Array.from({ length: ui.inventoryMax }, (_, i) => ui.inventory[i])
+    Array.from({ length: slotCount }, (_, i) => ui.inventoryItems[i])
   );
 
   function openItem(cell: InventoryCell) {
@@ -17,7 +22,7 @@
   <header>
     <SectionLabel text="Inventory">
       {#snippet trailing()}
-        <span class="meta">{ui.inventoryCount} / {ui.inventoryMax}</span>
+        <span class="meta">{ui.inventoryCount} {ui.inventoryCount === 1 ? 'item' : 'items'}</span>
       {/snippet}
     </SectionLabel>
   </header>

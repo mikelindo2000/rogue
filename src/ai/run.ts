@@ -228,7 +228,10 @@ export function simulateRun(seed: number, opts: RunOptions = {}): RunResult {
       else if (it.type === 'potion' && it.data.potionType === 'healing') healPotions++;
       else if (it.type === 'gold' && it.amount === undefined) {
         // A chest (gold pile with no explicit amount) awards XP equal to its gold,
-        // mirroring checkItems. Recovered piles (explicit amount) give no XP.
+        // mirroring checkItems. Recovered piles (explicit amount) give no XP. The
+        // engine rolls ±10% variance (and ×1.2 if Midas is up) on the base before
+        // granting XP; we use the base — the variance is symmetric so the measured
+        // mean is ~unbiased, and Midas is rarely active at pickup.
         gainXp(player, CHEST_GOLD_TABLE[clampLvl(player.level)] ?? 15, noLog, status);
       }
     }
