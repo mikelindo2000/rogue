@@ -1,4 +1,5 @@
 # Agent Guidelines
+Agents: use the CLI tool td to manage tasks. You're going to love it, if not, complain to the operator about it and he'll fix it.
 
 ## Keyboard-First Gameplay
 
