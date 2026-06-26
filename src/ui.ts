@@ -114,11 +114,23 @@ interface RunPathStep {
   y: number;
 }
 
+/** An item the player grabbed mid-run. `pathIndex` is the step in `path` whose
+ *  tile it sat on — it stays drawn until the animated player reaches that step,
+ *  so loot never appears to vanish before the sprite touches it. */
+interface RunGhostItem {
+  x: number;
+  y: number;
+  symbol: string;
+  color: string;
+  pathIndex: number;
+}
+
 interface PlayerRunAnim {
   path: RunPathStep[];
   start: number;
   tileMs: number;
   duration: number;
+  ghosts: RunGhostItem[];
 }
 
 export const PLAYER_RUN_ANIMATION = {
@@ -511,6 +523,7 @@ export class GameUI {
       this.ctx.fillStyle = i.color;
       this.drawGlyph(i.symbol, i.x, i.y, s.tileSize, 0.66);
     });
+    this.drawRunGhostItems(t, s);
     this.ctx.globalAlpha = 1;
 
     // Draw revealed traps as overlays on their underlying floor. Hidden traps do
@@ -811,6 +824,25 @@ export class GameUI {
     return { ...this.sampleRunPath(run, Math.max(0, elapsed)), active: true };
   }
 
+  /** Draw items grabbed during a run that the gliding player sprite hasn't
+   *  reached yet. Each ghost holds its tile until the animation crosses it, so
+   *  loot is never gone before you visually touch it. Mirrors the regular item
+   *  draw so a ghost is pixel-identical to the item it stands in for. */
+  private drawRunGhostItems(t: number, s: Scene) {
+    const run = this.playerRunAnim;
+    if (!run || run.ghosts.length === 0) return;
+    const elapsed = t - run.start;
+    if (elapsed >= run.duration) return;
+    const progress = elapsed / run.tileMs; // tiles travelled along the path
+    for (const g of run.ghosts) {
+      if (progress >= g.pathIndex) continue; // sprite has arrived — item is taken
+      if (!s.explored[g.y]?.[g.x]) continue;
+      this.ctx.globalAlpha = s.visible[g.y]?.[g.x] ? 1 : DIM_ALPHA;
+      this.ctx.fillStyle = g.color;
+      this.drawGlyph(g.symbol, g.x, g.y, s.tileSize, 0.66);
+    }
+  }
+
   private sampleRunPath(run: PlayerRunAnim, elapsedMs: number): RunPathStep {
     if (run.path.length <= 1) return run.path[0] ?? { x: 0, y: 0 };
     const progress = Math.min(run.path.length - 1, elapsedMs / run.tileMs);
@@ -958,7 +990,7 @@ export class GameUI {
     this.ensureLoop();
   }
 
-  public fxPlayerRun(path: RunPathStep[]) {
+  public fxPlayerRun(path: RunPathStep[], ghosts: RunGhostItem[] = []) {
     this.playerRunAnim = null;
     if (path.length < 3) return;
     const steps = path.length - 1;
@@ -969,6 +1001,7 @@ export class GameUI {
       start,
       tileMs,
       duration: tileMs * steps,
+      ghosts: ghosts.map(g => ({ ...g })),
     };
     this.animUntil = Math.max(this.animUntil, start + this.playerRunAnim.duration + PLAYER_RUN_ANIMATION.trailCount * PLAYER_RUN_ANIMATION.trailSpacingMs);
     this.paint(start);

@@ -843,11 +843,18 @@ export class GameEngine {
     // dumping the player somewhere surprising. Re-entering a tile ends the run.
     const visited = new Set<number>([this.player.y * this.COLS + this.player.x]);
     const runPath = [{ x: this.player.x, y: this.player.y }];
+    // Items grabbed mid-run: the engine removes them from `this.items` the instant
+    // the player crosses their tile, but the glide animation hasn't visually
+    // arrived yet. We hand these "ghosts" (tagged with the path index where they
+    // were taken) to the run animation so each stays drawn until the animated
+    // player actually reaches it — picking up an item never looks like it vanished
+    // before you touched it.
+    const ghostItems: { x: number; y: number; symbol: string; color: string; pathIndex: number }[] = [];
     const finishRunPresentation = () => {
       const steps = runPath.length - 1;
       if (steps <= 1) return;
       this.sound.emit({ type: 'movement.run', steps });
-      this.ui.fxPlayerRun(runPath);
+      this.ui.fxPlayerRun(runPath, ghostItems);
     };
 
     for (let step = 0; step < maxSteps; step++) {
@@ -891,7 +898,12 @@ export class GameEngine {
 
       const trapResult = this.triggerTrapAtPlayer();
       if (trapResult.travelled) return;
-      if (!trapResult.teleported) this.checkItems();
+      if (!trapResult.teleported) {
+        const picked = this.checkItems();
+        if (picked) {
+          ghostItems.push({ x: picked.x, y: picked.y, symbol: picked.symbol, color: picked.color, pathIndex: runPath.length - 1 });
+        }
+      }
 
       const currentTile = this.map[this.player.y][this.player.x];
       if (currentTile === TILE.STAIRS_DOWN) {
@@ -1190,11 +1202,11 @@ export class GameEngine {
     this.finalizeRun('won');
   }
 
-  public checkItems() {
+  public checkItems(): Item | undefined {
     const idx = this.items.findIndex(i => i.x === this.player.x && i.y === this.player.y);
     if (idx !== -1) {
       const item = this.items[idx];
-      if (!item) return;
+      if (!item) return undefined;
       let pickedUp = true;
 
       if (item.type === 'gold' && item.amount !== undefined) {
@@ -1283,8 +1295,10 @@ export class GameEngine {
           item.type === 'gear' ? 'gear' :
           item.type === 'wand' ? 'wand' : 'scroll';
         this.sound.emit({ type: 'item.pickup', kind });
+        return item;
       }
     }
+    return undefined;
   }
 
   public usePotion(index: number) {

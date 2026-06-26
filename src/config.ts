@@ -339,7 +339,7 @@ export const CHEST_GOLD_TABLE: Record<number, number> = {
 };
 
 export const MONSTER_DATABASE: MonsterTemplate[] = [
-  { symbol: 'O', name: 'Orc', hp: 24, atk: 7, color: '#556b2f', minFloor: 1 },
+  { symbol: 'O', name: 'Orc', hp: 24, atk: 7, color: '#8f9b2e', minFloor: 1 }, // "puke green" per GM sheet (was dark-olive #556b2f)
   { symbol: 'B', name: 'Brown Bat', hp: 22, atk: 8, color: '#8b4513', minFloor: 1 },
   { symbol: 'S', name: 'Snake', hp: 25, atk: 9, color: '#ff0000', minFloor: 2 },
   { symbol: 'H', name: 'Hobgoblin', hp: 29, atk: 11, color: '#ffff00', minFloor: 3 },
