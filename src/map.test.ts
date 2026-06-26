@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { FINAL_BOSS_ENCOUNTERS, HERO_ENCOUNTERS } from './encounters';
 import { generateLevel, darkRoomChance, mazeRoomChance, collectMazeContentSites } from './map';
 import { makeRng } from './rng';
@@ -8,6 +8,13 @@ import { SCROLLS, isScrollImplemented } from './scrolls';
 import { BALANCE, MONSTER_DATABASE } from './config';
 import type { ScrollType } from './types';
 import { BOARD_SIZES, type BoardConfig } from './boards';
+
+// This file is mostly exhaustive floor×seed generation sweeps — several run
+// 3.5–5s solo and brush the default 5s per-test timeout, tipping over only when
+// they share cores with the rest of the suite (so the flake never reproduced in
+// isolation). The sweeps are deliberately exhaustive to catch rare seeds; give
+// the whole file headroom rather than thinning coverage or chasing each test.
+vi.setConfig({ testTimeout: 30000 });
 
 // Engine dimensions (see Engine.COLS / Engine.ROWS in src/engine.ts).
 const COLS = 46;
