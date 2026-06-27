@@ -4,6 +4,17 @@
   import { balanceReport, curveReport, DEFAULT_BANDS, type Difficulty } from '../../ai/balance';
   import { shapeForTemplate } from '../../ai/archetypes';
   import { simulateRuns } from '../../ai/run';
+  import {
+    buildDevControls,
+    getProcMultiplier,
+    setProcMultiplier,
+    PROC_PRESETS,
+    type DevControl,
+  } from '../devTools';
+
+  // The Dev tab is gated out of production builds, mirroring the DEV-only
+  // `window.rogueProcRate` helper in main.ts.
+  const DEV = import.meta.env.DEV;
 
   // Monte-Carlo trials per monster. 250 is plenty for a stable win-rate and
   // keeps the panel snappy (≈8k short duels).
@@ -12,8 +23,32 @@
   // level-gens + ~80 duels) while giving stable per-floor aggregates.
   const RUN_TRIALS = 150;
 
-  let view = $state<'monsters' | 'run'>('monsters');
+  let view = $state<'monsters' | 'run' | 'dev'>('monsters');
   let includeBosses = $state(false);
+
+  // The dev controls are built once from the (currently config-only) context.
+  // A future engine-backed control would pass { engine, ui } here — see the seam
+  // in devTools.ts. The registry reads persisted state on demand, so we bump a
+  // nonce after each mutation to force the Svelte re-read of isActive()/values.
+  const devControls: DevControl[] = buildDevControls();
+  let devNonce = $state(0);
+  // `void devNonce` makes these getters re-run whenever a control mutates state.
+  const procMultiplier = $derived.by(() => (void devNonce, getProcMultiplier()));
+  function setProc(mult: number) {
+    setProcMultiplier(mult);
+    devNonce++;
+  }
+  function toggleDevControl(c: Extract<DevControl, { kind: 'toggle' }>) {
+    c.setActive(!c.isActive());
+    devNonce++;
+  }
+  function runDevControl(c: Extract<DevControl, { kind: 'action' }>) {
+    c.run();
+    devNonce++;
+  }
+  // Read inside the template (after `void devNonce`) so toggle state is live.
+  const isToggleActive = (c: Extract<DevControl, { kind: 'toggle' }>) =>
+    (void devNonce, c.isActive());
 
   // Recompute only while the panel is open (and when the boss toggle flips), so
   // it always reflects the current tunables/balance constants on reopen.
@@ -59,6 +94,9 @@
     <div class="tabs">
       <button class="tab" class:active={view === 'monsters'} onclick={() => (view = 'monsters')}>Per-monster</button>
       <button class="tab" class:active={view === 'run'} onclick={() => (view = 'run')}>Full run</button>
+      {#if DEV}
+        <button class="tab" class:active={view === 'dev'} onclick={() => (view = 'dev')}>Dev</button>
+      {/if}
     </div>
 
     {#if view === 'monsters' && report}
@@ -213,6 +251,61 @@
         Single-duel pressure only — real runs stack multi-monster, hunger and heroes on top.
       </p>
     {/if}
+
+    {#if DEV && view === 'dev'}
+      <div class="dev-list">
+        {#each devControls as c (c.id)}
+          <div class="dev-row">
+            <div class="dev-meta">
+              <span class="dev-label">{c.label}</span>
+              {#if c.description}<span class="dev-desc">{c.description}</span>{/if}
+            </div>
+            <div class="dev-controls">
+              {#if c.kind === 'toggle'}
+                <button
+                  class="dev-toggle"
+                  class:on={isToggleActive(c)}
+                  role="switch"
+                  aria-checked={isToggleActive(c)}
+                  onclick={() => toggleDevControl(c)}
+                >
+                  {isToggleActive(c) ? 'On' : 'Off'}
+                </button>
+              {:else}
+                <button class="dev-action" onclick={() => runDevControl(c)}>{c.label}</button>
+              {/if}
+            </div>
+          </div>
+        {/each}
+
+        <!-- Quick presets for the proc multiplier — same tunable as the toggle
+             above and as window.rogueProcRate(n). Active state tracks the
+             currently-persisted value. -->
+        <div class="dev-row">
+          <div class="dev-meta">
+            <span class="dev-label">Ability proc multiplier</span>
+            <span class="dev-desc">Current: {procMultiplier}× (1× = sheet proc rates)</span>
+          </div>
+          <div class="dev-controls">
+            {#each PROC_PRESETS as preset (preset)}
+              <button
+                class="dev-preset"
+                class:active={procMultiplier === preset}
+                onclick={() => setProc(preset)}
+              >
+                {preset}×
+              </button>
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      <p class="foot">
+        Dev-only — hidden in production builds. These toggles read/write the live
+        config tunables and take effect immediately (no reload). Add more controls
+        by appending one entry to <code>buildDevControls()</code> in src/ui/devTools.ts.
+      </p>
+    {/if}
   </div>
 </Modal>
 
@@ -362,5 +455,73 @@
     font: 400 var(--fs-micro) var(--font-ui);
     line-height: 1.5;
     color: var(--text-dim);
+  }
+  .foot code {
+    font-family: var(--font-mono, monospace);
+    color: var(--text-muted);
+  }
+
+  /* Dev tab: a generic list of toggle/action/preset controls. */
+  .dev-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dev-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 11px;
+    background: var(--surface-inset);
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-md);
+  }
+  .dev-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .dev-label {
+    font: 600 var(--fs-sm) var(--font-ui);
+    color: var(--text-bright);
+  }
+  .dev-desc {
+    font: 400 var(--fs-micro) var(--font-ui);
+    line-height: 1.45;
+    color: var(--text-dim);
+  }
+  .dev-controls {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+  }
+  .dev-toggle,
+  .dev-action,
+  .dev-preset {
+    appearance: none;
+    cursor: pointer;
+    padding: 5px 12px;
+    background: var(--surface-bar);
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-xs);
+    font: 700 var(--fs-micro) var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .dev-toggle.on,
+  .dev-preset.active {
+    color: var(--text-bright);
+    border-color: var(--accent-strong);
+    background: color-mix(in srgb, var(--accent-strong) 18%, transparent);
+  }
+  .dev-action:hover,
+  .dev-toggle:hover,
+  .dev-preset:hover {
+    color: var(--text-bright);
+    border-color: var(--accent-strong);
   }
 </style>
