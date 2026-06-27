@@ -6,6 +6,8 @@
   import MonsterMention from './MonsterMention.svelte';
   import { monsterArtUrl } from '../monsterArt';
   import { monsterAbilities } from '../../ai/abilityDescriptions';
+  import { monsterDrops } from '../../drops';
+  import { monsterId } from '../../discovery';
 
   let {
     monster,
@@ -24,6 +26,9 @@
   // Abilities the bestiary surfaces for this monster. Data-driven from the
   // resolved behavior, so a newly assigned ability appears with no UI change.
   const abilities = $derived(monster ? monsterAbilities(monster) : []);
+  // Thematic loot this monster can drop on death. Data-driven from MONSTER_DROPS
+  // (keyed by monsterId), mirroring the abilities section — empty when none.
+  const drops = $derived(monster ? monsterDrops(monsterId(monster)) : []);
 
   const lore = $derived(
     monster?.lore ??
@@ -92,6 +97,22 @@
                     <span class="ability-chance">{ability.chance} {ability.trigger}</span>
                   </div>
                   <span class="ability-effect">{ability.effect}</span>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if drops.length > 0}
+          <div class="abilities">
+            <span class="section-label">Drops</span>
+            <ul class="ability-list">
+              {#each drops as drop}
+                <li class="ability">
+                  <div class="ability-head">
+                    <span class="ability-name">{drop.name}</span>
+                    <span class="ability-chance">{drop.chance}</span>
+                  </div>
                 </li>
               {/each}
             </ul>

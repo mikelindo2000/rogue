@@ -1,4 +1,4 @@
-import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
+import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, Rarity, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import type { GamePresenter } from './presentation/presenter';
 import { createMapSnapshot, monsterRenderKey } from './presentation/mapSnapshot';
 import type { PresentationEvent } from './presentation/presentationEvents';
@@ -7,9 +7,11 @@ import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
 import { monsterKillXp, CHEST_GOLD_TABLE, BALANCE, getConfig, getScaledMonsterHP, MONSTER_DATABASE } from './config';
-import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand } from './wands';
-import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
-import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
+import { wandCooldown, wandHungerCost, isSelfTargetWand, isBeamWand, pickWandForFloor } from './wands';
+import { SCROLLS, scrollDisplayName, isScrollImplemented, pickScrollForFloor } from './scrolls';
+import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisuals';
+import { rollLootRarity, generateGearItemInCategory } from './items';
+import { MONSTER_DROPS, type MonsterDrop } from './drops';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { tickPlayerEffects, hasEffect, effectMagnitude } from './effects';
@@ -1292,6 +1294,7 @@ export class GameEngine {
     recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
     this.dropStolenLoot(monster);
     this.dropMonsterGold(monster);
+    this.dropMonsterLoot(monster);
     this.monsters = this.monsters.filter(m => m !== monster);
     if (this.gameWon) this.recordWinTurn();
   }
@@ -2125,6 +2128,74 @@ export class GameEngine {
     if (item.type === 'potion') return `${item.data.potionType} potion`;
     if (item.type === 'gold') return `${item.amount ?? 0} gold`;
     return item.type;
+  }
+
+  /** Thematic, per-monster loot from the data-driven MONSTER_DROPS table. Each
+   *  entry rolls independently against `this.rng`; on success a floor item is
+   *  spawned on the corpse tile. A monster with no table draws NO rng (so
+   *  existing monsters' seeded streams stay byte-for-byte until they get an
+   *  entry). Gear is tier-bounded — the rarity defaults to a depth-appropriate
+   *  rollLootRarity(floor), never exceeding floor loot (the Dragon-King uniques
+   *  pin rarity:'legendary' instead). See drops.ts / monster_drops_plan.md. */
+  private dropMonsterLoot(monster: Monster) {
+    const drops = MONSTER_DROPS[monsterId(monster)];
+    if (!drops) return; // no draw for monsters without a table
+    for (const drop of drops) {
+      if (!this.rng.chance(drop.chance)) continue;
+      const spawn = this.buildDropSpawn(drop);
+      if (!spawn) continue;
+      this.items.push({ ...spawn, x: monster.x, y: monster.y } as Item);
+      const label = drop.name ?? this.stolenLootLabel({ ...spawn } as ItemSpawn);
+      this.addLog(`The ${monster.name} drops ${label}!`);
+    }
+  }
+
+  /** Build the floor-item ItemSpawn for one drop entry at the current floor.
+   *  Reuses the same builders the map uses (generateGearItem / pickScroll /
+   *  pickWand), so a dropped item is indistinguishable from floor loot apart
+   *  from its custom name. Returns null if gear generation fails. */
+  private buildDropSpawn(drop: MonsterDrop): ItemSpawn | null {
+    const floor = this.dungeonFloor;
+    const kind = drop.kind;
+    switch (kind.type) {
+      case 'gear': {
+        const rarity = kind.rarity ?? rollLootRarity(floor, this.rng);
+        // randomArmor → one of the five armor slots; otherwise the named category.
+        const category = kind.category === 'randomArmor' ? this.rng.pick(ARMOR_SLOTS) : kind.category;
+        return this.gearSpawnFor(category, rarity, drop.name);
+      }
+      case 'potion': {
+        const potionType = this.rng.pick(POTION_TYPES);
+        return { type: 'potion', symbol: '!', color: potionVisual(potionType).mapColor, data: { potionType } };
+      }
+      case 'scroll': {
+        const scrollType = pickScrollForFloor(floor, this.rng);
+        return { type: 'scroll', symbol: '?', color: scrollVisual(scrollType).mapColor, data: { scrollType } };
+      }
+      case 'food':
+        return { type: 'food', symbol: '%', color: '#ff9900' };
+      case 'wand': {
+        const wand = pickWandForFloor(floor, this.rng);
+        return { type: 'wand', symbol: '/', color: wandVisual(wand.wandType).mapColor, data: wand };
+      }
+      case 'gold': {
+        const amount = this.rng.range(kind.min, kind.max);
+        return { type: 'gold', amount, symbol: '$', color: '#ffff55' };
+      }
+    }
+  }
+
+  /** Generate a gear item pinned to a specific category + rarity at the current
+   *  floor, applying an optional custom name. generateGearItem rolls a random
+   *  category/template; we re-pick within the requested category's tier-gated
+   *  pool so the dropped piece matches the drop's flavor (a "Talon Dagger" is a
+   *  dagger). The depth/rarity bonuses are applied exactly as floor loot. */
+  private gearSpawnFor(category: string, rarity: Rarity, name?: string): ItemSpawn | null {
+    const gear = generateGearItemInCategory(category, this.dungeonFloor, rarity, this.rng);
+    if (!gear) return null;
+    if (name) gear.name = name;
+    const isWeapon = category.includes('sword') || category.includes('mace') || category === 'dagger' || category === 'staff';
+    return { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear };
   }
 
   /** The base hoard a gold-carrier sits on, by archetype (on top of any gold it

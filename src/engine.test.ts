@@ -2143,3 +2143,91 @@ describe('monster gold drops', () => {
     expect(engine.items.some((i) => i.type === 'gold')).toBe(false);
   });
 });
+
+describe('GameEngine monster loot drops (MONSTER_DROPS)', () => {
+  const makeDropMonster = (id: string, name: string, x = 0, y = 0): Monster => ({
+    x, y, id, symbol: 'X', name, hp: 1, atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+  });
+
+  it('drops a guaranteed monster item on the corpse tile and logs it', () => {
+    const engine = makeBossKiller(20);
+    // Force every chance() true and every rng.pick to the first element so the
+    // legendary gear + armor slot resolve deterministically.
+    setChanceRoll(engine, 0);
+    const king = makeDropMonster('dragon-king', 'Dragon King', 7, 4);
+    king.special = 'boss';
+    engine.monsters = [king];
+
+    engine.playerAttack(king);
+
+    const gear = engine.items.filter((i) => i.type === 'gear');
+    // dragon-king drops TWO guaranteed (1.0) legendary pieces.
+    expect(gear).toHaveLength(2);
+    for (const g of gear) {
+      expect(g.x).toBe(7);
+      expect(g.y).toBe(4);
+      if (g.type === 'gear') expect(g.data.rarity).toBe('legendary');
+    }
+    const names = gear.flatMap((g) => (g.type === 'gear' ? [g.data.name] : []));
+    expect(names).toContain("Dragonslayer's Tenacity");
+    expect(names).toContain("King Ellowyn's Cutlass");
+    const log = engine.logs.join('\n');
+    expect(log).toContain("Dragon King drops Dragonslayer's Tenacity!");
+    expect(log).toContain("Dragon King drops King Ellowyn's Cutlass!");
+  });
+
+  it('drops nothing when the chance roll fails', () => {
+    const engine = makeBossKiller(5);
+    setChanceRoll(engine, 0.99); // chance(0.12)/chance(0.25) both fail
+    const orc = makeDropMonster('orc', 'Orc', 6, 3);
+    engine.monsters = [orc];
+
+    engine.playerAttack(orc);
+
+    expect(engine.items.some((i) => i.type === 'gear')).toBe(false);
+  });
+
+  it('draws no loot for a SKIP monster (Cyclops) — no item, no log', () => {
+    const engine = makeBossKiller(5);
+    setChanceRoll(engine, 0); // would proc any table, but Cyclops has none
+    const cyclops = makeDropMonster('cyclops', 'Cyclops', 6, 3);
+    engine.monsters = [cyclops];
+
+    engine.playerAttack(cyclops);
+
+    expect(engine.items.some((i) => i.type === 'gear')).toBe(false);
+    expect(engine.logs.join('\n')).not.toContain('Cyclops drops');
+  });
+
+  it('spawns a custom-named gear piece of the right category for a gear drop', () => {
+    const engine = makeBossKiller(8);
+    setChanceRoll(engine, 0);
+    const orc = makeDropMonster('orc', 'Orc', 5, 5);
+    engine.monsters = [orc];
+
+    engine.playerAttack(orc);
+
+    const gear = engine.items.find((i) => i.type === 'gear');
+    expect(gear?.type).toBe('gear');
+    if (gear?.type === 'gear') {
+      expect(gear.data.name).toBe('Giant Thighbone');
+      expect(gear.data.category).toBe('2h_mace');
+      expect(gear.x).toBe(5);
+      expect(gear.y).toBe(5);
+    }
+  });
+
+  it('spawns gold within the drop range for a gold-drop entry', () => {
+    const engine = makeBossKiller(10);
+    setChanceRoll(engine, 0); // chance true; range() → min
+    const cyclops = makeDropMonster('colossal-cyclops', 'Colossal Cyclops', 4, 4);
+    engine.monsters = [cyclops];
+
+    engine.playerAttack(cyclops);
+
+    const gold = engine.items.find((i) => i.type === 'gold' && i.amount === 150);
+    expect(gold).toBeDefined();
+    expect(gold?.x).toBe(4);
+    expect(gold?.y).toBe(4);
+  });
+});

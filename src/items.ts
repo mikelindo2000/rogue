@@ -23,6 +23,24 @@ export function rollLootRarity(floor: number, rng: RNG): Rarity {
 export function generateGearItem(floor: number, rarity: Rarity, rng: RNG): FloorGear | null {
   const categories = Object.keys(GEAR_POOL);
   const cat = rng.pick(categories);
+  return buildGearInCategory(cat, floor, rarity, rng);
+}
+
+/** Generate gear in a SPECIFIC category (e.g. a monster drop that must be a
+ *  dagger). Same tier-gating + depth/rarity scaling as `generateGearItem`, but
+ *  the category is fixed by the caller rather than rolled. Draws one rng.pick
+ *  (the template within the category's eligible tier), mirroring
+ *  generateGearItem's per-call draw count. */
+export function generateGearItemInCategory(
+  category: string,
+  floor: number,
+  rarity: Rarity,
+  rng: RNG,
+): FloorGear | null {
+  return buildGearInCategory(category, floor, rarity, rng);
+}
+
+function buildGearInCategory(cat: string, floor: number, rarity: Rarity, rng: RNG): FloorGear | null {
   const pool = GEAR_POOL[cat];
   if (!pool || pool.length === 0) return null;
 
