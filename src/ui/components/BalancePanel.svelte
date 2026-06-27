@@ -58,11 +58,33 @@
     return { rows: balanceReport(opts), curve: curveReport(opts) };
   });
 
-  // Full-run report — only computed while its tab is showing (it's the heavier
-  // pass), so the per-monster view stays instant.
-  const run = $derived.by(() => {
-    if (!ui.balancePanelOpen || view !== 'run') return null;
-    return simulateRuns(RUN_TRIALS);
+  // Full-run report — the heavier pass. Computed ASYNCHRONOUSLY so switching to
+  // the tab is instant: the effect below tracks the same inputs as the old
+  // `$derived` (panel open + active tab), but defers the synchronous sim off the
+  // render path via a macrotask. A generation token discards results from a
+  // superseded request, so switching away mid-compute can't flash a stale value.
+  let run = $state<ReturnType<typeof simulateRuns> | null>(null);
+  let runGen = 0;
+
+  $effect(() => {
+    // Mirror the previous `$derived` dependencies.
+    const active = ui.balancePanelOpen && view === 'run';
+    if (!active) {
+      // Leaving the tab (or closing the panel): invalidate any in-flight compute
+      // and clear state so re-entering shows the loading state, not a stale run.
+      runGen++;
+      run = null;
+      return;
+    }
+    // Already have a result for this activation — don't recompute redundantly.
+    if (run) return;
+
+    const gen = ++runGen;
+    const handle = setTimeout(() => {
+      if (gen !== runGen) return; // superseded — drop the result
+      run = simulateRuns(RUN_TRIALS);
+    }, 0);
+    return () => clearTimeout(handle);
   });
 
   const deltaPct = (measured: number, assumed: number) => {
@@ -99,6 +121,7 @@
       {/if}
     </div>
 
+    <div class="tab-content">
     {#if view === 'monsters' && report}
       <div class="summary">
         <div class="chip">
@@ -165,6 +188,10 @@
         first appears. Win% / TTK are {TRIALS} seeded Monte-Carlo duels. The reference player curve
         is calibrated to the Full-run sim — re-run it when loot/XP change.
       </p>
+    {/if}
+
+    {#if view === 'run' && !run}
+      <div class="loading">Computing full-run simulation…</div>
     {/if}
 
     {#if view === 'run' && run}
@@ -306,6 +333,7 @@
         by appending one entry to <code>buildDevControls()</code> in src/ui/devTools.ts.
       </p>
     {/if}
+    </div>
   </div>
 </Modal>
 
@@ -316,12 +344,29 @@
     gap: 12px;
     padding: 16px 18px;
     width: min(92vw, 760px);
+    /* Fixed footprint so switching tabs never resizes the panel. The content
+       region (below) scrolls internally when a tab overflows this height. The
+       min/height pair keeps short tabs (Dev) the same size as tall ones. */
+    height: min(72vh, 620px);
+    min-height: min(72vh, 620px);
   }
 
   .tabs {
+    flex-shrink: 0;
     display: flex;
     gap: 4px;
     border-bottom: 1px solid var(--border);
+  }
+
+  /* The only scrolling region: tabs (and footers) stay pinned, this fills the
+     remaining fixed height and scrolls when content exceeds it. */
+  .tab-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
   .tab {
     appearance: none;
@@ -339,6 +384,15 @@
   .tab.active {
     color: var(--text-bright);
     border-bottom-color: var(--accent-strong);
+  }
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 160px;
+    color: var(--text-dim);
+    font: 600 var(--fs-sm) var(--font-ui);
   }
   .sec {
     margin: 6px 0 -2px;
@@ -523,5 +577,16 @@
   .dev-preset:hover {
     color: var(--text-bright);
     border-color: var(--accent-strong);
+  }
+
+  /* On mobile the Modal goes full-height and makes its content flex-fill, so
+     let the body stretch to that area (still scrolling internally via
+     .tab-content) rather than sitting as a short fixed-height island. */
+  @media (max-width: 680px) {
+    .balance-body {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
   }
 </style>
