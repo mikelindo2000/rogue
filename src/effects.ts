@@ -95,6 +95,14 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`The ${effect.source}'s ${flavor} (-${effect.magnitude}${remainingSuffix(effect.turns)}).`);
     }
 
+    // Stun has no HP consequence — it's honored at its read site (the player
+    // turn gate skips an action while it's active). The tick still logs a
+    // countdown so the lost turn is visible in the log, like the DoT. Suppressed
+    // on the expiring tick (turns <= 0) — the expiry line below covers that.
+    if (effect.kind === 'stun' && !expired) {
+      logs.push(`You are frozen in fear${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -117,6 +125,9 @@ function expiryLine(effect: ActiveEffect): string {
   if (effect.kind === 'dot') {
     const type = effect.damageType ?? 'poison';
     return `The ${type} works its way out of your system.`;
+  }
+  if (effect.kind === 'stun') {
+    return 'You shake off your fear.';
   }
   return `The ${effect.kind} wears off.`;
 }

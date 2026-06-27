@@ -274,7 +274,18 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Only the DoT portion is modeled here; the +25 instant is a bonusDamage effect
   // (its own category/task), not a status effect. Keyed to base Cyclops so the
   // Colossal Cyclops (same 'brute' archetype, different sheet abilities) is unaffected.
-  'cyclops': [{ id: 'poison', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' }],
+  // Cyclops also carries Intimidating Stare (A1, 3%): "causes player to cower in
+  // fear for one turn" — a 1-turn stun (the player loses their next action).
+  // Both rows are keyed to base Cyclops so the Colossal Cyclops (same 'brute'
+  // archetype, different sheet abilities) is unaffected.
+  'cyclops': [
+    { id: 'poison', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
+    { id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
+  // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the
+  // stun read site (engine takeStunTurn) makes it cost the player an action.
+  'xelhua': [{ id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
   // Dragon — Molten Breath (A1, 3%): "+10 fire damage per turn until the fight is
   // over". We have no "until combat ends" duration yet, so this is approximated as
   // a sustained 5-turn fire DoT (flagged for a follow-up duration mode). Magnitude

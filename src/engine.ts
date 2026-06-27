@@ -446,6 +446,7 @@ export class GameEngine {
   public handlePlayerMove(dx: number, dy: number) {
     if (this.gameOver || this.gameWon) return;
     if (this.takeSleepTurn()) return;
+    if (this.takeStunTurn()) return;
 
     const tx = this.player.x + dx;
     const ty = this.player.y + dy;
@@ -509,6 +510,7 @@ export class GameEngine {
   public search(): boolean {
     if (this.gameOver || this.gameWon) return false;
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
 
     recordSearch(this.stats);
     const trapSearch = this.tryRevealNearbyTrap(BALANCE.map.traps.revealChance);
@@ -768,6 +770,28 @@ export class GameEngine {
     return true;
   }
 
+  /**
+   * The stun read site (Cyclops "Intimidating Stare", Xelhua "Stomp"): a stunned
+   * player loses their action this turn. Mirrors `takeSleepTurn` — consume the
+   * input, advance the world via `processTurn`, return true so the caller bails
+   * before doing anything. Coexists additively with `sleepTurns` (checked just
+   * after it at each entry point); neither migrates the other.
+   *
+   * Timing: unlike `sleepTurns` (a TrapEffects counter ticked HERE), the stun
+   * lives in `player.activeEffects`, whose duration is owned by
+   * `tickPlayerEffects` inside `processTurn`. So this gate must NOT decrement the
+   * stun itself — doing so would double-decrement it (once here, once in the
+   * tick). It only reads `hasEffect` and lets the tick count it down + log the
+   * countdown/expiry. A duration-1 stun therefore costs exactly one action: this
+   * gate fires once, the tick drops it to 0, and the next input is free.
+   */
+  private takeStunTurn(): boolean {
+    if (!hasEffect(this.player, 'stun')) return false;
+    this.addLog("You cower in fear, unable to act.");
+    this.processTurn();
+    return true;
+  }
+
   private hasAnyTrapdoorInRun(): boolean {
     if (this.traps.some(trap => trap.kind === 'trapdoor')) return true;
     for (const state of this.floorStates.values()) {
@@ -825,6 +849,7 @@ export class GameEngine {
   public handlePlayerRun(dx: number, dy: number) {
     if (this.gameOver || this.gameWon || (dx === 0 && dy === 0)) return;
     if (this.takeSleepTurn()) return;
+    if (this.takeStunTurn()) return;
     if (this.trapEffects.bearTrapTurns > 0) {
       this.addLog("The bear trap holds you fast.");
       this.trapEffects.bearTrapTurns--;
@@ -1304,6 +1329,7 @@ export class GameEngine {
 
   public usePotion(index: number) {
     if (this.takeSleepTurn()) return;
+    if (this.takeStunTurn()) return;
     if (index < 0 || index >= this.player.inventory.potions.length) return;
     const pType = this.player.inventory.potions[index];
 
@@ -1353,6 +1379,7 @@ export class GameEngine {
    */
   public useScroll(index: number) {
     if (this.takeSleepTurn()) return;
+    if (this.takeStunTurn()) return;
     const scrolls = this.player.inventory.scrolls;
     if (index < 0 || index >= scrolls.length) return;
     const type = scrolls[index];
@@ -1675,6 +1702,7 @@ export class GameEngine {
    *  lands) calls readScrollRef for a deliberate, type-specific read. */
   public readScroll(): boolean {
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     if (this.player.inventory.scrolls.length === 0) {
       this.addLog("You have no scrolls to read.");
       return false;
@@ -1747,6 +1775,7 @@ export class GameEngine {
   public zapWand(index: number, dx: number, dy: number): boolean {
     if (this.gameOver || this.gameWon) return false;
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     const wand = this.player.inventory.wands[index];
     if (!wand) return false;
     if ((wand.cooldownRemaining ?? 0) > 0) {
@@ -2082,6 +2111,7 @@ export class GameEngine {
 
   public consumeFood(): boolean {
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     if (this.player.inventory.food > 0) {
       this.player.inventory.food--;
       if (this.player.undeadFoods > 0) {
@@ -2105,6 +2135,7 @@ export class GameEngine {
 
   public equipGear(slot: EquipSlot, value: string) {
     if (this.takeSleepTurn()) return;
+    if (this.takeStunTurn()) return;
     const before = snapshotEquipped(this.player);
     const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, ok);
@@ -2126,6 +2157,7 @@ export class GameEngine {
 
   public equipInventoryItem(ref: InventoryRef): boolean {
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     if (ref.kind === 'food' || ref.kind === 'potion' || ref.kind === 'scroll') {
       this.addLog("That item cannot be equipped.");
       this.ui.updateDropdowns(this.player);
@@ -2153,6 +2185,7 @@ export class GameEngine {
 
   public useInventoryItem(ref: InventoryRef): boolean {
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     if (ref.kind === 'food') {
       return this.consumeFood();
     }
@@ -2172,6 +2205,7 @@ export class GameEngine {
     // shared takeSleepTurn below to avoid double-ticking a sleep turn.
     if (action === 'drop') return this.dropInventoryRef(ref);
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
     if (action === 'equip') return this.equipInventoryItem(ref);
     if (action === 'equipOffHand' && ref.kind === 'weapon') {
       const before = snapshotEquipped(this.player);
@@ -2196,6 +2230,7 @@ export class GameEngine {
   public dropInventoryRef(ref: InventoryRef): boolean {
     if (this.gameOver || this.gameWon || this.aiming) return false;
     if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
 
     const px = this.player.x;
     const py = this.player.y;

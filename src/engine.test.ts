@@ -405,6 +405,60 @@ describe('GameEngine terminal run summaries', () => {
 
 });
 
+describe('GameEngine stun read site', () => {
+  // The spine/ability tests prove the stun applies + ticks; only the engine can
+  // prove the turn GATE honors it (a stunned player loses their action). A
+  // duration-1 stun should cost exactly one input: the move is swallowed, the
+  // world advances, the stun ticks off, and the next move lands normally.
+  it('a stunned player loses their next action, then recovers', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 1, 6); // a clear corridor to walk along
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.hp = 50;
+    engine.player.hunger = 200; // no starvation interference
+    engine.player.activeEffects = [{ kind: 'stun', turns: 1, magnitude: 1, source: 'Cyclops' }];
+
+    const turnBefore = engine.turn;
+
+    // First input while stunned: it's swallowed by the gate. The player does NOT
+    // move, but the turn still advances and the stun ticks away.
+    engine.handlePlayerMove(1, 0);
+    expect(engine.player.x).toBe(2); // did not move — action consumed
+    expect(engine.turn).toBe(turnBefore + 1); // but a turn was spent
+    expect(hasStun(engine)).toBe(false); // stun ticked off (single decrement)
+    expect(engine.logs.join(' ')).toMatch(/cower in fear, unable to act/);
+
+    // Next input: no longer stunned, the move lands.
+    engine.handlePlayerMove(1, 0);
+    expect(engine.player.x).toBe(3);
+  });
+
+  it('a 2-turn stun costs two actions before the player can move', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 1, 6);
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.hp = 50;
+    engine.player.hunger = 200;
+    engine.player.activeEffects = [{ kind: 'stun', turns: 2, magnitude: 1, source: 'Xelhua' }];
+
+    engine.handlePlayerMove(1, 0); // turns 2 -> 1, still stunned
+    expect(engine.player.x).toBe(2);
+    expect(hasStun(engine)).toBe(true);
+
+    engine.handlePlayerMove(1, 0); // turns 1 -> 0, stun clears
+    expect(engine.player.x).toBe(2);
+    expect(hasStun(engine)).toBe(false);
+
+    engine.handlePlayerMove(1, 0); // free at last
+    expect(engine.player.x).toBe(3);
+  });
+});
+
+const hasStun = (engine: GameEngine) =>
+  engine.player.activeEffects.some((e) => e.kind === 'stun');
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();

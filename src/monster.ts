@@ -287,6 +287,21 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} pukes ${ab.damageType ?? 'poison'} on you!`);
       return true;
     }
+    case 'stun': {
+      // Inflict a stun: the player loses their next action(s) (honored at the
+      // player turn gate in engine.ts — takeStunTurn). Like the poison case this
+      // body draws nothing from `rng`; the only roll is the per-ability chance
+      // gate in applyOnHitAbilities, so seeded parity is preserved.
+      // Re-applying refreshes the duration (applyEffect's stacking policy).
+      applyEffect(player, {
+        kind: 'stun',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+      });
+      logs.push(`${m.name} makes you cower in fear!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —

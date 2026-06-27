@@ -81,6 +81,49 @@ describe('effects spine', () => {
     expect(p.activeEffects[0].turns).toBe(2);
   });
 
+  it('applies a stun, logs a countdown tick, and expires after its duration (no HP cost)', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'stun', turns: 1, magnitude: 1, source: 'Cyclops' });
+
+    expect(hasEffect(p, 'stun')).toBe(true);
+
+    // A duration-1 stun: one tick drops it to 0, expiring it. No HP consequence —
+    // it's a passive read honored at the engine's turn gate, not a DoT.
+    const t = tickPlayerEffects(p);
+    expect(t.damage).toBe(0);
+    expect(p.hp).toBe(20);
+    expect(hasEffect(p, 'stun')).toBe(false);
+    expect(p.activeEffects).toHaveLength(0);
+    // The expiring tick logs only the expiry line (no countdown suffix on the
+    // turn it drops).
+    expect(t.logs.join(' ')).toMatch(/You shake off your fear/);
+    expect(t.logs.join(' ')).not.toMatch(/frozen in fear/);
+  });
+
+  it('a multi-turn stun logs a live countdown each turn it persists', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'stun', turns: 2, magnitude: 1, source: 'Xelhua' });
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1, still active
+    expect(hasEffect(p, 'stun')).toBe(true);
+    expect(t1.logs.join(' ')).toMatch(/You are frozen in fear, 1 turn left/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expires
+    expect(hasEffect(p, 'stun')).toBe(false);
+    expect(t2.logs.join(' ')).toMatch(/You shake off your fear/);
+  });
+
+  it('refreshes a stun on re-apply instead of stacking', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'stun', turns: 1, magnitude: 1, source: 'Cyclops' });
+    tickPlayerEffects(p); // would expire, but...
+    // Re-stunned before acting: a fresh 1-turn stun, still a single instance.
+    applyEffect(p, { kind: 'stun', turns: 1, magnitude: 1, source: 'Xelhua' });
+    expect(p.activeEffects).toHaveLength(1);
+    expect(p.activeEffects[0].turns).toBe(1);
+    expect(p.activeEffects[0].source).toBe('Xelhua');
+  });
+
   it('a DoT can kill: HP is driven to 0 or below for the engine death path to catch', () => {
     const p = player({ hp: 2 });
     applyEffect(p, { kind: 'dot', turns: 5, magnitude: 1, source: 'Brown Bat', damageType: 'poison' });
