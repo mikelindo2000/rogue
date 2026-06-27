@@ -39,6 +39,10 @@ and don't collide:
 - **[Visual Effect Layers](visual_effect_layers_plan.md)** — generalizes the
   existing hunger/low-HP HUD wash into layered chrome and stage effects, including
   the first green-fog floor atmosphere.
+- **[Game UI Split](game_ui_split_plan.md)** — splits the concrete `GameUI`
+  god object into engine-facing presentation contracts, Svelte chrome projection,
+  typed presentation events, and a renderer boundary while keeping the current
+  canvas map as the only implemented presentation.
 
 ## Cross-cutting concerns (read before implementing any one of them)
 
