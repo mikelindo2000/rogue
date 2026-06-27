@@ -39,13 +39,16 @@ taxonomy in the framework plan). Two questions decide your work:
 1. `src/types.ts` — add the kind to the `EffectKind` union. Add any kind-specific field to
    `ActiveEffect` only if needed (e.g. `dot` reuses `magnitude` as dmg/turn; a debuff reuses
    `magnitude` as the reduction).
-2. `src/effects.ts` — the per-turn consequence:
-   - **DoT-like** (deals damage on tick): add a branch in `tickPlayerEffects` (mirror `dot`).
-   - **Passive read** (stun/debuff/miss): NO tick consequence — it's read at its site. Add a
-     read helper if `hasEffect` / `effectMagnitude` aren't enough.
-   - **Always log the countdown** in the tick (see `remainingSuffix`) so the effect is visible
-     in the message log — this is required, it's how testers and players see it working.
-3. **Wire the read site** (where the effect is honored). Known sites:
+2. `src/effects.ts` — the per-turn consequence in `tickPlayerEffects`:
+   - **DoT-like** (deals damage on tick): add a branch that subtracts HP (mirror `dot`).
+   - **Passive read** (stun/debuff/miss): NO HP/state consequence in the tick — it's honored at
+     its read site (step 3). BUT still add a **log-only** branch, gated on `!expired`, so the
+     effect is visible each turn it persists. There is no automatic countdown: the tick only
+     logs for kinds with an explicit branch. A kind with no branch produces no per-turn line.
+   - **Add a kind-specific `expiryLine`.** The generic fallback is `"The <kind> wears off."`
+     (reads as literally "The stun wears off") — add a flavored case for your kind.
+   - Use `remainingSuffix(effect.turns)` for the "N turns left" countdown in your log line.
+3. **Wire the read site** (where a passive effect is honored). Known sites:
    - stun → player turn/input gate (coexists with `TrapEffects.sleepTurns`).
    - fear → randomize player movement intent (coexists with `TrapEffects.confusedTurns`).
    - armorDebuff → reduce `totalDef` before `computeMonsterDamage`.
@@ -53,6 +56,21 @@ taxonomy in the framework plan). Two questions decide your work:
      `combat.ts` pure — pass resolved numbers in from the engine).
    - missChance → roll before `computeStrike` (player attacks never miss today).
    - silenceMagic → staff/wand use gate.
+
+   **⚠️ The two traps when wiring a turn-skipping gate (stun-like), learned the hard way:**
+   - **Do NOT decrement the effect's duration in the gate.** `tickPlayerEffects` (called every
+     `processTurn`) already owns the countdown. The `sleepTurns` precedent IS misleading here:
+     `takeSleepTurn` decrements `sleepTurns` itself because it's a `TrapEffects` *counter*, not
+     an `ActiveEffect`. A new `ActiveEffect`-backed gate must be **read-only** — check
+     `hasEffect`, log, call `this.processTurn()`, return true. Decrementing here double-ticks
+     it (once in the gate, once in the tick) and the effect expires a turn early. The spine
+     test can't catch this — only an engine test can (see step D.9).
+   - **The player-action gate is not one site.** `takeSleepTurn()` is called at ~13 input
+     entry points (move, search, equip, use, drop, zap, run, …). Add your gate (e.g.
+     `if (this.takeStunTurn()) return;`) at **every** `takeSleepTurn()` call site, or the
+     player escapes the effect by, say, opening their inventory. Mirror `takeSleepTurn`'s
+     structure for a new `takeXxxTurn()` helper, minus the decrement.
+
    Do NOT migrate or delete `TrapEffects` fields — read both additively for now (tracked
    cleanup: td-568d3b).
 
@@ -84,6 +102,8 @@ taxonomy in the framework plan). Two questions decide your work:
      Graveyard Grab).
    - The `AbilityId` is the **dispatch** id (e.g. all DoTs use `'poison'`); the *flavor*
      (poison/fire/acid/bacterial) rides on `damageType`. Don't add a new `AbilityId` per flavor.
+   - **A monster may already have a `MONSTER_ABILITIES` row** (e.g. Cyclops has Munch). The
+     value is an array — **append** your `AbilitySpec` to it, don't replace the row.
 
 ## D. Tests (every ability) — mirror the existing patterns
 
@@ -93,8 +113,14 @@ taxonomy in the framework plan). Two questions decide your work:
    - force the proc with a stubbed RNG (`chance: 1`) and assert the effect applied + ticked;
    - a `chance: 0` case asserting **no proc leaves the player untouched** (parity);
    - if relevant, a harness-reading test asserting balance-neutrality.
-9. If a death path is involved, add an engine-level test in `src/engine.test.ts` (see the
-   poison DoT-death tests) — `effects.test.ts` can't prove the engine routes the death.
+   - The RNG stub copied from `bat.test.ts` must annotate `range: (min: number) => min` — an
+     un-annotated param trips svelte-check's implicit-any (vitest alone won't catch it, but
+     `npm run check` runs svelte-check first).
+9. A read site or death path is involved → add an **engine-level** test in `src/engine.test.ts`
+   — `effects.test.ts` can't prove the engine honors the effect. For a turn-skipping gate,
+   assert a duration-1 effect costs exactly one action then recovers, and a duration-2 costs
+   two (this is what catches the double-decrement trap from step 3). For a death path, see the
+   poison DoT-death tests.
 
 ## E. Verify & commit
 
