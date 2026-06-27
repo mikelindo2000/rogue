@@ -93,23 +93,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const recordsBefore = computeRecords(historyWithoutCurrent);
     const comparison = compareRunToRecords(summary, recordsBefore);
     const updatedHistory = upsertRunSummary(summary);
-    ui.endRunSummary = summary;
-    ui.endRunComparison = comparison;
-    ui.endRunHistory = updatedHistory.runs;
-    ui.endRunRecords = computeRecords(updatedHistory);
+    presenter.publishEndRunState({
+      summary,
+      comparison,
+      history: updatedHistory.runs,
+      records: computeRecords(updatedHistory),
+    });
   };
 
   const openEndRunSummary = (summary: RunSummaryV1) => {
     publishEndRunSummary(summary);
     const animateDeath = presentationAnimationsEnabled && summary.outcome === 'died';
     if (!animateDeath) {
-      ui.endRunTransitionActive = false;
-      ui.endRunPresentationReady = true;
+      presenter.publishEndRunState({ transitionActive: false, presentationReady: true });
       return;
     }
 
-    ui.endRunPresentationReady = false;
-    ui.endRunTransitionActive = true;
+    presenter.publishEndRunState({ presentationReady: false, transitionActive: true });
     ui_.beginDeathTransition({
       outcome: summary.outcome,
       runId: summary.runId,
@@ -118,8 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
       killedByMonsterId: summary.killedByMonsterId,
     }).finally(() => {
       if (ui.endRunSummary?.runId !== summary.runId || !engine.gameOver || engine.gameWon) return;
-      ui.endRunTransitionActive = false;
-      ui.endRunPresentationReady = true;
+      presenter.publishEndRunState({ transitionActive: false, presentationReady: true });
     });
   };
 
@@ -235,11 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
   actions.restart = () => {
     if ((engine.gameOver || engine.gameWon) && !ui.endRunTransitionActive) {
       suppressedEndedRunId = null;
-      ui.endRunSummary = null;
-      ui.endRunComparison = null;
-      ui.endRunCopyStatus = '';
-      ui.endRunPresentationReady = true;
-      ui.endRunTransitionActive = false;
+      presenter.resetEndRunState();
       ui_.resetDeathTransition();
       // Pick up any board-size change made since this run started.
       engine.setBoardSize(ui.boardSize);
@@ -252,11 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // the SettingsModal gates it behind an explicit confirm.
   actions.startNewGame = () => {
     suppressedEndedRunId = null;
-    ui.endRunSummary = null;
-    ui.endRunComparison = null;
-    ui.endRunCopyStatus = '';
-    ui.endRunPresentationReady = true;
-    ui.endRunTransitionActive = false;
+    presenter.resetEndRunState();
     ui_.resetDeathTransition();
     ui.settingsOpen = false;
     engine.setBoardSize(ui.boardSize);
@@ -357,26 +348,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ui.endRunSummary) return;
     const text = buildCopySummary(ui.endRunSummary, ui.endRunComparison);
     if (!navigator.clipboard?.writeText) {
-      ui.endRunCopyStatus = 'Clipboard unavailable';
+      presenter.publishEndRunState({ copyStatus: 'Clipboard unavailable' });
       return;
     }
     navigator.clipboard.writeText(text)
       .then(() => {
-        ui.endRunCopyStatus = 'Copied summary';
+        presenter.publishEndRunState({ copyStatus: 'Copied summary' });
       })
       .catch(() => {
-        ui.endRunCopyStatus = 'Copy failed';
+        presenter.publishEndRunState({ copyStatus: 'Copy failed' });
       });
   };
   actions.clearRunHistory = () => {
     suppressedEndedRunId = ui.endRunSummary?.runId ?? null;
     clearRunHistory();
     clearSaveGame();
-    ui.endRunHistory = [];
-    ui.endRunRecords = computeRecords({ runs: [] });
-    ui.endRunComparison = ui.endRunSummary
-      ? compareRunToRecords(ui.endRunSummary, ui.endRunRecords)
-      : null;
+    const emptyRecords = computeRecords({ runs: [] });
+    presenter.publishEndRunState({
+      history: [],
+      records: emptyRecords,
+      comparison: ui.endRunSummary
+        ? compareRunToRecords(ui.endRunSummary, emptyRecords)
+        : null,
+    });
   };
   actions.selectInventoryItem = (ref) => {
     ui.selectedInventoryRef = ref;

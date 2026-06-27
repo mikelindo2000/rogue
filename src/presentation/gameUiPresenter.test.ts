@@ -45,4 +45,19 @@ describe('GameUiPresenterAdapter presentation mode', () => {
     expect(ui.presentationMode).toEqual({ type: 'dungeon-map' });
     expect(legacyUi.publishMapEvent).toHaveBeenCalledTimes(2);
   });
+
+  it('routes aiming changes to chrome and still forwards the map event', () => {
+    const legacyUi = {
+      publishMapEvent: vi.fn(),
+      setAiming: vi.fn(),
+    } as unknown as GameUI;
+    const presenter = new GameUiPresenterAdapter(legacyUi);
+
+    presenter.publishEvent({ type: 'aiming.changed', wandName: 'Wand of Cold' });
+    presenter.publishEvent({ type: 'aiming.changed', wandName: null });
+
+    expect(legacyUi.setAiming).toHaveBeenNthCalledWith(1, { wandName: 'Wand of Cold' });
+    expect(legacyUi.setAiming).toHaveBeenNthCalledWith(2, null);
+    expect(legacyUi.publishMapEvent).toHaveBeenCalledTimes(2);
+  });
 });

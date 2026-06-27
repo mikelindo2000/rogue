@@ -95,6 +95,7 @@ export class GameUiPresenterAdapter implements GamePresenter {
         this.fxPlayerRun(event.path, event.ghosts);
         break;
       case 'aiming.changed':
+        this.setAiming(event.wandName ? { wandName: event.wandName } : null);
         this.ui.publishMapEvent(event);
         break;
       case 'combat.monsterDodge':
@@ -179,6 +180,14 @@ export class GameUiPresenterAdapter implements GamePresenter {
 
   public setAiming(...args: Parameters<GameUI['setAiming']>): void {
     this.ui.setAiming(...args);
+  }
+
+  public publishEndRunState(...args: Parameters<GameUI['publishEndRunState']>): void {
+    this.ui.publishEndRunState(...args);
+  }
+
+  public resetEndRunState(): void {
+    this.ui.resetEndRunState();
   }
 
   public focusCombatMonster(monsterKey: string): void {
