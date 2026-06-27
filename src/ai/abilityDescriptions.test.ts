@@ -65,6 +65,28 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('your magic is sealed for 3 turns');
   });
 
+  it('describes selfBuff as a percent damage buff for a duration (Second Head)', () => {
+    const sb: AbilitySpec = { id: 'selfBuff', label: 'Second Head', chance: 0.01, buffMagnitude: 0.5, duration: 2, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(sb);
+    expect(d.name).toBe('Second Head');
+    expect(d.chance).toBe('1%');
+    expect(d.effect).toBe('gains +50% damage for 2 turns');
+  });
+
+  it('describes extraHits as a hit range with a per-hit bonus (Furious Fangs)', () => {
+    const eh: AbilitySpec = { id: 'extraHits', label: 'Furious Fangs', chance: 0.01, minHits: 2, maxHits: 5, perHitBonus: 5, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(eh);
+    expect(d.name).toBe('Furious Fangs');
+    expect(d.effect).toBe('2-5 extra hits, each +5 damage');
+  });
+
+  it('describes a single-hit extraHits without a bonus (Laser Focus)', () => {
+    const eh: AbilitySpec = { id: 'extraHits', label: 'Laser Focus', chance: 0.03, minHits: 1, maxHits: 1, perHitBonus: 0, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(eh);
+    expect(d.name).toBe('Laser Focus');
+    expect(d.effect).toBe('1 extra hit');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

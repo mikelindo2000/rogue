@@ -270,6 +270,15 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   'snake': [{ id: 'poison', label: 'Venomous Fangs', chance: 0.03, magnitude: 2, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
   // King Cobra — Venom Spit: +5 poison/turn for 3 turns, 3% on hit.
   'king-cobra': [{ id: 'poison', label: 'Venom Spit', chance: 0.03, magnitude: 5, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  // Kalius King Cobra — category K (monster self-buff / multi-hit):
+  //  • Second Head (A1, 1%): grows a second head, +50% monster damage for 2 turns
+  //    (a runtime self-buff via the fireAbility path).
+  //  • Furious Fangs (A2, 1%): 2-5 bites, each base damage + 5 (resolved in the
+  //    ATTACK path because it needs totalDef + computeMonsterDamage).
+  'kalius-king-cobra': [
+    { id: 'selfBuff', label: 'Second Head', chance: 0.01, buffMagnitude: 0.5, duration: 2, cooldown: 0, trigger: 'onHit' },
+    { id: 'extraHits', label: 'Furious Fangs', chance: 0.01, minHits: 2, maxHits: 5, perHitBonus: 5, cooldown: 0, trigger: 'onHit' },
+  ],
   // Cyclops — Munch (A2, 1%): "25 damage plus 5 bacterial damage for 3 turns".
   // Only the DoT portion is modeled here; the +25 instant is a bonusDamage effect
   // (its own category/task), not a status effect. Keyed to base Cyclops so the
@@ -281,6 +290,12 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   'cyclops': [
     { id: 'poison', label: 'Munch', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', bonusDamage: 25, cooldown: 0, trigger: 'onHit' },
     { id: 'stun', label: 'Intimidating Stare', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Colossal Cyclops — Laser Focus (A1, 3%): one extra full attack (category K
+  // extra-attack). Same extraHits mechanism with minHits=maxHits=1 and no per-hit
+  // bonus. Keyed per-id so the base Cyclops (shared 'brute' archetype) is unaffected.
+  'colossal-cyclops': [
+    { id: 'extraHits', label: 'Laser Focus', chance: 0.03, minHits: 1, maxHits: 1, perHitBonus: 0, cooldown: 0, trigger: 'onHit' },
   ],
   // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
   // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the

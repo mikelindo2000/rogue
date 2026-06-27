@@ -58,6 +58,12 @@ export function processMonsterAI(
     }
 
     const rt = ensureRuntime(m);
+    // Category K self-buff (Kalius's Second Head): tick the monster's own damage
+    // buff down once per turn, mirroring frozenTurns. Done BEFORE the monster acts
+    // so a buff applied during THIS turn's attack (set in applyOnHitAbilities, after
+    // the hit resolves) isn't decremented until its first full turn — giving the
+    // sheet's "+50% for 2 turns" its full duration on subsequent attacks.
+    if ((rt.atkBuffTurns ?? 0) > 0) rt.atkBuffTurns!--;
     // Wand of Cancellation: while active, the monster is stripped to plain melee
     // (no telegraphed specials/abilities) and any charged attack is dropped.
     const cancelled = (m.canceledTurns ?? 0) > 0;
@@ -130,12 +136,15 @@ function resolvePendingAttack(
 
   const landed = player.x === pend.targetX && player.y === pend.targetY;
   if (landed) {
-    const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
+    // Fold an active category-K self-buff into the swoop's damage, mirroring applyAttack.
+    const buffMult = (rt.atkBuffTurns ?? 0) > 0 ? rt.atkBuffMult ?? 1 : 1;
+    const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier * buffMult)));
     const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: false, rng });
     player.hp -= dmg;
     onPlayerDamaged?.(m, dmg);
     addLog(`${m.name}'s swoop hits for ${dmg}!`);
     applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
+    applyExtraHits(behavior, m, player, totalDef, scaledAtk, rng, fx, onPlayerDamaged).forEach(addLog);
   } else {
     fx.whiff(pend.targetX, pend.targetY);
     addLog(`You dodge ${m.name}'s swoop!`);
@@ -207,7 +216,12 @@ function applyAttack(
     rt.swipeToggle = !rt.swipeToggle;
   }
 
-  const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier)));
+  // Category K self-buff (Kalius's Second Head): while atkBuffTurns is active, the
+  // monster's damage is multiplied by atkBuffMult. The buff is ticked down once per
+  // monster turn in processMonsterAI; folding it here keeps the read site adjacent
+  // to the damage roll.
+  const buffMult = (rt.atkBuffTurns ?? 0) > 0 ? rt.atkBuffMult ?? 1 : 1;
+  const scaledAtk = getScaledMonsterAtk(Math.max(1, Math.round(m.atk * attack.damageMultiplier * buffMult)));
   const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: isSwipe, rng });
   player.hp -= dmg;
   onPlayerDamaged?.(m, dmg);
@@ -215,8 +229,59 @@ function applyAttack(
 
   if (attack.cooldown > 0) rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;
 
-  // On-hit abilities (steal, leech, …) fire as side effects of landing a blow.
+  // On-hit abilities (steal, leech, self-buff, …) fire as side effects of landing a
+  // blow. selfBuff sets atkBuffTurns here (affecting LATER hits, not this one).
   applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
+
+  // Category K extra-attack abilities (Furious Fangs, Laser Focus) resolve HERE
+  // because they deal real computeMonsterDamage hits and need totalDef in scope —
+  // they cannot live on the fireAbility path. Gated on the same chance roll pattern
+  // as applyOnHitAbilities so an un-procced hit draws no new rng (seeded parity).
+  applyExtraHits(behavior, m, player, totalDef, scaledAtk, rng, fx, onPlayerDamaged).forEach(addLog);
+}
+
+/**
+ * Resolve any `extraHits` abilities (category K multi-hit / extra-attack) on this
+ * behavior. Each rolls its own chance gate; on a proc it rolls a hit count in
+ * [minHits..maxHits] and deals that many computeMonsterDamage hits, each with an
+ * optional flat per-hit bonus. Returns the log lines.
+ *
+ * RNG parity: the chance gate (rng.chance) is the ONLY draw on an un-procced hit —
+ * identical to applyOnHitAbilities. The count roll (rng.int) and per-hit damage
+ * rolls happen strictly INSIDE the passed gate, so unafflicted seeded play is
+ * byte-identical. Uses the same abilityProcMultiplier knob as applyOnHitAbilities.
+ */
+export function applyExtraHits(
+  behavior: MonsterBehavior,
+  m: Monster,
+  player: Player,
+  totalDef: number,
+  scaledAtk: number,
+  rng: RNG,
+  fx: AIFx = NO_FX,
+  onPlayerDamaged?: (m: Monster, damage: number) => void
+): string[] {
+  const logs: string[] = [];
+  const procMult = getConfig().abilityProcMultiplier;
+  for (const ab of behavior.abilities) {
+    if (ab.id !== 'extraHits' || ab.trigger !== 'onHit') continue;
+    if (!rng.chance(Math.min(1, ab.chance * procMult))) continue;
+    const min = Math.max(1, ab.minHits ?? 1);
+    const max = Math.max(min, ab.maxHits ?? min);
+    const count = min === max ? min : rng.int(max - min + 1) + min;
+    const bonus = ab.perHitBonus ?? 0;
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      const dmg = computeMonsterDamage({ scaledAtk, totalDef, swipe: false, rng }) + bonus;
+      player.hp -= dmg;
+      onPlayerDamaged?.(m, dmg);
+      total += dmg;
+    }
+    logs.push(`${m.name}'s ${ab.label ?? 'flurry'} lands ${count} extra ${count === 1 ? 'hit' : 'hits'} for ${total}!`);
+    // Surface the proc as a floating ability-name label, like applyOnHitAbilities.
+    fx.float(player.x, player.y, describeAbility(ab).name, m.color);
+  }
+  return logs;
 }
 
 /**
@@ -450,6 +515,25 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       }
       return false;
     }
+    case 'selfBuff': {
+      // Category K monster self-buff (Kalius's "Second Head"): raise the monster's
+      // own damage for `duration` turns. This mutates RUNTIME state only — the buff
+      // is folded into scaledAtk in applyAttack/resolvePendingAttack, and ticked down
+      // once per monster turn in processMonsterAI (mirroring frozenTurns). Like the
+      // other runtime-only cases this body draws nothing from `rng`; the only roll is
+      // the per-ability chance gate in applyOnHitAbilities, so seeded parity holds.
+      // `buffMagnitude` is the bonus FRACTION (0.5 → ×1.5). Re-procing refreshes.
+      const rt = ensureRuntime(m);
+      rt.atkBuffTurns = ab.duration ?? 1;
+      rt.atkBuffMult = 1 + (ab.buffMagnitude ?? 0);
+      logs.push(`${m.name} grows a second head!`);
+      return true;
+    }
+    // 'extraHits' is resolved in applyAttack (it needs totalDef + computeMonsterDamage),
+    // NOT here on the fireAbility path. Treated as a no-op if it ever reaches this
+    // switch, so it never draws from `rng`.
+    case 'extraHits':
+      return false;
     // A pure 'bonusDamage' ability has no status payload — the flat damage is
     // applied by applyOnHitAbilities from `ab.bonusDamage`. Nothing to do here.
     case 'bonusDamage':

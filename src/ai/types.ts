@@ -82,7 +82,15 @@ export type AbilityId =
   | 'weaponDebuff'
   | 'missChance'
   | 'silenceMagic'
-  | 'bonusDamage';
+  | 'bonusDamage'
+  /** Monster self-buff: raises the monster's own damage for a few turns (category
+   *  K). Mutates runtime state only (atkBuffTurns/atkBuffMult), so it rides the
+   *  generic applyOnHitAbilities/fireAbility path. */
+  | 'selfBuff'
+  /** Monster multi-hit / extra-attack: deals N additional melee hits on a proc
+   *  (category K). Resolved in the ATTACK path (applyAttack) because it needs
+   *  totalDef + computeMonsterDamage, NOT fireAbility. */
+  | 'extraHits';
 
 export interface AbilitySpec {
   id: AbilityId;
@@ -102,6 +110,18 @@ export interface AbilitySpec {
    *  carries the amount here; a mixed ability (e.g. stun + extra hit) sets it
    *  alongside its effect id. */
   bonusDamage?: number;
+  /** selfBuff (category K): the bonus damage FRACTION the monster gains while the
+   *  buff is active (0.5 → +50%, applied as a ×1.5 multiplier). Reuses `duration`
+   *  for the number of turns the buff lasts. */
+  buffMagnitude?: number;
+  /** extraHits (category K): minimum number of EXTRA melee hits dealt on a proc. */
+  minHits?: number;
+  /** extraHits (category K): maximum number of EXTRA melee hits dealt on a proc.
+   *  The count is rolled uniformly in [minHits..maxHits]. */
+  maxHits?: number;
+  /** extraHits (category K): flat damage added to each extra hit (e.g. +5 per
+   *  bite for Furious Fangs). */
+  perHitBonus?: number;
   /** Turns before it can fire again. */
   cooldown: number;
   trigger: 'onHit' | 'onEngage';
@@ -149,6 +169,13 @@ export interface MonsterAIRuntime {
    *  pursuit to this tile and returns here to keep watch over its hoard. */
   homeX?: number;
   homeY?: number;
+  /** Monster self-buff (category K, e.g. Kalius's Second Head): turns remaining on
+   *  an active damage buff. Decremented once per monster turn in processMonsterAI
+   *  (mirroring frozenTurns). While > 0, applyAttack folds `atkBuffMult` into the
+   *  scaled attack. */
+  atkBuffTurns?: number;
+  /** The damage multiplier applied while `atkBuffTurns > 0` (e.g. 1.5 for +50%). */
+  atkBuffMult?: number;
 }
 
 export interface PendingAttack {

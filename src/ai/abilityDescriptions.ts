@@ -58,6 +58,10 @@ function generatedName(spec: AbilitySpec): string {
       return 'Silence';
     case 'bonusDamage':
       return 'Heavy Blow';
+    case 'selfBuff':
+      return 'Frenzy';
+    case 'extraHits':
+      return 'Flurry';
     case 'leechHeal':
       return 'Life drain';
     case 'stealGold':
@@ -106,6 +110,16 @@ function statusClause(spec: AbilitySpec): string {
       return `${Math.round(mag * 100)}% chance to miss for ${plural(dur, 'turn')}`;
     case 'silenceMagic':
       return `your magic is sealed for ${plural(dur, 'turn')}`;
+    case 'selfBuff':
+      return `gains +${Math.round((spec.buffMagnitude ?? 0) * 100)}% damage for ${plural(dur, 'turn')}`;
+    case 'extraHits': {
+      const min = Math.max(1, spec.minHits ?? 1);
+      const max = Math.max(min, spec.maxHits ?? min);
+      const count = min === max ? `${min}` : `${min}-${max}`;
+      const range = `${count} extra ${max === 1 ? 'hit' : 'hits'}`;
+      const per = spec.perHitBonus && spec.perHitBonus > 0 ? `, each +${spec.perHitBonus} damage` : '';
+      return `${range}${per}`;
+    }
     case 'leechHeal':
       return `heals itself for ${mag} when it hits you`;
     case 'stealGold':
