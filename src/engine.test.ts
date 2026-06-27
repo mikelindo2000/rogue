@@ -5,29 +5,9 @@ import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
 import { RecordingSink } from './audio/events';
 import { getTotalDef } from './player';
+import { createTestPresenter } from './testPresenter';
 
-const makeUi = (overrides: Record<string, unknown> = {}) => ({
-  renderLogs: () => {},
-  resetLog: () => {},
-  updateDropdowns: () => {},
-  updateStats: () => {},
-  syncDiscovery: () => {},
-  render: () => {},
-  fxPlayerRun: () => {},
-  fxStrike: () => {},
-  fxHit: () => {},
-  mapRumble: () => {},
-  beginFloorTransition: () => {},
-  fxFreeze: () => {},
-  fxDeath: () => {},
-  fxPlayerHit: () => {},
-  fxDive: () => {},
-  fxWhiff: () => {},
-  fxMonsterDodge: () => {},
-  fxFloat: () => {},
-  getStyledItemName: (name: string) => name,
-  ...overrides,
-});
+const makePresenter = createTestPresenter;
 
 const makeBoss = (name = 'Marcus the Brave'): Monster => ({
   x: 0,
@@ -43,7 +23,7 @@ const makeBoss = (name = 'Marcus the Brave'): Monster => ({
 });
 
 const makeBossKiller = (floor: number) => {
-  const engine = new GameEngine(makeUi() as any);
+  const engine = new GameEngine(makePresenter());
   engine.dungeonFloor = floor;
   engine.player.baseAtk = 100;
   engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 100 };
@@ -54,7 +34,7 @@ const makeBossKiller = (floor: number) => {
 
 describe('GameEngine startup logs', () => {
   it('does not expose legacy angle-bracket stair glyphs in the welcome message', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
 
     engine.initGame(123);
 
@@ -67,8 +47,8 @@ describe('GameEngine startup logs', () => {
 const makeEmptyMap = (engine: GameEngine) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
 
-const makeRunner = (sound?: RecordingSink, ui = makeUi()) => {
-  const engine = new GameEngine(ui as any, sound);
+const makeRunner = (sound?: RecordingSink, presenter = makePresenter()) => {
+  const engine = new GameEngine(presenter, sound);
   engine.map = makeEmptyMap(engine);
   engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
   engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
@@ -198,7 +178,7 @@ describe('GameEngine boss victory conditions', () => {
 
 describe('GameEngine amulet escape endgame', () => {
   // Place up-stairs one tile to the player's right on a small carved floor.
-  const makeEscapeStage = (floor: number, sound?: RecordingSink, ui = makeUi()) => {
+  const makeEscapeStage = (floor: number, sound?: RecordingSink, ui = makePresenter()) => {
     const engine = makeRunner(sound, ui);
     engine.dungeonFloor = floor;
     carveRow(engine, 2, 2, 4, TILE.FLOOR);
@@ -223,7 +203,7 @@ describe('GameEngine amulet escape endgame', () => {
 
   it('draws after escape so the UI bridge observes the win state', () => {
     const renders: unknown[][] = [];
-    const ui = makeUi({
+    const ui = makePresenter({
       render: (...args: unknown[]) => renders.push(args),
     });
     const engine = makeEscapeStage(1, undefined, ui);
@@ -240,7 +220,7 @@ describe('GameEngine amulet escape endgame', () => {
   it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {
     // Guards against the world generator omitting Floor-1 up-stairs, which would
     // make the win unreachable in actual play. Uses real level generation.
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.initGame(4242);
     expect(engine.dungeonFloor).toBe(1);
     // Real generation must place an up-stair on Floor 1 — throws if missing.
@@ -1379,14 +1359,14 @@ describe('GameEngine run movement', () => {
 
 describe('GameEngine board size', () => {
   it('defaults to the classic 46x29 board', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     expect(engine.COLS).toBe(46);
     expect(engine.ROWS).toBe(29);
     expect(engine.boardSizeId).toBe('classic');
   });
 
   it('resizes the board and generates a matching map for a new game', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.setBoardSize('huge');
     expect(engine.COLS).toBe(80);
     expect(engine.ROWS).toBe(42);
@@ -1399,14 +1379,14 @@ describe('GameEngine board size', () => {
   });
 
   it('round-trips board size through snapshot/restore and adopts the saved dimensions', () => {
-    const a = new GameEngine(makeUi() as any);
+    const a = new GameEngine(makePresenter());
     a.setBoardSize('large');
     a.initGame(7);
     const save = a.snapshot();
     expect(save.boardSize).toBe('large');
 
     // A fresh engine (defaulting to classic) must adopt the saved size on restore.
-    const b = new GameEngine(makeUi() as any);
+    const b = new GameEngine(makePresenter());
     expect(b.COLS).toBe(46);
     b.restore(save);
     expect(b.boardSizeId).toBe('large');
@@ -1417,7 +1397,7 @@ describe('GameEngine board size', () => {
   });
 
   it('keeps the run board size on every floor when descending', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.setBoardSize('huge');
     engine.initGame(5);
     // Each new floor regenerates at the run's size, not the default.
@@ -1431,12 +1411,12 @@ describe('GameEngine board size', () => {
   });
 
   it('restores an old save without a board size as classic', () => {
-    const a = new GameEngine(makeUi() as any);
+    const a = new GameEngine(makePresenter());
     a.initGame(9);
     const save = a.snapshot();
     delete (save as { boardSize?: unknown }).boardSize; // pre-feature save shape
 
-    const b = new GameEngine(makeUi() as any);
+    const b = new GameEngine(makePresenter());
     b.setBoardSize('huge'); // even if the engine was nudged to another size
     b.restore(save);
     expect(b.boardSizeId).toBe('classic');
@@ -1449,7 +1429,7 @@ describe('GameEngine inventory commands', () => {
   it('publishes armor pickup to inventory UI immediately', () => {
     let dropdownPlayer = null as unknown;
     let statsCalls = 0;
-    const engine = makeRunner(undefined, makeUi({
+    const engine = makeRunner(undefined, makePresenter({
       updateDropdowns: (player: unknown) => { dropdownPlayer = player; },
       updateStats: () => { statsCalls++; },
     }));
@@ -1471,7 +1451,7 @@ describe('GameEngine inventory commands', () => {
   });
 
   it('does not let use actions equip gear', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
 
     const used = engine.performInventoryAction({ kind: 'weapon', index: 1 }, 'use');
@@ -1482,7 +1462,7 @@ describe('GameEngine inventory commands', () => {
   });
 
   it('does not let equip actions consume potions', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.player.inventory.potions = ['healing'];
 
     const equipped = engine.performInventoryAction({ kind: 'potion', potionType: 'healing' }, 'equip');
@@ -1493,7 +1473,7 @@ describe('GameEngine inventory commands', () => {
   });
 
   it('reports stale food refs as failed use actions', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.player.inventory.food = 0;
 
     const used = engine.performInventoryAction({ kind: 'food' }, 'use');
@@ -1503,7 +1483,7 @@ describe('GameEngine inventory commands', () => {
   });
 
   it('can equip an inventory dagger into off-hand through explicit action', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });
 
     const equipped = engine.performInventoryAction({ kind: 'weapon', index: 1 }, 'equipOffHand');
@@ -1692,7 +1672,7 @@ describe('dark-room FOV', () => {
   };
 
   const makeFovEngine = () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.map = makeEmptyMap(engine);
     engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
     engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
@@ -1793,7 +1773,7 @@ describe('dark-room FOV', () => {
     const snap = engine.snapshot();
     expect(snap.dark?.[4][8]).toBe(true);
 
-    const restored = new GameEngine(makeUi() as any);
+    const restored = new GameEngine(makePresenter());
     expect(restored.restore(snap)).toBe(true);
     expect(restored.dark[4][8]).toBe(true);
     // And the restored dark grid still drives FOV: far interior stays unseen.
@@ -1809,7 +1789,7 @@ describe('dark-room FOV', () => {
     engine.player.x = 5; engine.player.y = 4;
     const snap = engine.snapshot();
     delete snap.dark; // simulate a pre-dark-rooms save
-    const restored = new GameEngine(makeUi() as any);
+    const restored = new GameEngine(makePresenter());
     expect(restored.restore(snap)).toBe(true);
     expect(restored.dark.every(row => row.every(v => v === false))).toBe(true);
   });
@@ -1842,7 +1822,7 @@ describe('dark-room FOV', () => {
 describe('scroll system', () => {
   // Small room l=3,t=3,r=7,b=7 → interior x 4..6, y 4..6.
   const setup = (dark = false) => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.map = makeEmptyMap(engine);
     engine.explored = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));
     engine.visible = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false));

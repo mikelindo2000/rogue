@@ -1,5 +1,6 @@
 import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
-import { GameUI } from './ui';
+import type { GamePresenter } from './presentation/presenter';
+import { formatStyledItemName } from './presentation/itemNameFormatter';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
 import { createPlayer, getTotalDef, gainXp, handleEquipItem, equipValidated, inventoryRefToEquipTarget } from './player';
@@ -157,7 +158,7 @@ export class GameEngine {
   private secretsFoundThisRun = 0;
   private trapdoorGeneratedThisRun = false;
 
-  private ui: GameUI;
+  private presenter: GamePresenter;
 
   /** Domain-level sound events. Default no-op sink; main.ts injects the browser
    *  audio service. Engine code never names assets or touches audio APIs. */
@@ -178,14 +179,14 @@ export class GameEngine {
     this.onRunChanged?.();
   }
 
-  constructor(ui: GameUI, sound: SoundSink = noopSink) {
-    this.ui = ui;
+  constructor(presenter: GamePresenter, sound: SoundSink = noopSink) {
+    this.presenter = presenter;
     this.sound = sound;
     this.vitals = new VitalsSoundTracker(BALANCE.player.hungerHungry, BALANCE.player.hungerFatigued);
     this.player = createPlayer();
     this.rng = makeRng(randomSeed());
     this.discovery = loadDiscovery();
-    this.ui.syncDiscovery(this.discovery);
+    this.presenter.syncDiscovery(this.discovery);
   }
 
   /**
@@ -237,10 +238,10 @@ export class GameEngine {
     this.logs = ["Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors."];
 
     this.generateFloor();
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
-    this.ui.resetLog();
-    this.ui.renderLogs(this.logs);
+    this.presenter.resetLog();
+    this.presenter.renderLogs(this.logs);
     this.autosave();
   }
 
@@ -249,7 +250,7 @@ export class GameEngine {
     if (this.logs.length > 3) {
       this.logs.shift();
     }
-    this.ui.renderLogs(this.logs);
+    this.presenter.renderLogs(this.logs);
   }
 
   public generateFloor() {
@@ -386,7 +387,7 @@ export class GameEngine {
     }
     if (changed) {
       saveDiscovery(this.discovery);
-      this.ui.syncDiscovery(this.discovery);
+      this.presenter.syncDiscovery(this.discovery);
     }
   }
 
@@ -691,7 +692,7 @@ export class GameEngine {
     if (damage > 0) {
       this.player.hp -= damage;
       recordDamageTaken(this.stats, damage);
-      this.ui.fxPlayerHit();
+      this.presenter.fxPlayerHit();
     }
     return damage;
   }
@@ -771,7 +772,7 @@ export class GameEngine {
     recordStairs(this.stats, this.dungeonFloor, 1);
     this.addLog(`Dropped to Floor ${this.dungeonFloor}!`);
     this.loadFloorForTravel(1);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
     this.autosave();
   }
@@ -904,7 +905,7 @@ export class GameEngine {
       const steps = runPath.length - 1;
       if (steps <= 1) return;
       this.sound.emit({ type: 'movement.run', steps });
-      this.ui.fxPlayerRun(runPath, ghostItems);
+      this.presenter.fxPlayerRun(runPath, ghostItems);
     };
 
     for (let step = 0; step < maxSteps; step++) {
@@ -997,7 +998,7 @@ export class GameEngine {
 
     // Snapshot the floor we're leaving for the transition BEFORE the live canvas
     // repaints to the new one. Purely visual; the logical swap below stays sync.
-    this.ui.beginFloorTransition(delta > 0 ? 'down' : 'up');
+    this.presenter.beginFloorTransition(delta > 0 ? 'down' : 'up');
 
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
@@ -1016,7 +1017,7 @@ export class GameEngine {
     // generator emits (e.g. the floor-20 boss announcement) read in order.
     this.addLog(`${delta > 0 ? 'Descended' : 'Ascended'} to Floor ${this.dungeonFloor}!`);
     this.loadFloorForTravel(delta);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
     // Repaint the live canvas to the NEW floor now. The stairs path returns
     // before processTurn (which normally draws), so without this the canvas keeps
@@ -1034,7 +1035,7 @@ export class GameEngine {
     this.sound.emit({ type: 'map.stairs', dir: 'up' });
     this.sound.emit({ type: 'game.victory' });
     this.recordWinTurn();
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
     this.draw();
     this.autosave();
@@ -1101,8 +1102,8 @@ export class GameEngine {
     const evade = effectiveBehavior(monster).defense.dodgeChance ?? 0;
     if (evade > 0 && this.rng.chance(evade)) {
       this.addLog(`${monster.name} flits aside!`);
-      this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
-      this.ui.fxMonsterDodge(monster, this.player.x, this.player.y);
+      this.presenter.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
+      this.presenter.fxMonsterDodge(monster, this.player.x, this.player.y);
       this.sound.emit({ type: 'combat.miss', actor: 'monster' });
       recordMonsterDodge(this.stats);
       return;
@@ -1135,7 +1136,7 @@ export class GameEngine {
     if (outcome.freezeTurns > 0) {
       monster.frozenTurns = outcome.freezeTurns;
       this.addLog(`${monster.name} frozen!`);
-      this.ui.fxFreeze(monster.x, monster.y);
+      this.presenter.fxFreeze(monster.x, monster.y);
     }
 
     monster.hp -= outcome.damage;
@@ -1144,8 +1145,8 @@ export class GameEngine {
     this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: outcome.damage });
 
     // Combat flavor: lunge the player into the blow and pop a damage number.
-    this.ui.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
-    this.ui.fxHit(monster.x, monster.y, outcome.damage, monster.hp <= 0);
+    this.presenter.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
+    this.presenter.fxHit(monster.x, monster.y, outcome.damage, monster.hp <= 0);
 
     // A heavy blow shakes the map and plays the rumble cue, in addition to the
     // normal hit feedback above (sound is always additive, never the only cue).
@@ -1153,7 +1154,7 @@ export class GameEngine {
     // "did this blow take a big share of what it had" is the right denominator.
     const targetMax = monster.maxHp ?? monster.hp + outcome.damage;
     if (isHeavyHit(outcome.damage, targetMax)) {
-      this.ui.mapRumble(rumbleStrength(outcome.damage, targetMax));
+      this.presenter.mapRumble(rumbleStrength(outcome.damage, targetMax));
       this.sound.emit({ type: 'combat.heavyHit', damage: outcome.damage });
     }
   }
@@ -1175,12 +1176,12 @@ export class GameEngine {
     // turn is still spent by the caller's processTurn; we just skip the damage.
     if (hasEffect(this.player, 'missChance') && this.rng.chance(effectMagnitude(this.player, 'missChance'))) {
       this.addLog('You miss!');
-      this.ui.combatFocusMonster = monster;
+      this.presenter.focusCombatMonster(monster);
       this.sound.emit({ type: 'combat.miss', actor: 'player' });
       return;
     }
     // Focus the combat portrait on whoever we're swinging at.
-    this.ui.combatFocusMonster = monster;
+    this.presenter.focusCombatMonster(monster);
     this.sound.emit({ type: 'combat.swing', actor: 'player' });
     const mainWep = this.player.inventory.weapons[this.player.equipped.mainHand];
     if (mainWep) {
@@ -1208,9 +1209,9 @@ export class GameEngine {
    * the win path, which spends it here (matching the legacy melee behavior).
    */
   private handleMonsterDeath(monster: Monster) {
-    if (this.ui.combatFocusMonster === monster) this.ui.combatFocusMonster = null;
+    this.presenter.clearCombatFocusMonster(monster);
     this.addLog(`The ${monster.name} dies!`);
-    this.ui.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
+    this.presenter.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
     this.sound.emit({
       type: 'combat.death',
       monsterId: monsterId(monster),
@@ -1220,7 +1221,7 @@ export class GameEngine {
 
     markDefeated(this.discovery, monsterId(monster), this.dungeonFloor);
     saveDiscovery(this.discovery);
-    this.ui.syncDiscovery(this.discovery);
+    this.presenter.syncDiscovery(this.discovery);
 
     // XP is keyed on DUNGEON DEPTH (not player level): an under-levelled player
     // still earns from what they fight, instead of flatlining once they fall
@@ -1233,7 +1234,7 @@ export class GameEngine {
       const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
       if (leveled) {
         recordLevelGain(this.stats, this.player.level - levelBefore);
-        this.ui.updateDropdowns(this.player);
+        this.presenter.updateDropdowns(this.player);
         this.sound.emit({ type: 'player.levelUp' });
       }
     }
@@ -1309,7 +1310,7 @@ export class GameEngine {
           const leveled = gainXp(this.player, g, (msg) => this.addLog(msg), this.statusEffects);
           if (leveled) {
             recordLevelGain(this.stats, this.player.level - levelBefore);
-            this.ui.updateDropdowns(this.player);
+            this.presenter.updateDropdowns(this.player);
             this.sound.emit({ type: 'player.levelUp' });
           }
         } else {
@@ -1338,7 +1339,7 @@ export class GameEngine {
         this.addLog(`Picked up ${scrollDisplayName(sType)}.`);
       } else if (item.type === 'gear') {
         const c = item.data.category;
-        const styledName = this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common');
+        const styledName = formatStyledItemName(item.data.name, item.data.rarity || 'common');
 
         if (c.includes('sword') || c.includes('mace') || c === 'dagger' || c === 'staff') {
           item.data.type = c as GearItem['type'];
@@ -1353,12 +1354,12 @@ export class GameEngine {
       } else if (item.type === 'wand') {
         // Carried (not equipped) — pushed into its own bucket, zapped on demand.
         this.player.inventory.wands.push(item.data);
-        this.addLog(`Looted: ${this.ui.getStyledItemName(item.data.name, item.data.rarity || 'common')}.`);
+        this.addLog(`Looted: ${formatStyledItemName(item.data.name, item.data.rarity || 'common')}.`);
       }
 
       if (pickedUp) {
         this.items.splice(idx, 1);
-        this.ui.updateDropdowns(this.player);
+        this.presenter.updateDropdowns(this.player);
         this.updateUI();
         const kind =
           item.type === 'gold' ? 'gold' :
@@ -1400,7 +1401,7 @@ export class GameEngine {
     this.sound.emit({ type: 'item.consume', kind: 'potion' });
     recordPotionDrunk(this.stats, pType);
     this.player.inventory.potions.splice(index, 1);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.processTurn();
   }
 
@@ -1408,7 +1409,7 @@ export class GameEngine {
     const idx = this.player.inventory.potions.findIndex(p => p === potionType.potionType);
     if (idx === -1) {
       this.addLog("You no longer have that potion.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       return false;
     }
     this.usePotion(idx);
@@ -1446,7 +1447,7 @@ export class GameEngine {
     scrolls.splice(index, 1);
     recordScrollTriggered(this.stats, `read:${type}`);
     this.sound.emit({ type: 'item.consume', kind: 'scroll', scrollType: type });
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.processTurn();
   }
 
@@ -1649,7 +1650,7 @@ export class GameEngine {
     }
     if (changed) {
       saveDiscovery(this.discovery);
-      this.ui.syncDiscovery(this.discovery);
+      this.presenter.syncDiscovery(this.discovery);
     }
     return this.monsters.length;
   }
@@ -1661,7 +1662,7 @@ export class GameEngine {
     for (const m of this.monsters) {
       if (this.visible[m.y]?.[m.x]) {
         m.frozenTurns = Math.max(m.frozenTurns, BALANCE.scrolls.holdMonsterTurns);
-        this.ui.fxFreeze(m.x, m.y);
+        this.presenter.fxFreeze(m.x, m.y);
         held++;
       }
     }
@@ -1729,7 +1730,7 @@ export class GameEngine {
     const idx = this.player.inventory.scrolls.findIndex(s => s === ref.scrollType);
     if (idx === -1) {
       this.addLog("You no longer have that scroll.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       return false;
     }
     this.useScroll(idx);
@@ -1781,7 +1782,7 @@ export class GameEngine {
     const wand = this.player.inventory.wands[ref.index];
     if (!wand) {
       this.addLog("You no longer have that wand.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       return false;
     }
     if ((wand.cooldownRemaining ?? 0) > 0) {
@@ -1792,7 +1793,7 @@ export class GameEngine {
       return this.zapWand(ref.index, 0, 0);
     }
     this.aiming = { ref };
-    this.ui.setAiming({ wandName: wand.name });
+    this.presenter.setAiming({ wandName: wand.name });
     return true;
   }
 
@@ -1801,7 +1802,7 @@ export class GameEngine {
     if (!this.aiming) return false;
     const index = this.aiming.ref.index;
     this.aiming = null;
-    this.ui.setAiming(null);
+    this.presenter.setAiming(null);
     return this.zapWand(index, dx, dy);
   }
 
@@ -1809,7 +1810,7 @@ export class GameEngine {
   public cancelZap(): void {
     if (!this.aiming) return;
     this.aiming = null;
-    this.ui.setAiming(null);
+    this.presenter.setAiming(null);
   }
 
   /**
@@ -1850,7 +1851,7 @@ export class GameEngine {
     wand.cooldownRemaining = wandCooldown(wand);
     this.player.hunger = Math.max(0, this.player.hunger - wandHungerCost(wand));
     this.sound.emit({ type: 'item.zap', wandType: wand.wandType });
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.processTurn();
     return true;
   }
@@ -1943,14 +1944,14 @@ export class GameEngine {
         return;
       case 'cold': {
         target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.coldFreezeTurns);
-        this.ui.fxFreeze(target.x, target.y);
+        this.presenter.fxFreeze(target.x, target.y);
         this.addLog(`${target.name} is frozen!`);
         this.damageMonsterWithWand(target, this.wandDamage(wand), wand);
         return;
       }
       case 'sleep':
         target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.sleepFreezeTurns);
-        this.ui.fxFreeze(target.x, target.y);
+        this.presenter.fxFreeze(target.x, target.y);
         this.addLog(`You zap the ${wand.name}. ${target.name} falls into a deep sleep.`);
         return;
       case 'drain_life': {
@@ -1994,7 +1995,7 @@ export class GameEngine {
     recordDamageDealt(this.stats, damage);
     this.addLog(`Your ${wand.name} hits ${monster.name} for ${damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
     this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage });
-    this.ui.fxHit(monster.x, monster.y, damage, monster.hp <= 0);
+    this.presenter.fxHit(monster.x, monster.y, damage, monster.hp <= 0);
     if (monster.hp <= 0) this.handleMonsterDeath(monster);
   }
 
@@ -2195,7 +2196,7 @@ export class GameEngine {
     const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, ok);
     if (ok) recordEquipmentChange(this.stats);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
     this.autosave();
   }
@@ -2215,7 +2216,7 @@ export class GameEngine {
     if (this.takeStunTurn()) return false;
     if (ref.kind === 'food' || ref.kind === 'potion' || ref.kind === 'scroll') {
       this.addLog("That item cannot be equipped.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
@@ -2223,7 +2224,7 @@ export class GameEngine {
     const target = inventoryRefToEquipTarget(this.player, ref);
     if (!target) {
       this.addLog("That item cannot be equipped.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
@@ -2232,7 +2233,7 @@ export class GameEngine {
     const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, equipped);
     if (equipped) recordEquipmentChange(this.stats);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.updateUI();
     if (equipped) this.autosave();
     return equipped;
@@ -2251,7 +2252,7 @@ export class GameEngine {
       return this.useScrollType(ref);
     }
     this.addLog("That item cannot be used.");
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     return false;
   }
 
@@ -2267,7 +2268,7 @@ export class GameEngine {
       const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
       this.emitEquipSounds(before, equipped);
       if (equipped) recordEquipmentChange(this.stats);
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       this.updateUI();
       if (equipped) this.autosave();
       return equipped;
@@ -2291,20 +2292,20 @@ export class GameEngine {
     const py = this.player.y;
     if (this.items.some(i => i.x === px && i.y === py)) {
       this.addLog("There is already something on the floor here.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       return false;
     }
 
     const dropped = this.removeAndBuildFloorItem(ref);
     if (!dropped) {
       this.addLog("You cannot drop that.");
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       return false;
     }
 
     this.items.push({ ...dropped.spawn, x: px, y: py } as Item);
     this.addLog(`Dropped ${dropped.name}.`);
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.processTurn();
     return true;
   }
@@ -2523,9 +2524,9 @@ export class GameEngine {
       this.rng,
       this.turn,
       {
-        dive: (fx, fy, tx, ty, color) => this.ui.fxDive(fx, fy, tx, ty, color),
-        whiff: (x, y) => this.ui.fxWhiff(x, y),
-        float: (x, y, text, color) => this.ui.fxFloat(x, y, text, color),
+        dive: (fx, fy, tx, ty, color) => this.presenter.fxDive(fx, fy, tx, ty, color),
+        whiff: (x, y) => this.presenter.fxWhiff(x, y),
+        float: (x, y, text, color) => this.presenter.fxFloat(x, y, text, color),
       },
       this.dark,
       this.dungeonFloor,
@@ -2535,7 +2536,7 @@ export class GameEngine {
         const ox = m.x;
         const oy = m.y;
         if (this.teleportMonsterSafely(m)) {
-          this.ui.fxDeath(ox, oy, m.symbol, m.color);
+          this.presenter.fxDeath(ox, oy, m.symbol, m.color);
           this.addLog(`The ${m.name} blinks away!`);
         }
       },
@@ -2558,7 +2559,7 @@ export class GameEngine {
             : `Your ${gearDamage.item.name} is worn. (${gearDamage.after}/${gearDamage.max})`
         );
       }
-      this.ui.fxPlayerHit();
+      this.presenter.fxPlayerHit();
       this.sound.emit({ type: 'combat.hit', actor: 'monster', target: 'player' });
     }
 
@@ -2598,11 +2599,11 @@ export class GameEngine {
 
   public updateUI() {
     const totalDef = getTotalDef(this.player, this.statusEffects);
-    this.ui.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects, this.hasAmulet);
+    this.presenter.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects, this.hasAmulet);
   }
 
   public draw() {
-    this.ui.render(
+    this.presenter.render(
       this.map,
       this.explored,
       this.visible,
@@ -2736,11 +2737,11 @@ export class GameEngine {
       this.finalRunSummary = null;
 
       this.updateFOV();
-      this.ui.updateDropdowns(this.player);
+      this.presenter.updateDropdowns(this.player);
       this.updateUI();
-      this.ui.resetLog();
-      this.ui.renderLogs(this.logs);
-      this.ui.syncDiscovery(this.discovery);
+      this.presenter.resetLog();
+      this.presenter.renderLogs(this.logs);
+      this.presenter.syncDiscovery(this.discovery);
       if (this.gameWon) this.finalizeRun('won');
       else if (this.gameOver) this.finalizeRun('died', this.stats.deathCause ?? 'unknown');
       return true;
@@ -2767,7 +2768,7 @@ export class GameEngine {
     });
 
     this.updateUI();
-    this.ui.updateDropdowns(this.player);
+    this.presenter.updateDropdowns(this.player);
     this.draw();
     this.autosave();
   }

@@ -8,29 +8,11 @@ import {
   clearSaveGame,
   validateSaveGame,
 } from './savegame';
+import { createTestPresenter } from '../testPresenter';
 
 const SEED = 12345;
 
-const makeUi = () => ({
-  renderLogs: vi.fn(),
-  updateDropdowns: vi.fn(),
-  updateStats: vi.fn(),
-  syncDiscovery: vi.fn(),
-  render: vi.fn(),
-  resetLog: vi.fn(),
-  fxStrike: vi.fn(),
-  fxHit: vi.fn(),
-  mapRumble: vi.fn(),
-  beginFloorTransition: vi.fn(),
-  fxFreeze: vi.fn(),
-  fxDeath: vi.fn(),
-  fxPlayerHit: vi.fn(),
-  fxDive: vi.fn(),
-  fxWhiff: vi.fn(),
-  fxMonsterDodge: vi.fn(),
-  fxFloat: vi.fn(),
-  getStyledItemName: (n: string) => n,
-});
+const makePresenter = createTestPresenter;
 
 /** Minimal in-memory Storage for the node test env (no jsdom). */
 class MemoryStorage implements Storage {
@@ -55,7 +37,7 @@ class MemoryStorage implements Storage {
   }
 }
 
-const newEngine = () => new GameEngine(makeUi() as any);
+const newEngine = () => new GameEngine(makePresenter());
 
 /**
  * Plant a controlled fight: an open floor with the player wedged against a
@@ -626,14 +608,18 @@ describe('savegame restore refreshes UI and recomputes visible', () => {
     for (let i = 0; i < 5; i++) engineA.processTurn();
     const snap = engineA.snapshot();
 
-    const ui = makeUi();
-    const engineB = new GameEngine(ui as any);
+    const updateDropdowns = vi.fn();
+    const updateStats = vi.fn();
+    const renderLogs = vi.fn();
+    const resetLog = vi.fn();
+    const presenter = makePresenter({ updateDropdowns, updateStats, renderLogs, resetLog });
+    const engineB = new GameEngine(presenter);
     expect(engineB.restore(snap)).toBe(true);
 
-    expect(ui.updateDropdowns).toHaveBeenCalled();
-    expect(ui.updateStats).toHaveBeenCalled();
-    expect(ui.renderLogs).toHaveBeenCalled();
-    expect(ui.resetLog).toHaveBeenCalled();
+    expect(updateDropdowns).toHaveBeenCalled();
+    expect(updateStats).toHaveBeenCalled();
+    expect(renderLogs).toHaveBeenCalled();
+    expect(resetLog).toHaveBeenCalled();
 
     const anyVisible = engineB.visible.some(row => row.some(cell => cell === true));
     expect(anyVisible).toBe(true);

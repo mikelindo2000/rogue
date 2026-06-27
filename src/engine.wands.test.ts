@@ -5,13 +5,9 @@ import { spawnWand } from './wands';
 import { TILE } from './tiles';
 import type { Monster, WandItem, WandType } from './types';
 import type { RNG } from './rng';
+import { createTestPresenter } from './testPresenter';
 
-const makeUi = () => ({
-  renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
-  syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, mapRumble: () => {}, beginFloorTransition: () => {}, fxFreeze: () => {},
-  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {}, fxFloat: () => {},
-  setAiming: () => {}, getStyledItemName: (n: string) => n,
-});
+const makePresenter = createTestPresenter;
 
 // Deterministic RNG with a mutable `next` value and arr[0] picks.
 let rngNext = 0.5;
@@ -30,7 +26,7 @@ const blank = (e: GameEngine) => new Array(e.ROWS).fill(0).map(() => new Array(e
 /** A straight east-west corridor on row 2, player at (2,2), floor 5. */
 const setup = (floor = 5) => {
   rngNext = 0.5;
-  const engine = new GameEngine(makeUi() as any);
+  const engine = new GameEngine(makePresenter());
   engine.map = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
   for (let x = 1; x <= 25; x++) engine.map[2][x] = TILE.FLOOR;
   engine.explored = blank(engine);

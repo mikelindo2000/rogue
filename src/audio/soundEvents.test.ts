@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../engine';
 import { RecordingSink } from './events';
 import type { Monster } from '../types';
+import { createTestPresenter } from '../testPresenter';
 
-// A UI stub: every method is a no-op. The engine only needs the calls not to throw.
-const makeUi = () => new Proxy({}, { get: () => () => {} });
+const makePresenter = createTestPresenter;
 
 const makeMonster = (over: Partial<Monster> = {}): Monster => ({
   x: 1, y: 1, symbol: 'L', name: 'Leprechaun', hp: 1, atk: 1,
@@ -13,7 +13,7 @@ const makeMonster = (over: Partial<Monster> = {}): Monster => ({
 
 const armedEngine = () => {
   const sink = new RecordingSink();
-  const engine = new GameEngine(makeUi() as any, sink);
+  const engine = new GameEngine(makePresenter(), sink);
   // one-shot kill setup
   engine.player.baseAtk = 100;
   engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 100 };
@@ -47,7 +47,7 @@ describe('engine sound emission', () => {
   });
 
   it('works with the default no-op sink (no sink injected)', () => {
-    const engine = new GameEngine(makeUi() as any);
+    const engine = new GameEngine(makePresenter());
     engine.player.baseAtk = 100;
     engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 100 };
     engine.player.equipped.mainHand = 0;

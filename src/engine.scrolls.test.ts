@@ -4,18 +4,15 @@ import { TILE } from './tiles';
 import { BALANCE } from './config';
 import type { Monster } from './types';
 import { monsterId, tierOf } from './discovery';
+import { createTestPresenter } from './testPresenter';
 
-const makeUi = () => ({
-  renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
-  syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, mapRumble: () => {}, beginFloorTransition: () => {}, fxFreeze: () => {},
-  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {}, fxFloat: () => {},
-});
+const makePresenter = createTestPresenter;
 
 const grid = <T,>(engine: GameEngine, fill: T) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(fill));
 
 function makeRunner(floor = 1) {
-  const engine = new GameEngine(makeUi() as any);
+  const engine = new GameEngine(makePresenter());
   engine.dungeonFloor = floor;
   engine.map = grid(engine, TILE.VOID);
   engine.explored = grid(engine, false);

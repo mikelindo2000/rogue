@@ -2,6 +2,7 @@ import { Player, Monster, Item, StatusEffects, ARMOR_SLOTS, InventoryRef, Potion
 import { BALANCE, getScaledXpRequirements, getConfig } from './config';
 import { canEquip } from './player';
 import { TILE, STAIR_TILES, isCorner, isWalkable } from './tiles';
+import { formatStyledItemName } from './presentation/itemNameFormatter';
 import { DIM_ALPHA, getDungeonStyle, type DungeonStyle } from './theme';
 import {
   ui,
@@ -41,7 +42,6 @@ import {
 } from './render/avatar';
 import { snapshotDiscovery, monsterId, type DiscoveryState } from './discovery';
 import { portraitSizePx, pickPortraitCorner, portraitsEqual } from './ui/combatPortrait';
-import { escapeHtml } from './ui/monsterMention';
 import { enrichLogMessageHtml } from './ui/logMessage';
 import { appendLogLine } from './ui/logHistory';
 
@@ -1809,7 +1809,7 @@ export class GameUI {
   }
 
   public getStyledItemName(name: string, rarity: string): string {
-    return `<span style="color:${rarityVar(rarity)};font-weight:600;">${escapeHtml(name)}</span>`;
+    return formatStyledItemName(name, rarity);
   }
 
   /** Push board-derived overlay state (stairs proximity, nearest visible

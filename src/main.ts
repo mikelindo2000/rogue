@@ -2,6 +2,7 @@ import { mount } from 'svelte';
 import App from './ui/App.svelte';
 import { ui, actions } from './ui/store.svelte';
 import { GameUI } from './ui';
+import { GameUiPresenterAdapter } from './presentation/gameUiPresenter';
 import { GameEngine } from './engine';
 import { loadConfig, getConfig, saveConfig } from './config';
 import { KeyboardManager } from './keyboard';
@@ -48,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.floorTransition = settings.floorTransition;
 
   const ui_ = new GameUI('gameCanvas');
-  const engine = new GameEngine(ui_, audio);
+  const presenter = new GameUiPresenterAdapter(ui_);
+  const engine = new GameEngine(presenter, audio);
   let presentationAnimationsEnabled = false;
 
   if (import.meta.env.DEV) {
