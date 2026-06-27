@@ -5,6 +5,7 @@
   import MonsterStage from './MonsterStage.svelte';
   import MonsterMention from './MonsterMention.svelte';
   import { monsterArtUrl } from '../monsterArt';
+  import { monsterAbilities } from '../../ai/abilityDescriptions';
 
   let {
     monster,
@@ -20,6 +21,9 @@
 
   const isBoss = $derived(monster?.special === 'boss');
   const artUrl = $derived(monster ? monsterArtUrl(monster) : null);
+  // Abilities the bestiary surfaces for this monster. Data-driven from the
+  // resolved behavior, so a newly assigned ability appears with no UI change.
+  const abilities = $derived(monster ? monsterAbilities(monster) : []);
 
   const lore = $derived(
     monster?.lore ??
@@ -76,6 +80,23 @@
             <span class="val">{killCount}</span>
           </div>
         </div>
+
+        {#if abilities.length > 0}
+          <div class="abilities">
+            <span class="section-label">Abilities</span>
+            <ul class="ability-list">
+              {#each abilities as ability}
+                <li class="ability">
+                  <div class="ability-head">
+                    <span class="ability-name">{ability.name}</span>
+                    <span class="ability-chance">{ability.chance} {ability.trigger}</span>
+                  </div>
+                  <span class="ability-effect">{ability.effect}</span>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -190,5 +211,55 @@
     font: 700 var(--fs-value) var(--font-display);
     color: var(--text-bright);
     font-variant-numeric: tabular-nums;
+  }
+
+  .abilities {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .section-label {
+    font: 600 var(--fs-slot-label) var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-dimmer);
+  }
+  .ability-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ability {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 11px;
+    background: var(--surface-inset);
+    border: 1px solid var(--border-slot);
+    border-radius: var(--r-md);
+  }
+  .ability-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ability-name {
+    font: 700 var(--fs-value) var(--font-display);
+    color: var(--text-bright);
+  }
+  .ability-chance {
+    font: 600 var(--fs-slot-label) var(--font-display);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-dimmer);
+    white-space: nowrap;
+  }
+  .ability-effect {
+    font: var(--fs-body) var(--font-body, inherit);
+    color: var(--text-dim);
   }
 </style>

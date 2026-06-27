@@ -79,6 +79,9 @@ export type AbilityId =
 
 export interface AbilitySpec {
   id: AbilityId;
+  /** GM-sheet ability NAME ("Poisonous Puke"), shown in the bestiary. Optional —
+   *  the bestiary generates a name from the effect when absent. */
+  label?: string;
   /** Probability the ability fires when its trigger occurs. */
   chance: number;
   /** Magnitude (gold stolen, turns frozen, dmg/turn, …) — meaning depends on the ability. */
