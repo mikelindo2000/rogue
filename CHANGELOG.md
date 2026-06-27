@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Fixed review findings in the effect-kinds layer.
+- Applied the initial reduced-motion preference before mounting the ASCII map renderer.
 
 ---
 

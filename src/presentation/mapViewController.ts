@@ -42,10 +42,10 @@ export class MapViewController {
     this.getFloorTransitionId = options.getFloorTransitionId;
     this.getReducedMotionOverride = options.getReducedMotion;
     this.createRenderer = options.createRenderer ?? (rendererOptions => new AsciiCanvasRenderer(rendererOptions));
+    this.observeReducedMotion();
     this.renderer = this.createRenderer(this.rendererOptions());
     this.renderer.mount(this.host);
     this.observeResize();
-    this.observeReducedMotion();
   }
 
   public setSnapshot(snapshot: MapSnapshot): void {
