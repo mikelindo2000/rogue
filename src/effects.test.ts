@@ -193,6 +193,23 @@ describe('effects spine', () => {
     expect(t2.logs.join(' ')).toMatch(/You regain your grip/);
   });
 
+  it('applies missChance, exposes its probability magnitude, logs a countdown, and expires', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'missChance', turns: 2, magnitude: 0.25, source: 'Quinotaur' });
+
+    expect(hasEffect(p, 'missChance')).toBe(true);
+    expect(effectMagnitude(p, 'missChance')).toBe(0.25);
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1, still active
+    expect(t1.damage).toBe(0);
+    expect(p.hp).toBe(20);
+    expect(t1.logs.join(' ')).toMatch(/Your eyes sting, 1 turn left/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expires
+    expect(hasEffect(p, 'missChance')).toBe(false);
+    expect(t2.logs.join(' ')).toMatch(/Your vision clears/);
+  });
+
   it('a DoT can kill: HP is driven to 0 or below for the engine death path to catch', () => {
     const p = player({ hp: 2 });
     applyEffect(p, { kind: 'dot', turns: 5, magnitude: 1, source: 'Brown Bat', damageType: 'poison' });

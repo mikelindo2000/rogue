@@ -363,6 +363,22 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} disarms you!`);
       return true;
     }
+    case 'missChance': {
+      // Inflict a miss chance: while active each player attack rolls `magnitude`
+      // as a miss probability (honored at the player-attack method in engine.ts).
+      // Like the other persistent-effect cases this body draws nothing from `rng`
+      // — the only roll is the per-ability chance gate in applyOnHitAbilities, so
+      // seeded parity is preserved. magnitude is the miss probability (0..1).
+      // Re-applying refreshes the duration.
+      applyEffect(player, {
+        kind: 'missChance',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 0,
+        source: m.name,
+      });
+      logs.push(`${m.name} blinds you!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —

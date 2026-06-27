@@ -79,7 +79,8 @@ export type AbilityId =
   | 'fear'
   | 'armorDebuff'
   | 'atkDebuff'
-  | 'weaponDebuff';
+  | 'weaponDebuff'
+  | 'missChance';
 
 export interface AbilitySpec {
   id: AbilityId;

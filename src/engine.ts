@@ -1157,6 +1157,18 @@ export class GameEngine {
 
   public playerAttack(monster: Monster) {
     recordAttack(this.stats);
+    // missChance read site: while afflicted (e.g. Quinotaur "Spit", Dragon "Smoke
+    // Show") the player's attack may whiff entirely. This is a NEW rng draw, but
+    // it is GATED on the player actually attacking while afflicted — it is NOT on
+    // the seeded-parity-critical shared path for unafflicted play (hasEffect is
+    // false then, so chance() is never called and the stream is unchanged). The
+    // turn is still spent by the caller's processTurn; we just skip the damage.
+    if (hasEffect(this.player, 'missChance') && this.rng.chance(effectMagnitude(this.player, 'missChance'))) {
+      this.addLog('You miss!');
+      this.ui.combatFocusMonster = monster;
+      this.sound.emit({ type: 'combat.miss', actor: 'player' });
+      return;
+    }
     // Focus the combat portrait on whoever we're swinging at.
     this.ui.combatFocusMonster = monster;
     this.sound.emit({ type: 'combat.swing', actor: 'player' });

@@ -645,6 +645,43 @@ describe('GameEngine weaponDebuff read site', () => {
   });
 });
 
+describe('GameEngine missChance read site', () => {
+  // Only the engine's playerAttack can prove missChance is honored: when the roll
+  // passes, the attack whiffs (no damage). rng.chance(p) = roll < p, so a roll of
+  // 0 makes any positive magnitude miss; a roll above the magnitude connects.
+  const setup = (roll: number) => {
+    const engine = makeRunner();
+    setChanceRoll(engine, roll);
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 0 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    engine.player.activeEffects = [{ kind: 'missChance', turns: 3, magnitude: 0.5, source: 'Quinotaur' }];
+    const m: Monster = {
+      x: 3, y: 2, symbol: 'Q', name: 'Dummy', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    return { engine, m };
+  };
+
+  it('whiffs the player attack (no damage) when the miss roll passes', () => {
+    const { engine, m } = setup(0); // 0 < 0.5 → miss
+    engine.playerAttack(m);
+    expect(m.hp).toBe(100000); // no damage
+    expect(engine.logs.join(' ')).toMatch(/You miss!/);
+  });
+
+  it('connects normally when the miss roll fails', () => {
+    const { engine, m } = setup(0.9); // 0.9 < 0.5 is false → hit
+    engine.playerAttack(m);
+    expect(m.hp).toBeLessThan(100000); // damage landed
+    expect(engine.logs.join(' ')).not.toMatch(/You miss!/);
+  });
+});
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();

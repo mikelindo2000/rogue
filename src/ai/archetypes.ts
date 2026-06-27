@@ -308,7 +308,12 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // over". We have no "until combat ends" duration yet, so this is approximated as
   // a sustained 5-turn fire DoT (flagged for a follow-up duration mode). Magnitude
   // verbatim. Keyed to Dragon so the other 'guardian' monsters (Golem/Gary) are unaffected.
-  'dragon': [{ id: 'poison', chance: 0.03, magnitude: 10, duration: 5, damageType: 'fire', cooldown: 0, trigger: 'onHit' }],
+  // Dragon keeps its Molten Breath fire DoT (above) AND gains Smoke Show (1%): a
+  // 50% miss chance for 3 turns (magnitude is the miss probability).
+  'dragon': [
+    { id: 'poison', chance: 0.03, magnitude: 10, duration: 5, damageType: 'fire', cooldown: 0, trigger: 'onHit' },
+    { id: 'missChance', label: 'Smoke Show', chance: 0.01, magnitude: 0.5, duration: 3, cooldown: 0, trigger: 'onHit' },
+  ],
   // Zachary the Zombie — Graveyard Grab (A2, 1%): "infection that causes 25 damage
   // for two turns". Modeled as a 25/turn bacterial DoT for 2 turns. Merges with the
   // leech archetype's heal — Zachary keeps both.
@@ -327,6 +332,9 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   'troll': [{ id: 'weaponDebuff', label: 'Disarm', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Trogdor the Troll — Bone Break (1%): same disarmed-fighting effect for 2 turns.
   'trogdor-the-troll': [{ id: 'weaponDebuff', label: 'Bone Break', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
+  // Quinotaur — Spit (1%): a 25% miss chance for 3 turns (magnitude is the miss
+  // probability, rolled at the player-attack read site).
+  'quinotaur': [{ id: 'missChance', label: 'Spit', chance: 0.01, magnitude: 0.25, duration: 3, cooldown: 0, trigger: 'onHit' }],
   // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.

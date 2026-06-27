@@ -51,6 +51,13 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('you fight disarmed for 2 turns');
   });
 
+  it('describes missChance as a percent-to-miss for a duration', () => {
+    const miss: AbilitySpec = { id: 'missChance', label: 'Spit', chance: 0.01, magnitude: 0.25, duration: 3, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(miss);
+    expect(d.name).toBe('Spit');
+    expect(d.effect).toBe('25% chance to miss for 3 turns');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

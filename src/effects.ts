@@ -135,6 +135,14 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`You fumble your weapon${remainingSuffix(effect.turns)}.`);
     }
 
+    // missChance has no HP consequence — it's a passive read honored at the
+    // player-attack method (engine.ts), which rolls its magnitude as a miss
+    // probability before computing the strike. The tick only logs a countdown so
+    // the affliction is visible each turn it persists.
+    if (effect.kind === 'missChance' && !expired) {
+      logs.push(`Your eyes sting${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -172,6 +180,9 @@ function expiryLine(effect: ActiveEffect): string {
   }
   if (effect.kind === 'weaponDebuff') {
     return 'You regain your grip.';
+  }
+  if (effect.kind === 'missChance') {
+    return 'Your vision clears.';
   }
   return `The ${effect.kind} wears off.`;
 }
