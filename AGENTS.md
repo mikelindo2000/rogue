@@ -3,6 +3,8 @@ Agents: use the CLI tool td to manage tasks. You're going to love it, if not, co
 
 Here we commit changes to git as we work. Try to only commit your changes but if you find other work that's clearly intentional but has been left uncommitted other agents (sometimes there are multiple agents working at the same time, we avoid it but... it happens, in that case, leave their work for them to commit but if it's a cchange from hours / days ago, it's okay to sweep in or add to a separate commit and mention in your summary) . 
 
+When you make notable changes, document them under the appropriate section in [CHANGELOG.md](file:///Users/marcusvorwaller/code/rogue/CHANGELOG.md).
+
 ## Keyboard-First Gameplay
 
 Rogue must be fully playable from the keyboard, in the spirit of the original Rogue. Every gameplay feature, modal, menu, picker, overlay, and repeated UI control needs keyboard parity with pointer controls before it is considered complete.

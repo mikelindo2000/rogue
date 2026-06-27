@@ -19,6 +19,9 @@ Guidelines and rules for modifying the Rogue: DungeonMaster codebase.
    - A repo hook runs `npm run check` before each commit. Enable it once per
      clone: `git config core.hooksPath .githooks`.
 
+4. **Changelog**:
+   - If you make notable changes, document them under the appropriate section in [CHANGELOG.md](file:///Users/marcusvorwaller/code/rogue/CHANGELOG.md).
+
 ---
 
 ## Testing & Determinism
