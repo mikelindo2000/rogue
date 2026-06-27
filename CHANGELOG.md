@@ -27,6 +27,10 @@ All notable changes to this project will be documented in this file.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
 
+### Changed
+- **Dungeon View**:
+  - Reverted the drop shadow effect on the map canvas.
+
 ### Fixed
 - Fixed review findings in the effect-kinds layer.
 

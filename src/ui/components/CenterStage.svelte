@@ -196,9 +196,6 @@
     position: relative;
     transform-style: preserve-3d;
     will-change: transform;
-    box-shadow:
-      0 22px 42px rgba(0, 0, 0, 0.5),
-      0 7px 16px rgba(0, 0, 0, 0.42);
   }
   /* Outgoing-floor snapshot. Absolutely overlaid on the live canvas, centered the
      same way, shown only mid-transition (display toggled in JS). Painted above
