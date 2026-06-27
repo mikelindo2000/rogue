@@ -72,6 +72,26 @@ Keep the first implementation as an adapter over the existing `GameUI`, then
 move responsibilities out from behind that adapter phase by phase. This avoids a
 flag-day change to the engine.
 
+#### One synchronous query to resolve
+
+`GamePresenter` is a one-way port: the engine publishes and commands, never
+reads back. There is exactly one call in `engine.ts` that violates this today —
+`this.ui.getStyledItemName(name, rarity)`, used twice to build HTML-styled item
+names for log lines. It is a presentation concern (it emits a `<span>` with a
+rarity color via `rarityVar`/`escapeHtml`) that the engine currently pulls
+synchronously.
+
+Do not add a `getStyledItemName` method to the port. Instead, during migration
+either:
+
+- move the styling to the chrome/log layer — the engine logs a structured item
+  reference (name + rarity) and `ChromePresenter` styles it at render time, or
+- extract the formatter into a pure presentation util the engine imports
+  directly, with no `GameUI` instance dependency.
+
+The first option is cleaner long-term (the engine emits no HTML); the second is
+a smaller mechanical change. Either keeps the port one-way.
+
 ### `PresentationMode`
 
 Model presentation mode as first-class UI state instead of as scattered Svelte
@@ -273,7 +293,9 @@ This phase should produce no visual changes.
 - Build `MapSnapshot` from engine state in one mapper function.
 - Include `MapSnapshot.scope` with `full-floor` as the default.
 - Deep-copy arrays and entity views enough that renderer animation cannot mutate
-  engine state.
+  engine state. Note today's `render()` already snapshots into `this.scene`, but
+  that snapshot holds the *same* `Player`/`Monster`/`Item` references the engine
+  mutates; the new `MapSnapshot` must break that aliasing, not preserve it.
 - Preserve current tile vocabulary and current visibility/explored behavior.
 - Keep the compatibility adapter translating the snapshot back into current
   `GameUI.render()` until the renderer is extracted.
@@ -323,8 +345,11 @@ This phase is the main mechanical split.
 ### Phase 6: Extract Chrome Presenter
 
 - Move `updateStats()`, `updateDropdowns()`, `renderLogs()`, `syncDiscovery()`,
-  inventory view construction, and board-derived overlay projection into
+  inventory view construction, and board-derived overlay projection
+  (`syncOverlays` → `ui.stairsNearby` / `ui.nearbyMonster`) into
   `ChromePresenter` and helper modules.
+- Relocate item-name styling (`getStyledItemName`) out of the engine path per the
+  "one synchronous query to resolve" decision above.
 - Leave Svelte components consuming the same `ui` store shape.
 - Delete or shrink `src/ui.ts` once it no longer owns renderer or chrome logic.
 
@@ -383,8 +408,14 @@ Rules:
 
 - **Large mechanical move risk:** extract in phases and keep the compatibility
   adapter until the new renderer is stable.
-- **Object identity loss:** current animations use `WeakMap<Monster, ...>`.
-  Mitigate with stable render keys in `MonsterView`.
+- **Object identity loss:** current animations key off `Monster` references via
+  three `WeakMap<Monster, ...>` caches in `GameUI` (`moveAnim`, `lastTile`,
+  `dodgeAnim`). Snapshots break that identity. Mitigate with stable render keys
+  in `MonsterView` and re-key those caches by render key inside the renderer.
+- **Hidden query seam:** the engine's one synchronous read from the UI
+  (`getStyledItemName`) is easy to miss because it does not look like a render or
+  effect call. Resolve it explicitly (see GamePresenter) rather than smuggling a
+  read method onto the one-way port.
 - **Duplicated projection logic:** centralize snapshot construction in one mapper
   and chrome overlays in one presenter.
 - **Animation loop regressions:** keep `tick()`/`isAnimating()` explicit and test
