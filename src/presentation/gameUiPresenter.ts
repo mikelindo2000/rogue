@@ -1,5 +1,5 @@
 import type { GameUI } from '../ui';
-import type { Monster } from '../types';
+import type { Item, Monster, Player } from '../types';
 import {
   DEFAULT_PRESENTATION_MODE,
   type DiscoverySnapshot,
@@ -8,11 +8,15 @@ import {
   type InventorySnapshot,
   type PresentationMode,
 } from './presenter';
-import type { MapSnapshot } from './mapSnapshot';
+import { cloneValue, monsterRenderKey, type MapSnapshot, type MonsterView } from './mapSnapshot';
 import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
+
+const LEGACY_TILE_SIZE = 20;
 
 export class GameUiPresenterAdapter implements GamePresenter {
   private mode: PresentationMode = DEFAULT_PRESENTATION_MODE;
+  private readonly legacyMonsters = new Map<string, Monster>();
+  private combatFocusMonsterKey: string | null = null;
 
   constructor(private readonly ui: GameUI) {}
 
@@ -40,9 +44,56 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.updateDropdowns(snapshot.player);
   }
 
-  public publishMap(_snapshot: MapSnapshot): void {
-    // Phase 2 will introduce the mapper that feeds this path. Current gameplay
-    // still calls render(...) through the compatibility surface below.
+  public publishMap(snapshot: MapSnapshot): void {
+    const map = snapshot.tiles.map(row => row.map(tile => tile.kind));
+    const explored = snapshot.tiles.map(row => row.map(tile => tile.explored));
+    const visible = snapshot.tiles.map(row => row.map(tile => tile.visible));
+    const player = { x: snapshot.player.x, y: snapshot.player.y } as Player;
+    const monsters = snapshot.monsters.map(monster => this.legacyMonsterFromView(monster));
+    const liveKeys = new Set(snapshot.monsters.map(monster => monster.key));
+
+    for (const key of this.legacyMonsters.keys()) {
+      if (!liveKeys.has(key)) this.legacyMonsters.delete(key);
+    }
+
+    this.ui.combatFocusMonster = this.combatFocusMonsterKey
+      ? this.legacyMonsters.get(this.combatFocusMonsterKey) ?? null
+      : null;
+
+    this.ui.render(
+      map,
+      explored,
+      visible,
+      player,
+      monsters,
+      snapshot.items.map(item => {
+        const legacy = {
+          x: item.x,
+          y: item.y,
+          symbol: item.glyph,
+          color: item.color,
+          type: item.type,
+        } as Item;
+        if (item.amount !== undefined) (legacy as Extract<Item, { type: 'gold' }>).amount = item.amount;
+        if (item.data !== undefined) (legacy as Item & { data: unknown }).data = cloneValue(item.data);
+        return legacy;
+      }),
+      snapshot.traps.map(trap => ({
+        id: trap.id,
+        kind: trap.kind,
+        x: trap.x,
+        y: trap.y,
+        revealed: trap.revealed,
+        armed: trap.armed,
+      })),
+      LEGACY_TILE_SIZE,
+      snapshot.cols,
+      snapshot.rows,
+      snapshot.floor,
+      snapshot.gameOver,
+      snapshot.gameWon,
+      snapshot.monsterDetectionActive,
+    );
   }
 
   public publishLogs(logs: readonly string[]): void {
@@ -119,10 +170,6 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.ui.syncDiscovery(...args);
   }
 
-  public render(...args: Parameters<GameUI['render']>): void {
-    this.ui.render(...args);
-  }
-
   public fxPlayerRun(path: readonly RunPathStep[], ghosts: readonly RunGhostItem[] = []): void {
     this.ui.fxPlayerRun([...path], [...ghosts]);
   }
@@ -159,8 +206,9 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.ui.fxFloat(...args);
   }
 
-  public fxMonsterDodge(...args: Parameters<GameUI['fxMonsterDodge']>): void {
-    this.ui.fxMonsterDodge(...args);
+  public fxMonsterDodge(monster: Monster, fromX: number, fromY: number): void {
+    const key = monsterRenderKey(monster);
+    this.ui.fxMonsterDodge(this.legacyMonsters.get(key) ?? cloneMonsterForEffect(monster), fromX, fromY);
   }
 
   public mapRumble(...args: Parameters<GameUI['mapRumble']>): void {
@@ -176,10 +224,52 @@ export class GameUiPresenterAdapter implements GamePresenter {
   }
 
   public focusCombatMonster(monster: Monster): void {
-    this.ui.combatFocusMonster = monster;
+    this.combatFocusMonsterKey = monsterRenderKey(monster);
+    this.ui.combatFocusMonster = this.legacyMonsters.get(this.combatFocusMonsterKey) ?? null;
   }
 
   public clearCombatFocusMonster(monster: Monster): void {
-    if (this.ui.combatFocusMonster === monster) this.ui.combatFocusMonster = null;
+    if (this.combatFocusMonsterKey === monsterRenderKey(monster)) {
+      this.combatFocusMonsterKey = null;
+      this.ui.combatFocusMonster = null;
+    }
+  }
+
+  private legacyMonsterFromView(view: MonsterView): Monster {
+    const monster = this.legacyMonsters.get(view.key) ?? ({} as Monster);
+
+    monster.x = view.x;
+    monster.y = view.y;
+    monster.symbol = view.glyph;
+    monster.name = view.name;
+    monster.hp = view.hp;
+    monster.atk = view.atk;
+    monster.color = view.color;
+    monster.minFloor = view.minFloor;
+    monster.frozenTurns = view.frozenTurns;
+
+    setOptional(monster, 'id', view.id);
+    setOptional(monster, 'maxHp', view.maxHp);
+    setOptional(monster, 'special', view.special);
+    setOptional(monster, 'ai', cloneValue(view.ai));
+
+    this.legacyMonsters.set(view.key, monster);
+    return monster;
+  }
+}
+
+function cloneMonsterForEffect(monster: Monster): Monster {
+  return {
+    ...monster,
+    ai: cloneValue(monster.ai),
+    stolenLoot: cloneValue(monster.stolenLoot),
+  };
+}
+
+function setOptional<K extends keyof Monster>(monster: Monster, key: K, value: Monster[K] | undefined): void {
+  if (value === undefined) {
+    delete monster[key];
+  } else {
+    monster[key] = value;
   }
 }

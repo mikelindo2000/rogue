@@ -13,7 +13,6 @@ export const createTestPresenter = (overrides: Partial<GamePresenter> = {}): Gam
   resetLog: () => {},
   renderLogs: () => {},
   syncDiscovery: () => {},
-  render: () => {},
   fxPlayerRun: () => {},
   fxStrike: () => {},
   fxHit: () => {},

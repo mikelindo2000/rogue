@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - **UI & HUD**:
   - Added rendering of monster abilities within the Bestiary compendium.
   - Created a planning document for splitting the GameUI and support for boss presentation modes.
+  - Added immutable map snapshots for the engine-to-presenter render path.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
 

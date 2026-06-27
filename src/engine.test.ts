@@ -6,6 +6,7 @@ import type { RNG } from './rng';
 import { RecordingSink } from './audio/events';
 import { getTotalDef } from './player';
 import { createTestPresenter } from './testPresenter';
+import type { MapSnapshot } from './presentation/mapSnapshot';
 
 const makePresenter = createTestPresenter;
 
@@ -202,19 +203,17 @@ describe('GameEngine amulet escape endgame', () => {
   });
 
   it('draws after escape so the UI bridge observes the win state', () => {
-    const renders: unknown[][] = [];
+    const snapshots: MapSnapshot[] = [];
     const ui = makePresenter({
-      render: (...args: unknown[]) => renders.push(args),
+      publishMap: snapshot => snapshots.push(snapshot),
     });
     const engine = makeEscapeStage(1, undefined, ui);
     engine.hasAmulet = true;
 
     engine.handlePlayerMove(1, 0);
 
-    expect(renders.length).toBeGreaterThan(0);
-    const lastRender = renders[renders.length - 1];
-    const gameWon = lastRender[12];
-    expect(gameWon).toBe(true);
+    expect(snapshots.length).toBeGreaterThan(0);
+    expect(snapshots[snapshots.length - 1].gameWon).toBe(true);
   });
 
   it('escapes through the real generated Floor-1 up-stairs (not a carved tile)', () => {

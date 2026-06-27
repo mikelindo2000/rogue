@@ -1,5 +1,6 @@
 import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import type { GamePresenter } from './presentation/presenter';
+import { createMapSnapshot } from './presentation/mapSnapshot';
 import { formatStyledItemName } from './presentation/itemNameFormatter';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
@@ -2603,22 +2604,21 @@ export class GameEngine {
   }
 
   public draw() {
-    this.presenter.render(
-      this.map,
-      this.explored,
-      this.visible,
-      this.player,
-      this.monsters,
-      this.items,
-      this.traps,
-      this.TILE_SIZE,
-      this.COLS,
-      this.ROWS,
-      this.dungeonFloor,
-      this.gameOver,
-      this.gameWon,
-      this.statusEffects.monsterDetectionTurns > 0
-    );
+    this.presenter.publishMap(createMapSnapshot({
+      map: this.map,
+      explored: this.explored,
+      visible: this.visible,
+      player: this.player,
+      monsters: this.monsters,
+      items: this.items,
+      traps: this.traps,
+      cols: this.COLS,
+      rows: this.ROWS,
+      floor: this.dungeonFloor,
+      gameOver: this.gameOver,
+      gameWon: this.gameWon,
+      monsterDetectionActive: this.statusEffects.monsterDetectionTurns > 0,
+    }));
   }
 
   private finalizeRun(outcome: 'won' | 'died', deathCause?: DeathCause, killedByMonsterId?: string): RunSummaryV1 {

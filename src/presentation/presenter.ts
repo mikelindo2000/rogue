@@ -1,5 +1,5 @@
 import type { DiscoveryState } from '../discovery';
-import type { StatusEffects, Item, Monster, Player, TrapEffects, TrapState } from '../types';
+import type { StatusEffects, Monster, Player, TrapEffects } from '../types';
 import type { MapSnapshot } from './mapSnapshot';
 import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
 
@@ -56,22 +56,6 @@ export interface GamePresenter {
   resetLog(): void;
   renderLogs(logs: readonly string[]): void;
   syncDiscovery(state: DiscoveryState): void;
-  render(
-    map: string[][],
-    explored: boolean[][],
-    visible: boolean[][],
-    player: Player,
-    monsters: Monster[],
-    items: Item[],
-    traps: TrapState[],
-    tileSize: number,
-    cols: number,
-    rows: number,
-    dungeonFloor: number,
-    gameOver: boolean,
-    gameWon: boolean,
-    monsterDetectionActive: boolean,
-  ): void;
   fxPlayerRun(path: readonly RunPathStep[], ghosts: readonly RunGhostItem[]): void;
   fxStrike(fromX: number, fromY: number, toX: number, toY: number): void;
   fxHit(x: number, y: number, damage: number, crit?: boolean): void;
