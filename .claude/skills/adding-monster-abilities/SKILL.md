@@ -104,6 +104,21 @@ taxonomy in the framework plan). Two questions decide your work:
      (poison/fire/acid/bacterial) rides on `damageType`. Don't add a new `AbilityId` per flavor.
    - **A monster may already have a `MONSTER_ABILITIES` row** (e.g. Cyclops has Munch). The
      value is an array — **append** your `AbilitySpec` to it, don't replace the row.
+   - Set **`label`** to the sheet ability name (e.g. `label: 'Intimidating Stare'`) — the
+     bestiary shows it. Use these **canonical `AbilityId`s** so descriptions line up:
+     `poison` (all DoTs; flavor via `damageType`), `stun`, `fear`, `armorDebuff`, `atkDebuff`,
+     `weaponDebuff`, `missChance`, `silenceMagic`.
+
+## C2. Bestiary (every ability — usually automatic)
+
+The bestiary (`MonsterDetail.svelte`) lists a defeated monster's abilities via
+`monsterAbilities` → `describeAbility` (`src/ai/abilityDescriptions.ts`), which is data-driven
+from the `AbilitySpec`. So an ability with a known id + a `label` **surfaces with no UI work**.
+- For a **brand-new kind**, add a `generatedName` + `effectText` case in
+  `abilityDescriptions.ts` so it reads as a sentence (it falls back to a generic line
+  otherwise). Add a `describeAbility` test case (`abilityDescriptions.test.ts`).
+- Per-ability *discovery* (only show abilities the player has witnessed) is a future
+  enhancement — today a defeated monster shows all its abilities.
 
 ## D. Tests (every ability) — mirror the existing patterns
 
