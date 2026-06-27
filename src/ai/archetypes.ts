@@ -286,6 +286,15 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the
   // stun read site (engine takeStunTurn) makes it cost the player an action.
   'xelhua': [{ id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  // Yeti — Freeze Frame (A2, 1%): "Freezes the target, resulting in a lost turn"
+  // — a 1-turn stun. (The +5 damage portion is bonusDamage, a separate category.)
+  'yeti': [{ id: 'stun', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  // Michael the Minotaur — Head Butt (A2, 1%): "stuns the target for one turn"
+  // — a 1-turn stun. (The +10 damage portion is bonusDamage, a separate category.)
+  'michael-the-minotaur': [{ id: 'stun', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  // Gary the Golem — Iron Curse (A1, 3%): "slows attacks resulting in two lost
+  // turns" — a 2-turn stun. Keyed to Gary so the other 'guardian' monsters are unaffected.
+  'gary-the-golem': [{ id: 'stun', chance: 0.03, magnitude: 1, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Dragon — Molten Breath (A1, 3%): "+10 fire damage per turn until the fight is
   // over". We have no "until combat ends" duration yet, so this is approximated as
   // a sustained 5-turn fire DoT (flagged for a follow-up duration mode). Magnitude

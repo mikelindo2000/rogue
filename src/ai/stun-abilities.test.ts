@@ -108,6 +108,17 @@ describe('stun abilities (Cyclops / Xelhua)', () => {
     expect(logs).toHaveLength(0);
   });
 
+  it.each([
+    { name: 'Yeti', chance: 0.01, duration: 1 },
+    { name: 'Michael the Minotaur', chance: 0.01, duration: 1 },
+    { name: 'Gary the Golem', chance: 0.03, duration: 2 },
+  ])('$name resolves with its stun (pure data: $chance / $duration turn)', ({ name, chance, duration }) => {
+    const stun = resolveBehavior({ name }).abilities.find((a) => a.id === 'stun');
+    expect(stun, `${name} should have a stun`).toBeDefined();
+    expect(stun!.chance).toBe(chance);
+    expect(stun!.duration).toBe(duration);
+  });
+
   it('does not leak the stun to siblings sharing an archetype', () => {
     // Colossal Cyclops shares 'brute' with Cyclops but has its own sheet abilities —
     // it must NOT inherit Cyclops's Intimidating Stare.
