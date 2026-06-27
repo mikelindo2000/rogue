@@ -58,12 +58,13 @@ export function processMonsterAI(
     }
 
     const rt = ensureRuntime(m);
-    // Category K self-buff (Kalius's Second Head): tick the monster's own damage
-    // buff down once per turn, mirroring frozenTurns. Done BEFORE the monster acts
-    // so a buff applied during THIS turn's attack (set in applyOnHitAbilities, after
-    // the hit resolves) isn't decremented until its first full turn — giving the
-    // sheet's "+50% for 2 turns" its full duration on subsequent attacks.
-    if ((rt.atkBuffTurns ?? 0) > 0) rt.atkBuffTurns!--;
+    // Category K self-buff (Kalius's Second Head): the damage buff must empower N
+    // ACTIONS, so it's ticked AFTER the monster acts (see the post-action tick below),
+    // not before. Ticking before acting (like frozenTurns) would burn one turn of
+    // duration with no buffed hit, giving "+50% for 2 turns" only ONE empowered
+    // attack. We snapshot whether the buff is being applied THIS turn so the turn it
+    // is set (in applyOnHitAbilities, after the hit) isn't immediately counted down.
+    const buffTurnsBeforeAct = rt.atkBuffTurns ?? 0;
     // Wand of Cancellation: while active, the monster is stripped to plain melee
     // (no telegraphed specials/abilities) and any charged attack is dropped.
     const cancelled = (m.canceledTurns ?? 0) > 0;
@@ -84,6 +85,10 @@ export function processMonsterAI(
           onBlink?.(m);
         }
       }
+      // Post-action buff tick (see below): count down a buff that was already active
+      // at the top of this turn, after the swoop read it. A buff first set THIS turn
+      // (buffTurnsBeforeAct === 0) is left for next turn's first empowered action.
+      if (buffTurnsBeforeAct > 0 && (rt.atkBuffTurns ?? 0) > 0) rt.atkBuffTurns!--;
       continue;
     }
 
@@ -108,6 +113,12 @@ export function processMonsterAI(
       rt.pendingBlink = false;
       onBlink?.(m);
     }
+    // Post-action category-K buff tick: count down a buff that was already active at
+    // the top of this turn AFTER the attack read it (so the read turn counts). A buff
+    // first set this turn (buffTurnsBeforeAct === 0, e.g. selfBuff just procced in the
+    // attack above) is left intact so it empowers N full subsequent attacks, giving
+    // "+50% for 2 turns" its true 2-attack duration.
+    if (buffTurnsBeforeAct > 0 && (rt.atkBuffTurns ?? 0) > 0) rt.atkBuffTurns!--;
   }
 }
 
@@ -303,6 +314,11 @@ export function applyOnHitAbilities(
   // is unchanged and seeded parity holds — chance × 1 is the same draw).
   const procMult = getConfig().abilityProcMultiplier;
   for (const ab of behavior.abilities) {
+    // extraHits is resolved on the ATTACK path (applyExtraHits), which owns its own
+    // single chance gate. Skip it here BEFORE the chance roll so it doesn't burn a
+    // second PRNG draw (or a wasted no-op proc) — that double-gate would perturb the
+    // seeded stream for category-K monsters (Kalius / Colossal Cyclops).
+    if (ab.id === 'extraHits') continue;
     if (ab.trigger !== 'onHit' || !rng.chance(Math.min(1, ab.chance * procMult))) continue;
     const applied = fireAbility(ab, m, player, logs, rng, floor);
     // Flat extra damage rides on top of any status effect (and is the whole

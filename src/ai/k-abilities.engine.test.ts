@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { RNG } from '../rng';
+import { makeRng, type RNG } from '../rng';
 import type { Monster, Player, StatusEffects } from '../types';
 import { processMonsterAI } from '../monster';
 import { ensureRuntime } from './brain';
@@ -81,13 +81,51 @@ describe('K engine: selfBuff makes the monster hit harder', () => {
     const pBuffed = player();
     const mBuffed = kalius();
     const rt = ensureRuntime(mBuffed);
-    rt.atkBuffTurns = 2; // ticked to 1 at the top of the loop, still > 0 → buff applies
+    rt.atkBuffTurns = 2; // active at top of turn → buff applies to THIS attack (ticked after).
     rt.atkBuffMult = 1.5;
     runTurn(mBuffed, pBuffed, r());
     const buffedDmg = 5000 - pBuffed.hp;
 
     expect(plainDmg).toBeGreaterThan(0);
     expect(buffedDmg).toBeGreaterThan(plainDmg);
+  });
+
+  it('a freshly-procced selfBuff empowers the NEXT TWO attacks, then wears off', () => {
+    // End-to-end duration test: drive processMonsterAI across consecutive turns and
+    // assert the "+50%/2t" buff lands on exactly two subsequent attacks (not one —
+    // the decrement-before-act off-by-one — and not three).
+    // Baseline: same deterministic damage roll with no buff ever.
+    const baselineP = player();
+    runTurn(kalius(), baselineP, rng(false, 0.9));
+    const plain = 5000 - baselineP.hp;
+
+    // Turn N: selfBuff procs (chance fires) after the hit → atkBuffTurns set to 2.
+    const m = kalius();
+    const p = player();
+    runTurn(m, p, rng(true, 0.9));
+    const rt = ensureRuntime(m);
+    expect(rt.atkBuffTurns).toBe(2); // set this turn, NOT ticked down (application turn).
+
+    // Turns N+1 and N+2: both must read the buff (each > plain). chance=false so no
+    // NEW proc perturbs the comparison; the damage roll fraction is identical.
+    const hp1Before = p.hp;
+    runTurn(m, p, rng(false, 0.9));
+    const hit1 = hp1Before - p.hp;
+
+    const hp2Before = p.hp;
+    runTurn(m, p, rng(false, 0.9));
+    const hit2 = hp2Before - p.hp;
+
+    // Turn N+3: buff has worn off — back to the plain damage.
+    const hp3Before = p.hp;
+    runTurn(m, p, rng(false, 0.9));
+    const hit3 = hp3Before - p.hp;
+
+    expect(plain).toBeGreaterThan(0);
+    expect(hit1).toBeGreaterThan(plain); // buffed attack #1
+    expect(hit2).toBeGreaterThan(plain); // buffed attack #2
+    expect(hit3).toBe(plain); // unbuffed again
+    expect(rt.atkBuffTurns ?? 0).toBe(0);
   });
 });
 
@@ -110,5 +148,47 @@ describe('K engine: extraHits proc deals multiple hits through the attack path',
     const logs = runTurn(kalius(), p, rng(false, 0.9));
     expect(logs.join(' ')).toMatch(/Kalius King Cobra hits for \d+ dmg\./);
     expect(logs.join(' ')).not.toMatch(/extra hit/);
+  });
+});
+
+// A real-PRNG wrapper that counts chance() draws, to prove the extraHits ability is
+// gated by exactly ONE chance roll per landed hit (the applyExtraHits gate) — not
+// the previous double-gate where applyOnHitAbilities ALSO rolled chance for it (a
+// wasted no-op proc that burned a second PRNG step and perturbed the seeded stream).
+function countingRng(seed: number): RNG & { chanceCalls: number } {
+  const base = makeRng(seed);
+  const wrapped = {
+    chanceCalls: 0,
+    seed: base.seed,
+    next: () => base.next(),
+    int: (m: number) => base.int(m),
+    range: (a: number, b: number) => base.range(a, b),
+    chance(p: number) {
+      this.chanceCalls++;
+      return base.chance(p);
+    },
+    pick: <T>(a: readonly T[]) => base.pick(a),
+    getState: () => base.getState(),
+  };
+  return wrapped as unknown as RNG & { chanceCalls: number };
+}
+
+describe('K engine: extraHits is single-gated (no double chance draw)', () => {
+  it('a Kalius hit rolls chance exactly twice: once for selfBuff, once for extraHits', () => {
+    // Kalius has two onHit abilities (selfBuff + extraHits). On the landed hit the
+    // generic onHit loop gates ONLY selfBuff (extraHits is skipped there now), and
+    // applyExtraHits gates extraHits — two chance draws total. Before the fix this
+    // was three (extraHits double-rolled), diverging the downstream PRNG stream.
+    const r = countingRng(12345);
+    runTurn(kalius(), player(), r);
+    expect(r.chanceCalls).toBe(2);
+  });
+
+  it('the seeded PRNG state after a Kalius hit is stable (regression lock)', () => {
+    // Lock the exact stream position after one full attack so any future change that
+    // re-introduces an extra draw (or drops one) on the K attack path is caught.
+    const r = countingRng(0xABCDEF);
+    runTurn(kalius(), player(), r);
+    expect(r.getState()).toMatchInlineSnapshot(`1210989518`);
   });
 });
