@@ -80,7 +80,8 @@ export type AbilityId =
   | 'armorDebuff'
   | 'atkDebuff'
   | 'weaponDebuff'
-  | 'missChance';
+  | 'missChance'
+  | 'silenceMagic';
 
 export interface AbilitySpec {
   id: AbilityId;

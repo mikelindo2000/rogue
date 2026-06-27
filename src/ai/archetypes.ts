@@ -347,6 +347,11 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Approximated as a large flat reduction (99) that effectively zeroes the
   // player's defense for the duration (getTotalDef clamps the result to >= 0).
   'pantier-pygmy-king': [{ id: 'armorDebuff', label: 'Miniaturize', chance: 0.03, magnitude: 99, duration: 2, cooldown: 0, trigger: 'onHit' }],
+  // Zombie — Putrid Bite (3%): seals the player's magic (cannot zap wands) for 3
+  // turns. Merges with the leech archetype's heal — the Zombie keeps both. (The
+  // sheet's "staff-equipped fights disarmed" portion is out of scope — a separate
+  // equip-conditional combat modifier, not a status effect.)
+  'zombie': [{ id: 'silenceMagic', label: 'Putrid Bite', chance: 0.03, duration: 3, cooldown: 0, trigger: 'onHit' }],
 };
 
 const resolved = new Map<string, MonsterBehavior>();

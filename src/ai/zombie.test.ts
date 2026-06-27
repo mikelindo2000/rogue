@@ -62,7 +62,10 @@ describe('Zombie', () => {
 
     // Wounded: plenty of headroom, so a landed hit heals by exactly the magnitude.
     const wounded = zombie({ hp: 100, maxHp: 275 });
-    const player = { gold: 0 } as Player;
+    // activeEffects: [] — the Zombie now also carries a Putrid Bite silence whose
+    // applyEffect path reads player.activeEffects; an empty list keeps this leech
+    // test focused on the heal while tolerating a silence proc.
+    const player = { gold: 0, activeEffects: [] } as unknown as Player;
     const logs = applyOnHitAbilities(b, wounded, player, makeRng(1));
     expect(wounded.hp).toBe(100 + magnitude);
     expect(logs.join(' ')).toMatch(/drains your vitality/);

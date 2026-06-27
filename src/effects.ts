@@ -143,6 +143,13 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`Your eyes sting${remainingSuffix(effect.turns)}.`);
     }
 
+    // silenceMagic has no HP consequence — it's a passive read honored at the
+    // zapWand gate (engine.ts), which blocks zapping while it's active. The tick
+    // only logs a countdown so the affliction is visible each turn it persists.
+    if (effect.kind === 'silenceMagic' && !expired) {
+      logs.push(`Your magic is muffled${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -183,6 +190,9 @@ function expiryLine(effect: ActiveEffect): string {
   }
   if (effect.kind === 'missChance') {
     return 'Your vision clears.';
+  }
+  if (effect.kind === 'silenceMagic') {
+    return 'Your magic flows freely again.';
   }
   return `The ${effect.kind} wears off.`;
 }

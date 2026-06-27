@@ -379,6 +379,21 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} blinds you!`);
       return true;
     }
+    case 'silenceMagic': {
+      // Inflict magic silence: while active the player cannot zap wands (gated at
+      // zapWand in engine.ts). Like the other persistent-effect cases this body
+      // draws nothing from `rng` — the only roll is the per-ability chance gate in
+      // applyOnHitAbilities, so seeded parity is preserved. magnitude is unused;
+      // duration carries the effect. Re-applying refreshes the duration.
+      applyEffect(player, {
+        kind: 'silenceMagic',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+      });
+      logs.push(`${m.name} seals your magic!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —

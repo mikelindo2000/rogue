@@ -58,6 +58,13 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('25% chance to miss for 3 turns');
   });
 
+  it('describes silenceMagic with its duration', () => {
+    const sil: AbilitySpec = { id: 'silenceMagic', label: 'Putrid Bite', chance: 0.03, duration: 3, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(sil);
+    expect(d.name).toBe('Putrid Bite');
+    expect(d.effect).toBe('your magic is sealed for 3 turns');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

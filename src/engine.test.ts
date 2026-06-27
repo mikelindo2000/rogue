@@ -682,6 +682,39 @@ describe('GameEngine missChance read site', () => {
   });
 });
 
+describe('GameEngine silenceMagic read site', () => {
+  // Only the engine's zapWand gate can prove silenceMagic is honored: a silenced
+  // player cannot zap, and the block consumes no wand cooldown.
+  it('blocks a wand zap and consumes no cooldown while silenced', () => {
+    const engine = makeRunner();
+    engine.player.inventory.wands = [
+      { name: 'Wand of Striking', wandType: 'striking', tier: 'wand', cooldownRemaining: 0, identified: true },
+    ];
+    engine.player.activeEffects = [{ kind: 'silenceMagic', turns: 3, magnitude: 1, source: 'Zombie' }];
+
+    const result = engine.zapWand(0, 1, 0);
+    expect(result).toBe(false);
+    expect(engine.logs.join(' ')).toMatch(/Your magic is sealed!/);
+    // No cooldown was charged — the wand is still ready once the silence lifts.
+    expect(engine.player.inventory.wands[0].cooldownRemaining ?? 0).toBe(0);
+  });
+
+  it('allows a wand zap once the silence is gone', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 1, 8); // clear line for the bolt to travel
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.inventory.wands = [
+      { name: 'Wand of Striking', wandType: 'striking', tier: 'wand', cooldownRemaining: 0, identified: true },
+    ];
+    engine.player.activeEffects = []; // not silenced
+
+    const result = engine.zapWand(0, 1, 0);
+    expect(result).toBe(true);
+    expect(engine.logs.join(' ')).not.toMatch(/Your magic is sealed!/);
+  });
+});
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();

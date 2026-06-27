@@ -1812,6 +1812,15 @@ export class GameEngine {
     if (this.gameOver || this.gameWon) return false;
     if (this.takeSleepTurn()) return false;
     if (this.takeStunTurn()) return false;
+    // silenceMagic read site (Zombie "Putrid Bite"): a silenced player cannot zap.
+    // Block the zap WITHOUT consuming a wand cooldown or spending a turn — this is
+    // a read-only gate; the effect's duration is owned by tickPlayerEffects. (The
+    // sheet's "staff-equipped fights disarmed" portion of Putrid Bite is out of
+    // scope — that's a separate equip-conditional combat modifier.)
+    if (hasEffect(this.player, 'silenceMagic')) {
+      this.addLog('Your magic is sealed!');
+      return false;
+    }
     const wand = this.player.inventory.wands[index];
     if (!wand) return false;
     if ((wand.cooldownRemaining ?? 0) > 0) {
