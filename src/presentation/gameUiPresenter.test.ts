@@ -1,8 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GameUI } from '../ui';
 import { ui } from '../ui/store.svelte';
-import { GameUiPresenterAdapter } from './gameUiPresenter';
+import { GameUiPresenterAdapter, type GameUiPresenterTarget } from './gameUiPresenter';
 import { copyPresentationMode, DEFAULT_PRESENTATION_MODE, type PresentationMode } from './presenter';
+
+function createLegacyUiFake() {
+  return {
+    setMapSnapshot: vi.fn(),
+    publishMapEvent: vi.fn(),
+    updateStats: vi.fn(),
+    updateDropdowns: vi.fn(),
+    resetLog: vi.fn(),
+    renderLogs: vi.fn(),
+    syncDiscovery: vi.fn(),
+    fxPlayerRun: vi.fn(),
+    fxStrike: vi.fn(),
+    fxHit: vi.fn(),
+    fxFreeze: vi.fn(),
+    fxDeath: vi.fn(),
+    fxPlayerHit: vi.fn(),
+    fxDive: vi.fn(),
+    fxWhiff: vi.fn(),
+    fxFloat: vi.fn(),
+    fxMonsterDodge: vi.fn(),
+    mapRumble: vi.fn(),
+    beginFloorTransition: vi.fn(),
+    setAiming: vi.fn(),
+    publishEndRunState: vi.fn(),
+    resetEndRunState: vi.fn(),
+  } satisfies GameUiPresenterTarget;
+}
 
 describe('GameUiPresenterAdapter presentation mode', () => {
   beforeEach(() => {
@@ -10,7 +36,7 @@ describe('GameUiPresenterAdapter presentation mode', () => {
   });
 
   it('defaults to dungeon-map and publishes copied mode state for chrome', () => {
-    const legacyUi = { publishMapEvent: vi.fn() } as unknown as GameUI;
+    const legacyUi = createLegacyUiFake();
     const presenter = new GameUiPresenterAdapter(legacyUi);
     const mode: PresentationMode = {
       type: 'boss-encounter',
@@ -33,7 +59,7 @@ describe('GameUiPresenterAdapter presentation mode', () => {
   });
 
   it('handles modeChanged events and can return to dungeon-map', () => {
-    const legacyUi = { publishMapEvent: vi.fn() } as unknown as GameUI;
+    const legacyUi = createLegacyUiFake();
     const presenter = new GameUiPresenterAdapter(legacyUi);
 
     presenter.publishEvent({ type: 'presentation.modeChanged', mode: { type: 'end-run-transition', runId: 'run-1' } });
@@ -47,10 +73,7 @@ describe('GameUiPresenterAdapter presentation mode', () => {
   });
 
   it('routes aiming changes to chrome and still forwards the map event', () => {
-    const legacyUi = {
-      publishMapEvent: vi.fn(),
-      setAiming: vi.fn(),
-    } as unknown as GameUI;
+    const legacyUi = createLegacyUiFake();
     const presenter = new GameUiPresenterAdapter(legacyUi);
 
     presenter.publishEvent({ type: 'aiming.changed', wandName: 'Wand of Cold' });

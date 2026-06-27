@@ -3,6 +3,13 @@ import type { StatusEffects, Player, TrapEffects } from '../types';
 import type { MapSnapshot } from './mapSnapshot';
 import type { PresentationEvent } from './presentationEvents';
 
+/**
+ * Presentation ownership boundary:
+ * - The engine publishes authoritative state snapshots and typed presentation events.
+ * - Map renderers draw immutable MapSnapshot data and react to PresentationEvent data.
+ * - Svelte chrome projection lives in ChromePresenter and the ui store.
+ * - Keyboard gameplay remains in action wiring; presentation modules do not own commands.
+ */
 export interface EncounterScope {
   readonly kind: 'room';
   readonly rect: { readonly l: number; readonly t: number; readonly r: number; readonly b: number };

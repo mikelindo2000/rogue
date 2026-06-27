@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file.
   - Added first-class presentation mode state and room-scoped map snapshots for future boss encounter framing.
   - Extracted the current ASCII canvas board into `AsciiCanvasRenderer` behind a `MapViewController`.
   - Extracted Svelte chrome projection into `ChromePresenter`, covering HUD stats, inventory/action views, logs, discovery, end-run state, and board-derived overlays.
+  - Documented presentation ownership boundaries and tightened mapper, mode handoff, and renderer lifecycle test coverage.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
 

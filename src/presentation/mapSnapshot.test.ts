@@ -114,6 +114,12 @@ describe('createMapSnapshot', () => {
     expect(snapshot.player.x).toBe(1);
     expect(snapshot.monsters[0].x).toBe(1);
     expect(snapshot.monsters[0].ai?.pendingAttack?.targetX).toBe(2);
+    expect(snapshot.monsters[0].ai?.pendingAttack).toEqual({
+      attackId: 'club',
+      resolveTurn: 12,
+      targetX: 2,
+      targetY: 1,
+    });
     expect((snapshot.items[0].data as { name: string }).name).toBe('Short Sword');
     expect(snapshot.traps[0].armed).toBe(true);
 
@@ -139,10 +145,17 @@ describe('createMapSnapshot', () => {
       color: '#ffd84d',
       amount: 42,
     };
+    const hiddenExploredItem: Item = {
+      type: 'food',
+      x: 0,
+      y: 1,
+      symbol: '%',
+      color: '#ff9900',
+    };
 
-    const first = createMapSnapshot(baseInput({ monsters: [sourceMonster, secondMonster], items: [sourceItem] }));
+    const first = createMapSnapshot(baseInput({ monsters: [sourceMonster, secondMonster], items: [sourceItem, hiddenExploredItem] }));
     sourceMonster.x = 2;
-    const second = createMapSnapshot(baseInput({ monsters: [sourceMonster, secondMonster], items: [sourceItem] }));
+    const second = createMapSnapshot(baseInput({ monsters: [sourceMonster, secondMonster], items: [sourceItem, hiddenExploredItem] }));
 
     expect(first.player).toEqual({ x: 1, y: 0, inScope: true });
     expect(second.monsters[0].key).toBe(first.monsters[0].key);
@@ -172,6 +185,15 @@ describe('createMapSnapshot', () => {
       color: '#ffd84d',
       explored: true,
       visible: true,
+      inScope: true,
+    });
+    expect(first.items[1]).toMatchObject({
+      key: 'item-1-food-0-1',
+      x: 0,
+      y: 1,
+      type: 'food',
+      explored: true,
+      visible: false,
       inScope: true,
     });
   });

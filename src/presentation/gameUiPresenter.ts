@@ -12,11 +12,37 @@ import {
 import type { MapSnapshot } from './mapSnapshot';
 import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
 
+export type GameUiPresenterTarget = Pick<
+  GameUI,
+  | 'setMapSnapshot'
+  | 'publishMapEvent'
+  | 'updateStats'
+  | 'updateDropdowns'
+  | 'resetLog'
+  | 'renderLogs'
+  | 'syncDiscovery'
+  | 'fxPlayerRun'
+  | 'fxStrike'
+  | 'fxHit'
+  | 'fxFreeze'
+  | 'fxDeath'
+  | 'fxPlayerHit'
+  | 'fxDive'
+  | 'fxWhiff'
+  | 'fxFloat'
+  | 'fxMonsterDodge'
+  | 'mapRumble'
+  | 'beginFloorTransition'
+  | 'setAiming'
+  | 'publishEndRunState'
+  | 'resetEndRunState'
+>;
+
 export class GameUiPresenterAdapter implements GamePresenter {
   private mode: PresentationMode = copyPresentationMode(DEFAULT_PRESENTATION_MODE);
   private combatFocusMonsterKey: string | null = null;
 
-  constructor(private readonly ui: GameUI) {}
+  constructor(private readonly ui: GameUiPresenterTarget) {}
 
   public setMode(mode: PresentationMode): void {
     this.mode = copyPresentationMode(mode);

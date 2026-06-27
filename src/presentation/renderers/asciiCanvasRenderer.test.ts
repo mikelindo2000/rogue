@@ -162,7 +162,13 @@ describe('AsciiCanvasRenderer', () => {
     renderer.dispatch({ type: 'combat.strike', fromX: 1, fromY: 1, toX: 2, toY: 1 });
     renderer.dispatch({ type: 'combat.freeze', x: 2, y: 1 });
     renderer.dispatch({ type: 'combat.death', x: 2, y: 1, glyph: 'O', color: '#55aa55' });
+    renderer.dispatch({ type: 'combat.playerHit' });
+    renderer.dispatch({ type: 'combat.dive', fromX: 2, fromY: 1, toX: 1, toY: 1, color: '#55aa55' });
+    renderer.dispatch({ type: 'combat.whiff', x: 1, y: 1 });
+    renderer.dispatch({ type: 'combat.float', x: 1, y: 1, text: 'Stunned', color: '#a8d8ff' });
     renderer.dispatch({ type: 'combat.monsterDodge', monsterKey: 'monster-a', fromX: 1, fromY: 1 });
+    renderer.dispatch({ type: 'combat.focusMonster', monsterKey: 'monster-a' });
+    renderer.dispatch({ type: 'combat.clearFocusMonster', monsterKey: 'monster-a' });
     renderer.dispatch({ type: 'player.run', path: [{ x: 1, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 2 }], ghosts: [] });
     renderer.dispatch({ type: 'map.rumble', strength: 0.8 });
     renderer.dispatch({ type: 'map.floorTransition', dir: 'down' });
