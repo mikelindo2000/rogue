@@ -10,7 +10,7 @@ describe('GameUiPresenterAdapter presentation mode', () => {
   });
 
   it('defaults to dungeon-map and publishes copied mode state for chrome', () => {
-    const legacyUi = { render: vi.fn() } as unknown as GameUI;
+    const legacyUi = { publishMapEvent: vi.fn() } as unknown as GameUI;
     const presenter = new GameUiPresenterAdapter(legacyUi);
     const mode: PresentationMode = {
       type: 'boss-encounter',
@@ -29,11 +29,11 @@ describe('GameUiPresenterAdapter presentation mode', () => {
       scope: { kind: 'room', rect: { l: 2, t: 3, r: 9, b: 8 }, entryDir: 'down' },
     });
     expect(ui.presentationMode).toEqual(presenter.getMode());
-    expect(legacyUi.render).not.toHaveBeenCalled();
+    expect(legacyUi.publishMapEvent).not.toHaveBeenCalled();
   });
 
   it('handles modeChanged events and can return to dungeon-map', () => {
-    const legacyUi = { render: vi.fn() } as unknown as GameUI;
+    const legacyUi = { publishMapEvent: vi.fn() } as unknown as GameUI;
     const presenter = new GameUiPresenterAdapter(legacyUi);
 
     presenter.publishEvent({ type: 'presentation.modeChanged', mode: { type: 'end-run-transition', runId: 'run-1' } });
@@ -43,6 +43,6 @@ describe('GameUiPresenterAdapter presentation mode', () => {
     presenter.publishEvent({ type: 'presentation.modeChanged', mode: { type: 'dungeon-map' } });
     expect(presenter.getMode()).toEqual({ type: 'dungeon-map' });
     expect(ui.presentationMode).toEqual({ type: 'dungeon-map' });
-    expect(legacyUi.render).not.toHaveBeenCalled();
+    expect(legacyUi.publishMapEvent).toHaveBeenCalledTimes(2);
   });
 });

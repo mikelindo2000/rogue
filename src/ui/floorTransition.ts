@@ -193,6 +193,10 @@ export class FloorTransitionController {
     this.applyAt(p);
   }
 
+  reset(): void {
+    this.finish();
+  }
+
   private applyAt(p: number): void {
     const a = this.active;
     if (!a) return;

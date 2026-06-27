@@ -67,8 +67,8 @@
   <!-- The map lives on its own 3D plane, independent of the background art and
        HUD, so it can be moved/tilted/rotated in perspective for cosmetic effects.
        `.map-viewport` owns the perspective. Inside it:
-       - `.map-transition` is the incoming-floor layer GameUI's FloorTransition-
-         Controller drives (transform + opacity) on a floor change;
+       - `.map-transition` is the incoming-floor layer the active map renderer's
+         FloorTransitionController drives (transform + opacity) on a floor change;
        - `.map-plane` (inside it) is the MapStageController rumble target;
        - `.map-ghost` (sibling, hidden at rest) holds a snapshot of the floor
          being left, crossfaded against the live canvas during a transition.
@@ -79,8 +79,8 @@
   <div class="map-viewport">
     <div class="map-transition">
       <div class="map-plane">
-        <!-- Intrinsic size is set imperatively by GameUI.paint() to board × tile
-             size (it owns the backing store so resizes land before paints). These
+        <!-- Intrinsic size is set imperatively by the active map renderer to
+             board × tile size (it owns the backing store so resizes land before paints). These
              static attributes are just the pre-first-paint default (46×29 × 20). -->
         <canvas id="gameCanvas" width="920" height="580"></canvas>
       </div>
@@ -93,7 +93,7 @@
     <div class="map-death-veil" aria-hidden="true"></div>
 
     <!-- Combat portrait of the monster being fought. Sits inside .map-viewport so
-         it anchors to a corner of the board canvas; GameUI only ever picks a
+         it anchors to a corner of the board canvas; the chrome projection picks a
          corner whose oval footprint is clear of drawn rooms. -->
     {#if ui.combatPortrait}
       <MonsterPortrait portrait={ui.combatPortrait} />
@@ -190,7 +190,7 @@
     transform-origin: center center;
     will-change: transform, opacity;
   }
-  /* The rumble target GameUI's MapStageController writes to. Identity at rest
+  /* The rumble target the active map renderer's MapStageController writes to. Identity at rest
      (so the board renders pixel-identical when no effect is playing). */
   .map-plane {
     position: relative;
@@ -227,7 +227,7 @@
     display: block;
     position: relative;
     /* Intrinsic CSS width/height and any player-centering transform are set
-       imperatively by GameUI.paint(), which fits the board to this stage. */
+       imperatively by the active map renderer, which fits the board to this stage. */
     transform-origin: center center;
     touch-action: none;
   }

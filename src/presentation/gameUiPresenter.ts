@@ -1,6 +1,5 @@
 import type { GameUI } from '../ui';
 import { ui as chromeUi } from '../ui/store.svelte';
-import type { Item, Monster, Player } from '../types';
 import {
   copyPresentationMode,
   DEFAULT_PRESENTATION_MODE,
@@ -10,14 +9,11 @@ import {
   type InventorySnapshot,
   type PresentationMode,
 } from './presenter';
-import { cloneValue, type MapSnapshot, type MonsterView } from './mapSnapshot';
+import type { MapSnapshot } from './mapSnapshot';
 import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
-
-const LEGACY_TILE_SIZE = 20;
 
 export class GameUiPresenterAdapter implements GamePresenter {
   private mode: PresentationMode = copyPresentationMode(DEFAULT_PRESENTATION_MODE);
-  private readonly legacyMonsters = new Map<string, Monster>();
   private combatFocusMonsterKey: string | null = null;
 
   constructor(private readonly ui: GameUI) {}
@@ -48,55 +44,7 @@ export class GameUiPresenterAdapter implements GamePresenter {
   }
 
   public publishMap(snapshot: MapSnapshot): void {
-    const map = snapshot.tiles.map(row => row.map(tile => tile.kind));
-    const explored = snapshot.tiles.map(row => row.map(tile => tile.explored));
-    const visible = snapshot.tiles.map(row => row.map(tile => tile.visible));
-    const player = { x: snapshot.player.x, y: snapshot.player.y } as Player;
-    const monsters = snapshot.monsters.map(monster => this.legacyMonsterFromView(monster));
-    const liveKeys = new Set(snapshot.monsters.map(monster => monster.key));
-
-    for (const key of this.legacyMonsters.keys()) {
-      if (!liveKeys.has(key)) this.legacyMonsters.delete(key);
-    }
-
-    this.ui.combatFocusMonster = this.combatFocusMonsterKey
-      ? this.legacyMonsters.get(this.combatFocusMonsterKey) ?? null
-      : null;
-
-    this.ui.render(
-      map,
-      explored,
-      visible,
-      player,
-      monsters,
-      snapshot.items.map(item => {
-        const legacy = {
-          x: item.x,
-          y: item.y,
-          symbol: item.glyph,
-          color: item.color,
-          type: item.type,
-        } as Item;
-        if (item.amount !== undefined) (legacy as Extract<Item, { type: 'gold' }>).amount = item.amount;
-        if (item.data !== undefined) (legacy as Item & { data: unknown }).data = cloneValue(item.data);
-        return legacy;
-      }),
-      snapshot.traps.map(trap => ({
-        id: trap.id,
-        kind: trap.kind,
-        x: trap.x,
-        y: trap.y,
-        revealed: trap.revealed,
-        armed: trap.armed,
-      })),
-      LEGACY_TILE_SIZE,
-      snapshot.cols,
-      snapshot.rows,
-      snapshot.floor,
-      snapshot.gameOver,
-      snapshot.gameWon,
-      snapshot.monsterDetectionActive,
-    );
+    this.ui.setMapSnapshot(snapshot, this.combatFocusMonsterKey);
   }
 
   public publishLogs(logs: readonly string[]): void {
@@ -141,12 +89,13 @@ export class GameUiPresenterAdapter implements GamePresenter {
         break;
       case 'presentation.modeChanged':
         this.setMode(event.mode);
+        this.ui.publishMapEvent(event);
         break;
       case 'player.run':
         this.fxPlayerRun(event.path, event.ghosts);
         break;
       case 'aiming.changed':
-        this.setAiming(event.wandName ? { wandName: event.wandName } : null);
+        this.ui.publishMapEvent(event);
         break;
       case 'combat.monsterDodge':
         this.fxMonsterDodge(event.monsterKey, event.fromX, event.fromY);
@@ -217,8 +166,7 @@ export class GameUiPresenterAdapter implements GamePresenter {
   }
 
   public fxMonsterDodge(monsterKey: string, fromX: number, fromY: number): void {
-    const monster = this.legacyMonsters.get(monsterKey);
-    if (monster) this.ui.fxMonsterDodge(monster, fromX, fromY);
+    this.ui.fxMonsterDodge(monsterKey, fromX, fromY);
   }
 
   public mapRumble(...args: Parameters<GameUI['mapRumble']>): void {
@@ -235,43 +183,13 @@ export class GameUiPresenterAdapter implements GamePresenter {
 
   public focusCombatMonster(monsterKey: string): void {
     this.combatFocusMonsterKey = monsterKey;
-    this.ui.combatFocusMonster = this.legacyMonsters.get(monsterKey) ?? null;
+    this.ui.publishMapEvent({ type: 'combat.focusMonster', monsterKey });
   }
 
   public clearCombatFocusMonster(monsterKey: string): void {
     if (this.combatFocusMonsterKey === monsterKey) {
       this.combatFocusMonsterKey = null;
-      this.ui.combatFocusMonster = null;
     }
-  }
-
-  private legacyMonsterFromView(view: MonsterView): Monster {
-    const monster = this.legacyMonsters.get(view.key) ?? ({} as Monster);
-
-    monster.x = view.x;
-    monster.y = view.y;
-    monster.symbol = view.glyph;
-    monster.name = view.name;
-    monster.hp = view.hp;
-    monster.atk = view.atk;
-    monster.color = view.color;
-    monster.minFloor = view.minFloor;
-    monster.frozenTurns = view.frozenTurns;
-
-    setOptional(monster, 'id', view.id);
-    setOptional(monster, 'maxHp', view.maxHp);
-    setOptional(monster, 'special', view.special);
-    setOptional(monster, 'ai', cloneValue(view.ai));
-
-    this.legacyMonsters.set(view.key, monster);
-    return monster;
-  }
-}
-
-function setOptional<K extends keyof Monster>(monster: Monster, key: K, value: Monster[K] | undefined): void {
-  if (value === undefined) {
-    delete monster[key];
-  } else {
-    monster[key] = value;
+    this.ui.publishMapEvent({ type: 'combat.clearFocusMonster', monsterKey });
   }
 }
