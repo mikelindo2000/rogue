@@ -34,9 +34,10 @@ As of this plan, the major local media groups are roughly:
 | `public/bestiary/` | 9 MB | monster portraits |
 | `public/intro/` | <1 MB | intro splash |
 
-Total media is about 140 MB across roughly 480 image/audio files. That is still
-manageable, but it is large enough that "let every `<img>` discover itself on
-first paint" will eventually produce visible decode/network hitches.
+Total media is about 141 MB across roughly 482 image/audio files (measured at
+plan time via `du -sh public/`). That is still manageable, but it is large enough
+that "let every `<img>` discover itself on first paint" will eventually produce
+visible decode/network hitches.
 
 ### Audio
 
@@ -285,8 +286,9 @@ fallback. Do not rely on idle callbacks for `critical-now` assets.
 
 ### Current floor background
 
-Today `CenterStage.svelte` switches `currentBg` and lets the `<img>` load during
-the transition. The future behavior should be:
+Today `CenterStage.svelte` swaps `currentBg` and runs a fixed 1000 ms crossfade
+(`transitionToBackground`), letting the new `<img>` load mid-fade. The future
+behavior should be:
 
 1. choose the next background
 2. enqueue it as `critical-now`
@@ -295,6 +297,9 @@ the transition. The future behavior should be:
 5. after a short cap, continue without blocking gameplay
 
 This avoids a blank or blurry floor transition without adding a loading screen.
+Note the readiness wait cap (target <200 ms in the budget table) is a distinct,
+shorter timer than the existing 1000 ms crossfade duration: it only gates the
+moment the swap begins, not how long the fade itself takes.
 
 ### Neighbor floor backgrounds
 
@@ -302,10 +307,16 @@ When stairs are visible or the player is adjacent to stairs:
 
 - enqueue the likely destination floor's selected background as `soon`
 - if the run-scoped picker has not picked the target floor yet, either pick and
-  commit the selection or enqueue all four variants as lower-priority `soon`
+  commit the selection or enqueue all four variants (`a`/`b`/`c`/`d`) as
+  lower-priority `soon`
 
-Prefer committing the run-scoped choice before travel if that does not disturb
-existing deterministic behavior. It warms one file instead of four.
+Prefer committing the run-scoped choice before travel. `createFloorBackgroundPicker`
+already memoizes one variant per floor in a `selectedByFloor` map and returns the
+cached choice on revisit, so calling `pick(nextFloor)` early is idempotent — it
+commits and warms exactly one file without disturbing determinism. Warming one
+file beats four. (The current `CenterStage` instance owns one picker per run; the
+readiness layer must share that same picker instance, not construct its own, or
+the warmed variant can differ from the one rendered.)
 
 ### Inventory art
 
@@ -348,12 +359,18 @@ at boot.
 
 ### Chrome overlays
 
-Chrome textures are medium-size and repeated. If they are selected by floor band,
-warm the current one as `critical-now`, nearby future band as `soon`, and the
-rest as `idle`.
+Chrome textures are medium-size and repeated. They are assigned deterministically
+per floor in `CHROME_OVERLAY_FLOOR_ASSIGNMENTS` (one or two layers per floor;
+`band` is just a texture category, not a runtime selector). Resolve the current
+floor's layers via `chromeOverlaysForFloor(floor)`, warm those as `critical-now`,
+warm the next floor's assignment as `soon`, and leave the rest as `idle`.
 
-If they are used as CSS backgrounds, consider adding explicit image requests
-anyway so decode timing is controlled.
+These textures are consumed as CSS background images — `visualEffects.ts` emits a
+`floor-chrome-texture` effect whose `--fx-texture-url: url(...)` custom property is
+applied by `EffectLayerHost`. CSS `url()` gives no decode hook, so warming the
+same URLs through the readiness service (via `new Image()` + `decode()`) is the
+only way to control their decode timing — treat the explicit image request as
+required here, not optional.
 
 ## Audio Strategy
 
@@ -578,7 +595,15 @@ HP indicator should render even if the image is late.
 ### `src/ui/components/EndRunScreen.svelte`
 
 Use selected art readiness and fallback art readiness during the opening curtain.
-Do not wait for all possible endings.
+Do not wait for all possible endings. Fallback selection already exists as
+`pickFallbackEndRunArt(summary)` in `src/ui/endRunArt.ts`.
+
+### `src/ui/visualEffects.ts` and `EffectLayerHost.svelte`
+
+Chrome overlay textures are resolved per floor here (`chromeOverlaysForFloor`) and
+surfaced as CSS `url()` custom properties. This is the integration point for
+warming overlay decode ahead of a floor change, since the CSS path offers no
+decode hook of its own.
 
 ## Testing And Verification
 
@@ -634,7 +659,10 @@ creating a second unsynchronized file list.
    load plans stay separate and derive from registries?
 2. Should floor background selection for the next floor be committed before
    travel when stairs are nearby, or should all variants be warmed at lower
-   priority?
+   priority? (Leaning commit-before-travel: `createFloorBackgroundPicker`
+   memoizes per floor, so an early `pick(nextFloor)` is deterministic and warms
+   one file instead of four — provided the readiness layer reuses `CenterStage`'s
+   picker instance rather than creating its own.)
 3. What image format policy should generated art use: PNG only, WebP primary
    with PNG fallback, or AVIF/WebP by category?
 4. When does music move from full `AudioBuffer` decode to streaming media
