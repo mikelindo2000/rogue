@@ -3,7 +3,7 @@ import App from './ui/App.svelte';
 import { ui, actions } from './ui/store.svelte';
 import { GameUI } from './ui';
 import { GameEngine } from './engine';
-import { loadConfig } from './config';
+import { loadConfig, getConfig, saveConfig } from './config';
 import { KeyboardManager } from './keyboard';
 import { clearSaveGame, loadSaveGame, saveSaveGame } from './persistence/savegame';
 import {
@@ -55,6 +55,14 @@ document.addEventListener('DOMContentLoaded', () => {
     (window as Window & {
       __roguePreviewDeathTransition?: (id: string) => Promise<void>;
     }).__roguePreviewDeathTransition = (id: string) => ui_.previewDeathTransition(id);
+    // Dev console helper: crank monster ability proc rates to witness the rare
+    // 3%/1% abilities on demand. `rogueProcRate(20)` makes a 3% ability ~60%.
+    // `rogueProcRate(1)` restores sheet rates. Persists via tunables.
+    (window as Window & { rogueProcRate?: (mult: number) => number }).rogueProcRate = (mult: number) => {
+      saveConfig({ ...getConfig(), abilityProcMultiplier: mult });
+      console.info(`[rogue] ability proc multiplier set to ${mult} (1 = sheet rates)`);
+      return mult;
+    };
   }
 
   // Both runtimes share one AudioContext; unlock them together on first gesture.

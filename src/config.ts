@@ -13,6 +13,10 @@ export interface TunableConfig {
   xpMultiplier: number;
   hungerMax: number;
   foodHungerRestore: number;
+  /** Dev/testing multiplier on monster on-hit ability proc chances (1 = sheet
+   *  rates). Crank it up to witness the rare 3%/1% abilities on demand; it does
+   *  not change real play at the default of 1. */
+  abilityProcMultiplier: number;
 }
 
 export const DEFAULT_TUNABLES: TunableConfig = {
@@ -27,7 +31,8 @@ export const DEFAULT_TUNABLES: TunableConfig = {
   dropEpic: 3.0,
   xpMultiplier: 1.0,
   hungerMax: 800,
-  foodHungerRestore: 300
+  foodHungerRestore: 300,
+  abilityProcMultiplier: 1
 };
 
 /**
@@ -429,8 +434,13 @@ export const WAND_POOL: WandItem[] = [
 
 let currentTunables: TunableConfig = { ...DEFAULT_TUNABLES };
 
+/** localStorage is absent in headless contexts (tests, the balance sim, SSR).
+ *  Treat it as optional so config still works in memory. */
+const store: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined =
+  typeof localStorage !== 'undefined' ? localStorage : undefined;
+
 export function loadConfig(): TunableConfig {
-  const saved = localStorage.getItem('rogue_config_tunables');
+  const saved = store?.getItem('rogue_config_tunables');
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -444,11 +454,11 @@ export function loadConfig(): TunableConfig {
 
 export function saveConfig(tunables: TunableConfig) {
   currentTunables = { ...tunables };
-  localStorage.setItem('rogue_config_tunables', JSON.stringify(currentTunables));
+  store?.setItem('rogue_config_tunables', JSON.stringify(currentTunables));
 }
 
 export function resetConfig(): TunableConfig {
-  localStorage.removeItem('rogue_config_tunables');
+  store?.removeItem('rogue_config_tunables');
   currentTunables = { ...DEFAULT_TUNABLES };
   return currentTunables;
 }

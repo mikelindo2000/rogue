@@ -4,6 +4,7 @@ import type { Monster, Player } from '../types';
 import { resolveBehavior } from './archetypes';
 import { applyOnHitAbilities } from '../monster';
 import { describeAbility } from './abilityDescriptions';
+import { getConfig, saveConfig, resetConfig } from '../config';
 
 /**
  * bonusDamage: flat extra damage dealt to the player when an ability procs,
@@ -68,6 +69,24 @@ describe('bonusDamage abilities', () => {
 
   it('does not leak bonusDamage to siblings (Colossal Cyclops has no Hammer Smash)', () => {
     expect(resolveBehavior({ name: 'Colossal Cyclops' }).abilities.find((a) => a.label === 'Hammer Smash')).toBeUndefined();
+  });
+
+  it('scales proc chance by the dev abilityProcMultiplier (default 1 = sheet rate, parity)', () => {
+    // A stub whose chance() returns true only when the rolled probability clears
+    // a threshold lets us observe the scaling. Orc's Hammer Smash is 3%.
+    const threshold = (t: number): RNG => ({ seed: 0, next: () => 0, int: () => 0, range: (min: number) => min, chance: (p: number) => p >= t, pick: <T>(a: readonly T[]) => a[0], getState: () => 0 } as unknown as RNG);
+    const b = resolveBehavior({ name: 'Orc' });
+    resetConfig();
+    try {
+      // Default multiplier 1: 3% chance does NOT clear a 50% threshold.
+      expect(getConfig().abilityProcMultiplier).toBe(1);
+      expect(applyOnHitAbilities(b, monster('Orc'), player(), threshold(0.5))).toHaveLength(0);
+      // Multiplier 20: 3% × 20 = 60% clears the 50% threshold → it procs.
+      saveConfig({ ...getConfig(), abilityProcMultiplier: 20 });
+      expect(applyOnHitAbilities(b, monster('Orc'), player(), threshold(0.5)).join(' ')).toMatch(/Hammer Smash/);
+    } finally {
+      resetConfig();
+    }
   });
 
   it('fires onProc with the ability on a proc (for the map float), but not on a miss', () => {

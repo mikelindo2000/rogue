@@ -1,5 +1,5 @@
 import { Monster, Player, StatusEffects } from './types';
-import { getScaledMonsterAtk } from './config';
+import { getScaledMonsterAtk, getConfig } from './config';
 import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
 import { applyEffect } from './effects';
@@ -234,8 +234,11 @@ export function applyOnHitAbilities(
 ): string[] {
   const rt = ensureRuntime(m);
   const logs: string[] = [];
+  // Dev/testing knob: scale every proc chance (1 = sheet rates, so default play
+  // is unchanged and seeded parity holds — chance × 1 is the same draw).
+  const procMult = getConfig().abilityProcMultiplier;
   for (const ab of behavior.abilities) {
-    if (ab.trigger !== 'onHit' || !rng.chance(ab.chance)) continue;
+    if (ab.trigger !== 'onHit' || !rng.chance(Math.min(1, ab.chance * procMult))) continue;
     const applied = fireAbility(ab, m, player, logs, rng, floor);
     // Flat extra damage rides on top of any status effect (and is the whole
     // payload of a pure 'bonusDamage' ability). The engine's post-attack hp<=0
