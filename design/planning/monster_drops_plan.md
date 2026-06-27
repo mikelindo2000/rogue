@@ -118,11 +118,24 @@ bestiary work).
 3. **Item affixes / procs** (Dragonslayer's Tenacity +10% all-stats, King's Staff Miniaturize proc,
    enchant materials) — own plan; unlocks the unique drops' bespoke effects.
 
-## Open decisions (need a call)
+## Decisions (resolved)
 
-1. **Default drop chance** — recommend ~12% normal, ~25% hero/rare, **100%** for the Dragon King's
-   signature unique. Confirm the posture (thematic reward vs. rare).
-2. **Accessories in Phase 1** — map to closest gear piece, or to a themed consumable? Recommend
-   closest gear piece (keeps them equippable) until the accessory-slot system lands.
-3. **Unique procs** — drop as plain high-rarity gear now (recommended), or hold those monsters'
-   drops until the affix system exists?
+1. **Drop rates — "modest thematic reward":** ~**12%** normal, ~**25%** hero/rare, **100%** for the
+   Dragon King's signature unique (Dragonslayer's Tenacity). Tier-bounded so a drop never exceeds
+   floor loot. Rates live in one place as playtest knobs.
+2. **Accessories — DEFERRED, not mapped.** Rings/necklaces/belts/wrists/trinkets do NOT drop in
+   Phase 1 (no fake-equipment mapping). The monsters whose drops are accessory-only therefore drop
+   nothing this phase; monsters with a mix (e.g. Kalius' dagger + belt) still drop their
+   equippable items. **The skipped drops are captured in a follow-up task that DEPENDS on the
+   accessory-slot system** (see below), so nothing is lost.
+3. **Unique procs — drop as plain high-rarity gear now.** King Ellowyn's Cutlass / Dragonslayer's
+   Tenacity drop as legendary-tier named gear without their bespoke affix; the proc is a Phase 3
+   (item-affix) follow-up.
+
+### Phase-1 drop coverage (accessory-only monsters get NO drop this phase)
+
+Monsters whose ONLY sheet drop is an accessory → **no Phase-1 drop** (deferred): Cyclops
+(One-eyed Ring), Snake (Beady Eye necklace), Yeti (Bag of Snow trinket), Zombie (Molar Choker
+necklace), Pygmy (Pygmy Sash belt). Monsters with a mix drop only their non-accessory items now
+(e.g. Kalius drops the Barb dagger; Michael drops Skull shield + armor; the Bull Ring / belt /
+wrists wait). All deferred accessory drops are enumerated in the dependency-linked follow-up task.
