@@ -523,6 +523,41 @@ describe('GameEngine fear read site', () => {
     engine.handlePlayerMove(1, 0);
     expect(engine.player.x).toBe(2);
   });
+
+  it('a feared player cannot escape via run — it degrades to a single random step', () => {
+    // Run is the SECOND move entry; a feared player must not auto-follow the
+    // corridor in the commanded direction. The run must degrade to one redirected
+    // step (matching handlePlayerMove), so it never marches the full corridor east.
+    const engine = makeRunner();
+    // Clear corridor east of the player (the tempting deterministic run lane) and a
+    // tile below for the random redirect to land on.
+    carveRow(engine, 2, 1, 6);
+    carveRow(engine, 1, 1, 3);
+    carveRow(engine, 3, 1, 3);
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.hp = 50;
+    engine.player.hunger = 200;
+    engine.player.activeEffects = [{ kind: 'fear', turns: 2, magnitude: 1, source: 'Xelhua' }];
+
+    // Force rng.pick to DOWN ([0,1], index 2 of [R,L,D,U]).
+    (engine as any).rng = {
+      seed: 1,
+      next: () => 0,
+      int: () => 0,
+      range: (min: number) => min,
+      chance: () => false,
+      pick: (arr: readonly unknown[]) => arr[2],
+      getState: () => 0,
+    } as unknown as RNG;
+
+    // Command a RUN to the RIGHT — fear must redirect to a single DOWN step, not
+    // run east along the corridor.
+    engine.handlePlayerRun(1, 0);
+    expect(engine.player.x).toBe(2); // did NOT run right down the corridor
+    expect(engine.player.y).toBe(3); // took a single redirected step down
+    expect(engine.logs.join(' ')).toMatch(/You flee in terror/);
+  });
 });
 
 describe('GameEngine armorDebuff read site', () => {

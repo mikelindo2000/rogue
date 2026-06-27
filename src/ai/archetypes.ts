@@ -265,11 +265,11 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
  */
 export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Brown Bat — Poisonous Puke: +1 poison/turn for 3 turns, 3% on hit.
-  'brown-bat': [{ id: 'poison', chance: 0.03, magnitude: 1, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  'brown-bat': [{ id: 'poison', label: 'Poisonous Puke', chance: 0.03, magnitude: 1, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
   // Snake — Venomous Fangs: +2 poison/turn for 3 turns, 3% on hit.
-  'snake': [{ id: 'poison', chance: 0.03, magnitude: 2, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  'snake': [{ id: 'poison', label: 'Venomous Fangs', chance: 0.03, magnitude: 2, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
   // King Cobra — Venom Spit: +5 poison/turn for 3 turns, 3% on hit.
-  'king-cobra': [{ id: 'poison', chance: 0.03, magnitude: 5, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  'king-cobra': [{ id: 'poison', label: 'Venom Spit', chance: 0.03, magnitude: 5, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
   // Cyclops — Munch (A2, 1%): "25 damage plus 5 bacterial damage for 3 turns".
   // Only the DoT portion is modeled here; the +25 instant is a bonusDamage effect
   // (its own category/task), not a status effect. Keyed to base Cyclops so the
@@ -279,8 +279,8 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Both rows are keyed to base Cyclops so the Colossal Cyclops (same 'brute'
   // archetype, different sheet abilities) is unaffected.
   'cyclops': [
-    { id: 'poison', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
-    { id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
+    { id: 'poison', label: 'Munch', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
+    { id: 'stun', label: 'Intimidating Stare', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
   ],
   // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
   // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the
@@ -288,7 +288,7 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Xelhua also carries Giantfolk Growl (1%): a fear that sends the player
   // fleeing in random directions for 3 turns. Appended to its Stomp stun row.
   'xelhua': [
-    { id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
+    { id: 'stun', label: 'Stomp', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
     { id: 'fear', label: 'Giantfolk Growl', chance: 0.01, duration: 3, cooldown: 0, trigger: 'onHit' },
   ],
   // Agitated Apperation — Ingest Spirit Dust (1%): a 2-turn fear. The sheet's
@@ -297,13 +297,13 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   'agitated-apperation': [{ id: 'fear', label: 'Ingest Spirit Dust', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Yeti — Freeze Frame (A2, 1%): "Freezes the target, resulting in a lost turn"
   // — a 1-turn stun. (The +5 damage portion is bonusDamage, a separate category.)
-  'yeti': [{ id: 'stun', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  'yeti': [{ id: 'stun', label: 'Freeze Frame', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
   // Michael the Minotaur — Head Butt (A2, 1%): "stuns the target for one turn"
   // — a 1-turn stun. (The +10 damage portion is bonusDamage, a separate category.)
-  'michael-the-minotaur': [{ id: 'stun', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  'michael-the-minotaur': [{ id: 'stun', label: 'Head Butt', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
   // Gary the Golem — Iron Curse (A1, 3%): "slows attacks resulting in two lost
   // turns" — a 2-turn stun. Keyed to Gary so the other 'guardian' monsters are unaffected.
-  'gary-the-golem': [{ id: 'stun', chance: 0.03, magnitude: 1, duration: 2, cooldown: 0, trigger: 'onHit' }],
+  'gary-the-golem': [{ id: 'stun', label: 'Iron Curse', chance: 0.03, magnitude: 1, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Dragon — Molten Breath (A1, 3%): "+10 fire damage per turn until the fight is
   // over". We have no "until combat ends" duration yet, so this is approximated as
   // a sustained 5-turn fire DoT (flagged for a follow-up duration mode). Magnitude
@@ -311,7 +311,7 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Dragon keeps its Molten Breath fire DoT (above) AND gains Smoke Show (1%): a
   // 50% miss chance for 3 turns (magnitude is the miss probability).
   'dragon': [
-    { id: 'poison', chance: 0.03, magnitude: 10, duration: 5, damageType: 'fire', cooldown: 0, trigger: 'onHit' },
+    { id: 'poison', label: 'Molten Breath', chance: 0.03, magnitude: 10, duration: 5, damageType: 'fire', cooldown: 0, trigger: 'onHit' },
     { id: 'missChance', label: 'Smoke Show', chance: 0.01, magnitude: 0.5, duration: 3, cooldown: 0, trigger: 'onHit' },
   ],
   // Zachary the Zombie — Graveyard Grab (A2, 1%): "infection that causes 25 damage
@@ -320,7 +320,7 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Zachary keeps its Graveyard Grab DoT (above) AND its leech-archetype heal;
   // Maggot Infestation (3%) appends an attack debuff (-10 base atk for 3 turns).
   'zachary-the-zombie': [
-    { id: 'poison', chance: 0.01, magnitude: 25, duration: 2, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
+    { id: 'poison', label: 'Graveyard Grab', chance: 0.01, magnitude: 25, duration: 2, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
     { id: 'atkDebuff', label: 'Maggot Infestation', chance: 0.03, magnitude: 10, duration: 3, cooldown: 0, trigger: 'onHit' },
   ],
   // Golem — Oxidize (3%): sheet "-3 weapon damage". Modeled as a flat attack
@@ -338,7 +338,7 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.
-  'dragon-king': [{ id: 'poison', chance: 0.03, magnitude: 20, duration: 3, damageType: 'acid', cooldown: 0, trigger: 'onHit' }],
+  'dragon-king': [{ id: 'poison', label: 'Acidic Molten Breath', chance: 0.03, magnitude: 20, duration: 3, damageType: 'acid', cooldown: 0, trigger: 'onHit' }],
   // Pygmy — Shrink (3%): sheet "helm -3 for 3 turns". We have no per-slot armor
   // debuff, so this is approximated as a flat TOTAL-defense reduction of 3 for 3
   // turns (honored at getTotalDef, clamped to >= 0).

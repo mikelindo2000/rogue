@@ -864,6 +864,16 @@ export class GameEngine {
     if (this.gameOver || this.gameWon || (dx === 0 && dy === 0)) return;
     if (this.takeSleepTurn()) return;
     if (this.takeStunTurn()) return;
+    // Fear read site (second move entry): run is a MOVE intent, so a feared
+    // player must NOT auto-follow a corridor in the requested direction. Degrade
+    // the run to a single step and hand it to handlePlayerMove, which owns the
+    // fear redirect (random cardinal dir + "You flee in terror!") and the rest of
+    // the per-step turn flow. Read-only here — the duration is ticked inside
+    // processTurn via handlePlayerMove, never decremented at this site.
+    if (hasEffect(this.player, 'fear')) {
+      this.handlePlayerMove(dx, dy);
+      return;
+    }
     if (this.trapEffects.bearTrapTurns > 0) {
       this.addLog("The bear trap holds you fast.");
       this.trapEffects.bearTrapTurns--;
