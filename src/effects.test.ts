@@ -28,10 +28,23 @@ describe('effects spine', () => {
     const t1 = tickPlayerEffects(p);
     expect(p.hp).toBe(19);
     expect(t1.damage).toBe(1);
-    expect(t1.logs.join(' ')).toMatch(/Brown Bat's poison courses through you \(-1\)/);
+    // Tick line shows the damage and a live countdown of remaining turns.
+    expect(t1.logs.join(' ')).toMatch(/Brown Bat's poison courses through you \(-1, 2 turns left\)/);
     // Still active with one fewer turn.
     expect(hasEffect(p, 'dot')).toBe(true);
     expect(p.activeEffects[0].turns).toBe(2);
+  });
+
+  it('counts down to the singular and drops the suffix on the expiring tick', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'dot', turns: 2, magnitude: 1, source: 'Snake', damageType: 'poison' });
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1
+    expect(t1.logs.join(' ')).toMatch(/\(-1, 1 turn left\)/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expiring tick has no "turns left" suffix
+    expect(t2.logs.join(' ')).toMatch(/\(-1\)/);
+    expect(t2.logs.join(' ')).not.toMatch(/turn left/);
   });
 
   it('expires after its duration, removing it and logging an expiry line', () => {

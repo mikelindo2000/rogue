@@ -81,15 +81,21 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
 
   // Iterate a snapshot; mutate the list as we expire entries.
   for (const effect of [...effects]) {
+    // Decrement first so the tick line can report the turns that REMAIN after
+    // this one — a live countdown the player can watch in the log ("…(-1, 2 turns
+    // left)" → "1 turn left" → expiry). That countdown is the main effect-
+    // visibility cue during play/testing, so every persistent kind should log here.
+    effect.turns--;
+    const expired = effect.turns <= 0;
+
     if (effect.kind === 'dot') {
       player.hp -= effect.magnitude;
       damage += effect.magnitude;
       const flavor = DOT_FLAVOR[effect.damageType ?? 'poison'];
-      logs.push(`The ${effect.source}'s ${flavor} (-${effect.magnitude}).`);
+      logs.push(`The ${effect.source}'s ${flavor} (-${effect.magnitude}${remainingSuffix(effect.turns)}).`);
     }
 
-    effect.turns--;
-    if (effect.turns <= 0) {
+    if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
       logs.push(expiryLine(effect));
@@ -97,6 +103,13 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
   }
 
   return { damage, logs };
+}
+
+/** ", N turns left" suffix for a tick line, or "" when the effect expires this
+ *  turn (the expiry line covers that case). Pluralized for readability. */
+function remainingSuffix(turnsLeft: number): string {
+  if (turnsLeft <= 0) return '';
+  return `, ${turnsLeft} turn${turnsLeft === 1 ? '' : 's'} left`;
 }
 
 /** Flavor for an effect dropping off. Kept here so the tick reads cleanly. */
