@@ -72,11 +72,16 @@ describe('fear abilities (Xelhua / Agitated Apperation)', () => {
     expect(fear!.label).toBe('Ingest Spirit Dust');
     expect(fear!.chance).toBe(0.01);
     expect(fear!.duration).toBe(2);
-    expect(b.abilities).toHaveLength(1);
+    // Agitated also carries its Hysteria bonus-damage hit (A1); the fear is A2.
+    expect(b.abilities).toHaveLength(2);
+    expect(b.abilities.find((a) => a.id === 'bonusDamage')?.label).toBe('Hysteria');
   });
 
   it('inflicts fear on a hit whose chance roll passes, which then ticks away', () => {
-    const b = resolveBehavior({ name: 'Agitated Apperation' });
+    // Isolate the fear ability (Agitated also has a bonus-damage hit that would
+    // otherwise add HP loss under chance=1) so this asserts fear's no-HP-cost.
+    const fear = resolveBehavior({ name: 'Agitated Apperation' }).abilities.find((a) => a.id === 'fear')!;
+    const b = { abilities: [fear] } as unknown as ReturnType<typeof resolveBehavior>;
     const m = monster('Agitated Apperation');
     const p = player({ hp: 20 });
 
@@ -109,7 +114,6 @@ describe('fear abilities (Xelhua / Agitated Apperation)', () => {
     // The base Apperation shares 'default' with Agitated but has no sheet ability —
     // it must NOT inherit Ingest Spirit Dust.
     expect(resolveBehavior({ name: 'Apperation' }).abilities.find((a) => a.id === 'fear')).toBeUndefined();
-    expect(resolveBehavior({ name: 'Apperation' }).abilities).toHaveLength(0);
     // A plain default monster (Orc) stays fear-free.
     expect(resolveBehavior({ name: 'Orc' }).abilities.find((a) => a.id === 'fear')).toBeUndefined();
   });

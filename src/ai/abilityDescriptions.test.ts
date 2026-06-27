@@ -78,8 +78,8 @@ describe('ability descriptions (bestiary)', () => {
     expect(abilities.some((a) => a.effect.includes('poison damage per turn'))).toBe(true);
   });
 
-  it('returns an empty list for a monster with no abilities (Orc)', () => {
-    const orc = { symbol: 'O', name: 'Orc', hp: 24, atk: 7, color: '#8f9b2e', minFloor: 1 };
-    expect(monsterAbilities(orc)).toEqual([]);
+  it('returns an empty list for a monster with no abilities', () => {
+    const none = { symbol: '?', name: 'Practice Dummy', hp: 10, atk: 1, color: '#888', minFloor: 1 };
+    expect(monsterAbilities(none)).toEqual([]);
   });
 });

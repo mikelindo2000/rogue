@@ -71,7 +71,10 @@ describe('missChance abilities (Quinotaur / Dragon)', () => {
   });
 
   it('inflicts a miss chance on a passing hit, exposes its magnitude, then ticks away', () => {
-    const b = resolveBehavior({ name: 'Quinotaur' });
+    // Isolate the Spit miss-chance (Quinotaur also has a Horn Twist bonus-damage
+    // hit that would otherwise subtract HP under chance=1) to assert its no-HP-cost.
+    const spit = resolveBehavior({ name: 'Quinotaur' }).abilities.find((a) => a.id === 'missChance')!;
+    const b = { abilities: [spit] } as unknown as ReturnType<typeof resolveBehavior>;
     const m = monster('Quinotaur');
     const p = player({ hp: 20 });
 

@@ -225,6 +225,13 @@ export function applyOnHitAbilities(
   for (const ab of behavior.abilities) {
     if (ab.trigger !== 'onHit' || !rng.chance(ab.chance)) continue;
     const applied = fireAbility(ab, m, player, logs, rng, floor);
+    // Flat extra damage rides on top of any status effect (and is the whole
+    // payload of a pure 'bonusDamage' ability). The engine's post-attack hp<=0
+    // check ends the run if this is lethal, like the base melee hit.
+    if (ab.bonusDamage && ab.bonusDamage > 0) {
+      player.hp -= ab.bonusDamage;
+      logs.push(`${m.name}'s ${ab.label ?? 'blow'} strikes for ${ab.bonusDamage}!`);
+    }
     if (ab.thenFlee) rt.state = 'fleeing';
     // Blink only when the ability actually did something — a leprechaun that hit
     // a broke player has nothing to vanish with, so it stays and keeps swinging.
@@ -426,6 +433,10 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       }
       return false;
     }
+    // A pure 'bonusDamage' ability has no status payload — the flat damage is
+    // applied by applyOnHitAbilities from `ab.bonusDamage`. Nothing to do here.
+    case 'bonusDamage':
+      return false;
     // freeze / drainStrength / summon are schema-only for now — safely ignored
     // until the engine grows hooks for them.
     default:

@@ -129,6 +129,7 @@ describe('stun abilities (Cyclops / Xelhua)', () => {
     // A plain `default` monster (Orc) stays ability-free — Xelhua's Stomp keyed by
     // id must not leak to every default monster.
     expect(resolveBehavior({ name: 'Orc' }).abilities.find((a) => a.id === 'stun')).toBeUndefined();
-    expect(resolveBehavior({ name: 'Orc' }).abilities).toHaveLength(0);
+    // A monster with no assignment at all resolves to a clean, empty ability list.
+    expect(resolveBehavior({ name: 'Practice Dummy' }).abilities).toHaveLength(0);
   });
 });

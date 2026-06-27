@@ -31,8 +31,10 @@ describe('DoT ability backfill', () => {
   }
 
   it('does not leak abilities to siblings sharing an archetype', () => {
-    // Orc is a plain `default` monster — must stay ability-free.
-    expect(resolveBehavior({ name: 'Orc' }).abilities).toHaveLength(0);
+    // A monster with no assignment at all resolves to a clean, empty ability list,
+    // and the DoT does not leak to it.
+    expect(resolveBehavior({ name: 'Practice Dummy' }).abilities.find((a) => a.id === 'poison')).toBeUndefined();
+    expect(resolveBehavior({ name: 'Practice Dummy' }).abilities).toHaveLength(0);
     // Colossal Cyclops shares 'brute' with Cyclops but has its own sheet abilities —
     // it must NOT inherit Cyclops's Munch DoT.
     expect(resolveBehavior({ name: 'Colossal Cyclops' }).abilities.find((a) => a.id === 'poison')).toBeUndefined();

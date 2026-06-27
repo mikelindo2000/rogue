@@ -56,6 +56,8 @@ function generatedName(spec: AbilitySpec): string {
       return 'Blind';
     case 'silenceMagic':
       return 'Silence';
+    case 'bonusDamage':
+      return 'Heavy Blow';
     case 'leechHeal':
       return 'Life drain';
     case 'stealGold':
@@ -69,8 +71,19 @@ function generatedName(spec: AbilitySpec): string {
   }
 }
 
-/** The effect clause — what the ability does, in plain language. */
+/** The effect clause — what the ability does, in plain language. A flat
+ *  `bonusDamage` rider is appended to whatever status clause the id produces (or
+ *  stands alone for a pure 'bonusDamage' ability). */
 function effectText(spec: AbilitySpec): string {
+  const base = statusClause(spec);
+  const bonus = spec.bonusDamage && spec.bonusDamage > 0 ? `${spec.bonusDamage} extra damage` : '';
+  if (spec.id === 'bonusDamage') return bonus || 'a heavy blow';
+  if (base && bonus) return `${base}, plus ${bonus}`;
+  return base || bonus || 'a special effect';
+}
+
+/** The status-effect portion of an ability's description (no bonus-damage rider). */
+function statusClause(spec: AbilitySpec): string {
   const dur = spec.duration ?? 1;
   const mag = spec.magnitude ?? 0;
   switch (spec.id as string) {
@@ -102,8 +115,9 @@ function effectText(spec: AbilitySpec): string {
     case 'summon':
       return 'calls another monster to its aid';
     default:
-      // Unknown id — describe what we can from the spec.
-      return dur > 1 ? `lasts ${plural(dur, 'turn')}` : 'a special effect';
+      // Unknown id — describe what we can from the spec (effectText supplies the
+      // final fallback / appends any bonus-damage rider).
+      return dur > 1 ? `lasts ${plural(dur, 'turn')}` : '';
   }
 }
 

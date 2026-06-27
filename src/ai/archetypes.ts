@@ -279,7 +279,7 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Both rows are keyed to base Cyclops so the Colossal Cyclops (same 'brute'
   // archetype, different sheet abilities) is unaffected.
   'cyclops': [
-    { id: 'poison', label: 'Munch', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
+    { id: 'poison', label: 'Munch', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', bonusDamage: 25, cooldown: 0, trigger: 'onHit' },
     { id: 'stun', label: 'Intimidating Stare', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
   ],
   // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
@@ -294,13 +294,23 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Agitated Apperation — Ingest Spirit Dust (1%): a 2-turn fear. The sheet's
   // ability also turns the apperation invisible — that self-buff portion is out of
   // scope (a separate monster-self-buff category), so only the fear is modeled here.
-  'agitated-apperation': [{ id: 'fear', label: 'Ingest Spirit Dust', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
-  // Yeti — Freeze Frame (A2, 1%): "Freezes the target, resulting in a lost turn"
-  // — a 1-turn stun. (The +5 damage portion is bonusDamage, a separate category.)
-  'yeti': [{ id: 'stun', label: 'Freeze Frame', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
-  // Michael the Minotaur — Head Butt (A2, 1%): "stuns the target for one turn"
-  // — a 1-turn stun. (The +10 damage portion is bonusDamage, a separate category.)
-  'michael-the-minotaur': [{ id: 'stun', label: 'Head Butt', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  // Agitated Apperation also has hysteria (A1, 3%): +25 surrounding-objects damage.
+  'agitated-apperation': [
+    { id: 'bonusDamage', label: 'Hysteria', chance: 0.03, bonusDamage: 25, cooldown: 0, trigger: 'onHit' },
+    { id: 'fear', label: 'Ingest Spirit Dust', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Yeti — Ice Spear (A1, 3%): +6 damage; and Freeze Frame (A2, 1%): a 1-turn
+  // stun that also deals +5 (bonusDamage rider on the stun).
+  'yeti': [
+    { id: 'bonusDamage', label: 'Ice Spear', chance: 0.03, bonusDamage: 6, cooldown: 0, trigger: 'onHit' },
+    { id: 'stun', label: 'Freeze Frame', chance: 0.01, magnitude: 1, duration: 1, bonusDamage: 5, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Michael the Minotaur — Buck (A1, 3%): +10 damage; and Head Butt (A2, 1%): a
+  // 1-turn stun that also deals +10 (bonusDamage rider on the stun).
+  'michael-the-minotaur': [
+    { id: 'bonusDamage', label: 'Buck', chance: 0.03, bonusDamage: 10, cooldown: 0, trigger: 'onHit' },
+    { id: 'stun', label: 'Head Butt', chance: 0.01, magnitude: 1, duration: 1, bonusDamage: 10, cooldown: 0, trigger: 'onHit' },
+  ],
   // Gary the Golem — Iron Curse (A1, 3%): "slows attacks resulting in two lost
   // turns" — a 2-turn stun. Keyed to Gary so the other 'guardian' monsters are unaffected.
   'gary-the-golem': [{ id: 'stun', label: 'Iron Curse', chance: 0.03, magnitude: 1, duration: 2, cooldown: 0, trigger: 'onHit' }],
@@ -331,10 +341,18 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // turns, reusing computeStrike's existing disarm halving at the strike read site.
   'troll': [{ id: 'weaponDebuff', label: 'Disarm', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Trogdor the Troll — Bone Break (1%): same disarmed-fighting effect for 2 turns.
-  'trogdor-the-troll': [{ id: 'weaponDebuff', label: 'Bone Break', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
-  // Quinotaur — Spit (1%): a 25% miss chance for 3 turns (magnitude is the miss
-  // probability, rolled at the player-attack read site).
-  'quinotaur': [{ id: 'missChance', label: 'Spit', chance: 0.01, magnitude: 0.25, duration: 3, cooldown: 0, trigger: 'onHit' }],
+  // Trogdor also has Skull Crush (A1, 3%): +8 damage.
+  'trogdor-the-troll': [
+    { id: 'bonusDamage', label: 'Skull Crush', chance: 0.03, bonusDamage: 8, cooldown: 0, trigger: 'onHit' },
+    { id: 'weaponDebuff', label: 'Bone Break', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Quinotaur — Horn Twist (A1, 3%): +10 damage; and Spit (A2, 1%): a 25% miss
+  // chance for 3 turns (magnitude is the miss probability, rolled at the
+  // player-attack read site).
+  'quinotaur': [
+    { id: 'bonusDamage', label: 'Horn Twist', chance: 0.03, bonusDamage: 10, cooldown: 0, trigger: 'onHit' },
+    { id: 'missChance', label: 'Spit', chance: 0.01, magnitude: 0.25, duration: 3, cooldown: 0, trigger: 'onHit' },
+  ],
   // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.
@@ -346,12 +364,45 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Pantier Pygmy King — Miniaturize (3%): sheet "-100% armor for 2 turns".
   // Approximated as a large flat reduction (99) that effectively zeroes the
   // player's defense for the duration (getTotalDef clamps the result to >= 0).
-  'pantier-pygmy-king': [{ id: 'armorDebuff', label: 'Miniaturize', chance: 0.03, magnitude: 99, duration: 2, cooldown: 0, trigger: 'onHit' }],
+  // Pantier Pygmy King also has Gulliver's Attack (A2, 1%): +12 damage from a
+  // volley of tiny spears.
+  'pantier-pygmy-king': [
+    { id: 'armorDebuff', label: 'Miniaturize', chance: 0.03, magnitude: 99, duration: 2, cooldown: 0, trigger: 'onHit' },
+    { id: 'bonusDamage', label: "Gulliver's Attack", chance: 0.01, bonusDamage: 12, cooldown: 0, trigger: 'onHit' },
+  ],
   // Zombie — Putrid Bite (3%): seals the player's magic (cannot zap wands) for 3
   // turns. Merges with the leech archetype's heal — the Zombie keeps both. (The
   // sheet's "staff-equipped fights disarmed" portion is out of scope — a separate
   // equip-conditional combat modifier, not a status effect.)
-  'zombie': [{ id: 'silenceMagic', label: 'Putrid Bite', chance: 0.03, duration: 3, cooldown: 0, trigger: 'onHit' }],
+  // Zombie also has Bury Alive (A2, 1%): +75 damage from being crammed into the
+  // ground. (Big hit, but rare; sheet-verbatim — flag for playtest.)
+  'zombie': [
+    { id: 'silenceMagic', label: 'Putrid Bite', chance: 0.03, duration: 3, cooldown: 0, trigger: 'onHit' },
+    { id: 'bonusDamage', label: 'Bury Alive', chance: 0.01, bonusDamage: 75, cooldown: 0, trigger: 'onHit' },
+  ],
+
+  // --- Pure bonusDamage abilities (flat extra hit on proc; the sheet's many
+  // "+N damage" specials). Big magnitudes (50/75) are sheet-verbatim and rare —
+  // flag for playtest. ---
+  // Orc — Hammer Smash (A1, 3%): +2.
+  'orc': [{ id: 'bonusDamage', label: 'Hammer Smash', chance: 0.03, bonusDamage: 2, cooldown: 0, trigger: 'onHit' }],
+  // Hobgoblin — Black Powder Bomb (A1, 3%): +2.
+  'hobgoblin': [{ id: 'bonusDamage', label: 'Black Powder Bomb', chance: 0.03, bonusDamage: 2, cooldown: 0, trigger: 'onHit' }],
+  // Indus Worm — Strangulate (A1, 3%): +3.
+  'indus-worm': [{ id: 'bonusDamage', label: 'Strangulate', chance: 0.03, bonusDamage: 3, cooldown: 0, trigger: 'onHit' }],
+  // Jungle Flesheater — Pinch (A1, 3%): +3.
+  'jungle-flesheater': [{ id: 'bonusDamage', label: 'Pinch', chance: 0.03, bonusDamage: 3, cooldown: 0, trigger: 'onHit' }],
+  // Minotaur — Buck (A1, 3%): +5.
+  'minotaur': [{ id: 'bonusDamage', label: 'Buck', chance: 0.03, bonusDamage: 5, cooldown: 0, trigger: 'onHit' }],
+  // Eagle — Swooping Strike (A1, 3%): +4. (Appended over its raptor dive archetype.)
+  'eagle': [{ id: 'bonusDamage', label: 'Swooping Strike', chance: 0.03, bonusDamage: 4, cooldown: 0, trigger: 'onHit' }],
+  // Flying Serpent — Tail Lash (A1, 3%): +3. (Appended over its kiter archetype.)
+  'flying-serpent': [{ id: 'bonusDamage', label: 'Tail Lash', chance: 0.03, bonusDamage: 3, cooldown: 0, trigger: 'onHit' }],
+  // Apperation — Poltergeist (A1, 3%): saps 50 health; Haunt (A2, 1%): +75 self-harm.
+  'apperation': [
+    { id: 'bonusDamage', label: 'Poltergeist', chance: 0.03, bonusDamage: 50, cooldown: 0, trigger: 'onHit' },
+    { id: 'bonusDamage', label: 'Haunt', chance: 0.01, bonusDamage: 75, cooldown: 0, trigger: 'onHit' },
+  ],
 };
 
 const resolved = new Map<string, MonsterBehavior>();

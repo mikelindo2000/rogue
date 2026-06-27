@@ -95,6 +95,7 @@ describe('weaponDebuff abilities (Troll / Trogdor the Troll)', () => {
 
   it('does not leak the debuff to siblings sharing the default archetype', () => {
     expect(resolveBehavior({ name: 'Orc' }).abilities.find((a) => a.id === 'weaponDebuff')).toBeUndefined();
-    expect(resolveBehavior({ name: 'Orc' }).abilities).toHaveLength(0);
+    // A monster with no assignment at all resolves to a clean, empty ability list.
+    expect(resolveBehavior({ name: 'Practice Dummy' }).abilities).toHaveLength(0);
   });
 });

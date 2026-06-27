@@ -81,7 +81,8 @@ export type AbilityId =
   | 'atkDebuff'
   | 'weaponDebuff'
   | 'missChance'
-  | 'silenceMagic';
+  | 'silenceMagic'
+  | 'bonusDamage';
 
 export interface AbilitySpec {
   id: AbilityId;
@@ -96,6 +97,11 @@ export interface AbilitySpec {
   duration?: number;
   /** DoT flavor for effect-inflicting abilities (poison/fire/acid/bacterial). */
   damageType?: 'poison' | 'fire' | 'acid' | 'bacterial';
+  /** Flat extra damage dealt to the player when the ability procs, applied on
+   *  top of any status effect. A pure-damage ability uses id 'bonusDamage' and
+   *  carries the amount here; a mixed ability (e.g. stun + extra hit) sets it
+   *  alongside its effect id. */
+  bonusDamage?: number;
   /** Turns before it can fire again. */
   cooldown: number;
   trigger: 'onHit' | 'onEngage';

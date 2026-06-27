@@ -99,6 +99,7 @@ describe('armorDebuff abilities (Pygmy / Pantier Pygmy King)', () => {
 
   it('does not leak the debuff to siblings sharing the default archetype', () => {
     expect(resolveBehavior({ name: 'Orc' }).abilities.find((a) => a.id === 'armorDebuff')).toBeUndefined();
-    expect(resolveBehavior({ name: 'Orc' }).abilities).toHaveLength(0);
+    // A monster with no assignment at all resolves to a clean, empty ability list.
+    expect(resolveBehavior({ name: 'Practice Dummy' }).abilities).toHaveLength(0);
   });
 });
