@@ -177,6 +177,22 @@ describe('effects spine', () => {
     expect(t2.logs.join(' ')).toMatch(/Your strength returns to your arm/);
   });
 
+  it('applies weaponDebuff, logs a countdown, and expires (no HP cost)', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'weaponDebuff', turns: 2, magnitude: 1, source: 'Troll' });
+
+    expect(hasEffect(p, 'weaponDebuff')).toBe(true);
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1, still active
+    expect(t1.damage).toBe(0);
+    expect(p.hp).toBe(20);
+    expect(t1.logs.join(' ')).toMatch(/You fumble your weapon, 1 turn left/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expires
+    expect(hasEffect(p, 'weaponDebuff')).toBe(false);
+    expect(t2.logs.join(' ')).toMatch(/You regain your grip/);
+  });
+
   it('a DoT can kill: HP is driven to 0 or below for the engine death path to catch', () => {
     const p = player({ hp: 2 });
     applyEffect(p, { kind: 'dot', turns: 5, magnitude: 1, source: 'Brown Bat', damageType: 'poison' });

@@ -347,6 +347,22 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} saps your strength!`);
       return true;
     }
+    case 'weaponDebuff': {
+      // Inflict a weapon debuff: while active the player's strike is treated as
+      // `disarmed` at the computeStrike caller (reusing the existing disarm
+      // halving). Like the other persistent-effect cases this body draws nothing
+      // from `rng` — the only roll is the per-ability chance gate in
+      // applyOnHitAbilities, so seeded parity is preserved. magnitude is unused
+      // (the halving is fixed); duration carries the effect. Re-applying refreshes.
+      applyEffect(player, {
+        kind: 'weaponDebuff',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+      });
+      logs.push(`${m.name} disarms you!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —

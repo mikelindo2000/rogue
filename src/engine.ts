@@ -1107,7 +1107,12 @@ export class GameEngine {
       baseAtk: Math.max(1, this.player.baseAtk - this.trapEffects.strengthDrained - effectMagnitude(this.player, 'atkDebuff')),
       weapon,
       strengthActive: this.statusEffects.strengthTurns > 0,
-      disarmed: this.player.disarmedHits > 0,
+      // weaponDebuff read site: a monster-inflicted weapon debuff (Troll "Disarm",
+      // Trogdor "Bone Break") makes the strike `disarmed` too, reusing
+      // computeStrike's existing disarm halving. Read-only — the effect's duration
+      // is owned by tickPlayerEffects, so we must NOT decrement disarmedHits for it
+      // (only the dart-trap disarmedHits counter is consumed below).
+      disarmed: this.player.disarmedHits > 0 || hasEffect(this.player, 'weaponDebuff'),
       rng: this.rng
     });
 

@@ -44,6 +44,13 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('your attacks weaken by 3 for 3 turns');
   });
 
+  it('describes weaponDebuff with its duration', () => {
+    const deb: AbilitySpec = { id: 'weaponDebuff', label: 'Disarm', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(deb);
+    expect(d.name).toBe('Disarm');
+    expect(d.effect).toBe('you fight disarmed for 2 turns');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

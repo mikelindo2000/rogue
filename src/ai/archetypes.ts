@@ -322,6 +322,11 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // reduction of 3 for 3 turns (subtracted from base atk at the computeStrike
   // caller). Keyed to base Golem so the other 'guardian' monsters are unaffected.
   'golem': [{ id: 'atkDebuff', label: 'Oxidize', chance: 0.03, magnitude: 3, duration: 3, cooldown: 0, trigger: 'onHit' }],
+  // Troll — Disarm (1%): the player fights disarmed (halved weapon damage) for 2
+  // turns, reusing computeStrike's existing disarm halving at the strike read site.
+  'troll': [{ id: 'weaponDebuff', label: 'Disarm', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
+  // Trogdor the Troll — Bone Break (1%): same disarmed-fighting effect for 2 turns.
+  'trogdor-the-troll': [{ id: 'weaponDebuff', label: 'Bone Break', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.

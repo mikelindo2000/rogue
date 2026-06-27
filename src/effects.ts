@@ -127,6 +127,14 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`Your strikes feel feeble${remainingSuffix(effect.turns)}.`);
     }
 
+    // weaponDebuff has no HP consequence — it's a passive read honored at the
+    // computeStrike caller (engine.ts), which marks the strike `disarmed` (halving
+    // its base damage). The tick only logs a countdown so the affliction is
+    // visible each turn it persists.
+    if (effect.kind === 'weaponDebuff' && !expired) {
+      logs.push(`You fumble your weapon${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -161,6 +169,9 @@ function expiryLine(effect: ActiveEffect): string {
   }
   if (effect.kind === 'atkDebuff') {
     return 'Your strength returns to your arm.';
+  }
+  if (effect.kind === 'weaponDebuff') {
+    return 'You regain your grip.';
   }
   return `The ${effect.kind} wears off.`;
 }

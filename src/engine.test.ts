@@ -587,6 +587,64 @@ describe('GameEngine atkDebuff read site', () => {
   });
 });
 
+describe('GameEngine weaponDebuff read site', () => {
+  // Only the engine's executeStrike can prove weaponDebuff is honored: it marks
+  // the strike `disarmed`, halving its base damage (computeStrike's disarmDivisor).
+  // rng stubbed deterministic so the roll depends only on dmgBase.
+  const strikeFor = (debuffed: boolean) => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.999);
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 0 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    if (debuffed) {
+      engine.player.activeEffects = [{ kind: 'weaponDebuff', turns: 2, magnitude: 1, source: 'Troll' }];
+    }
+    const m: Monster = {
+      x: 3, y: 2, symbol: 'T', name: 'Dummy', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.playerAttack(m);
+    return 100000 - m.hp;
+  };
+
+  it('halves player melee damage while disarmed by the debuff', () => {
+    const clean = strikeFor(false);
+    const fumbled = strikeFor(true);
+    expect(fumbled).toBeLessThan(clean);
+    // Disarm halves base damage (floored), so the debuffed hit is ~half the clean.
+    expect(fumbled).toBeLessThanOrEqual(Math.ceil(clean / 2));
+  });
+
+  it('does not decrement the dart-trap disarmedHits counter for the effect', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.999);
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 0 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    engine.player.disarmedHits = 0;
+    engine.player.activeEffects = [{ kind: 'weaponDebuff', turns: 2, magnitude: 1, source: 'Troll' }];
+    const m: Monster = {
+      x: 3, y: 2, symbol: 'T', name: 'Dummy', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.playerAttack(m);
+    // The effect path must not touch disarmedHits (only the dart-trap counter is).
+    expect(engine.player.disarmedHits).toBe(0);
+    // And the effect itself persists (its countdown is tickPlayerEffects', not the
+    // strike's) — playerAttack alone does not tick effects.
+    expect(engine.player.activeEffects.some((e) => e.kind === 'weaponDebuff')).toBe(true);
+  });
+});
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();
