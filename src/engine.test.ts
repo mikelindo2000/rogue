@@ -24,6 +24,7 @@ const makeUi = (overrides: Record<string, unknown> = {}) => ({
   fxDive: () => {},
   fxWhiff: () => {},
   fxMonsterDodge: () => {},
+  fxFloat: () => {},
   getStyledItemName: (name: string) => name,
   ...overrides,
 });

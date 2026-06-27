@@ -69,4 +69,17 @@ describe('bonusDamage abilities', () => {
   it('does not leak bonusDamage to siblings (Colossal Cyclops has no Hammer Smash)', () => {
     expect(resolveBehavior({ name: 'Colossal Cyclops' }).abilities.find((a) => a.label === 'Hammer Smash')).toBeUndefined();
   });
+
+  it('fires onProc with the ability on a proc (for the map float), but not on a miss', () => {
+    const b = resolveBehavior({ name: 'Orc' });
+    const procced: string[] = [];
+    const onProc = (ab: { label?: string }) => procced.push(ab.label ?? '?');
+
+    applyOnHitAbilities(b, monster('Orc'), player(), chanceRng(true), 1, onProc);
+    expect(procced).toEqual(['Hammer Smash']);
+
+    procced.length = 0;
+    applyOnHitAbilities(b, monster('Orc'), player(), chanceRng(false), 1, onProc);
+    expect(procced).toEqual([]);
+  });
 });

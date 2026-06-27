@@ -9,7 +9,7 @@ import type { RNG } from './rng';
 const makeUi = () => ({
   renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
   syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, mapRumble: () => {}, beginFloorTransition: () => {}, fxFreeze: () => {},
-  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {},
+  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {}, fxFloat: () => {},
   setAiming: () => {}, getStyledItemName: (n: string) => n,
 });
 

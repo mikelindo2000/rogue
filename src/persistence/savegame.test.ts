@@ -28,6 +28,7 @@ const makeUi = () => ({
   fxDive: vi.fn(),
   fxWhiff: vi.fn(),
   fxMonsterDodge: vi.fn(),
+  fxFloat: vi.fn(),
   getStyledItemName: (n: string) => n,
 });
 

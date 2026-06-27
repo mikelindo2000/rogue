@@ -2525,6 +2525,7 @@ export class GameEngine {
       {
         dive: (fx, fy, tx, ty, color) => this.ui.fxDive(fx, fy, tx, ty, color),
         whiff: (x, y) => this.ui.fxWhiff(x, y),
+        float: (x, y, text, color) => this.ui.fxFloat(x, y, text, color),
       },
       this.dark,
       this.dungeonFloor,

@@ -3,6 +3,7 @@ import { getScaledMonsterAtk } from './config';
 import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
 import { applyEffect } from './effects';
+import { describeAbility } from './ai/abilityDescriptions';
 import { decideMonsterAction, ensureRuntime } from './ai/brain';
 import { resolveBehavior, defaultBehavior } from './ai/archetypes';
 import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior, MonsterAIRuntime } from './ai/types';
@@ -12,9 +13,17 @@ import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior, MonsterAIRunti
 export interface AIFx {
   dive(fromX: number, fromY: number, toX: number, toY: number, color: string): void;
   whiff(x: number, y: number): void;
+  /** A floating label over a tile (ability proc name), like the bat's "dodge". */
+  float(x: number, y: number, text: string, color: string): void;
 }
 
-const NO_FX: AIFx = { dive() {}, whiff() {} };
+const NO_FX: AIFx = { dive() {}, whiff() {}, float() {} };
+
+/** Build the on-proc visual: a floating ability-name label over the player (the
+ *  one afflicted), mirroring the bat-dodge float. */
+function procFloat(fx: AIFx, m: Monster, player: Player): (ab: AbilitySpec) => void {
+  return (ab) => fx.float(player.x, player.y, describeAbility(ab).name, m.color);
+}
 
 /**
  * Advance every monster one turn.
@@ -86,7 +95,7 @@ export function processMonsterAI(
       dark,
     });
 
-    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged);
+    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx);
     // An on-hit ability (leprechaun steal) may have requested a blink-away: the
     // monster hits, then vanishes to a random floor tile this same turn.
     if (rt.pendingBlink) {
@@ -126,7 +135,7 @@ function resolvePendingAttack(
     player.hp -= dmg;
     onPlayerDamaged?.(m, dmg);
     addLog(`${m.name}'s swoop hits for ${dmg}!`);
-    applyOnHitAbilities(behavior, m, player, rng, floor).forEach(addLog);
+    applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
   } else {
     fx.whiff(pend.targetX, pend.targetY);
     addLog(`You dodge ${m.name}'s swoop!`);
@@ -145,7 +154,8 @@ function applyAction(
   rng: RNG,
   turn: number,
   floor: number,
-  onPlayerDamaged?: (m: Monster, damage: number) => void
+  onPlayerDamaged?: (m: Monster, damage: number) => void,
+  fx: AIFx = NO_FX
 ) {
   switch (action.type) {
     case 'wait':
@@ -155,7 +165,7 @@ function applyAction(
       m.y += action.dy;
       return;
     case 'attack':
-      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged);
+      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx);
       return;
     case 'windup': {
       // Commit to a telegraphed strike: record the target tile + resolve turn.
@@ -184,7 +194,8 @@ function applyAttack(
   rng: RNG,
   turn: number,
   floor: number,
-  onPlayerDamaged?: (m: Monster, damage: number) => void
+  onPlayerDamaged?: (m: Monster, damage: number) => void,
+  fx: AIFx = NO_FX
 ) {
   const rt = ensureRuntime(m);
   const attack: AttackSpec = behavior.attacks.find((a) => a.id === attackId) ?? behavior.attacks[0];
@@ -205,7 +216,7 @@ function applyAttack(
   if (attack.cooldown > 0) rt.cooldowns[attack.id] = turn + 1 + attack.cooldown;
 
   // On-hit abilities (steal, leech, …) fire as side effects of landing a blow.
-  applyOnHitAbilities(behavior, m, player, rng, floor).forEach(addLog);
+  applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
 }
 
 /**
@@ -218,7 +229,8 @@ export function applyOnHitAbilities(
   m: Monster,
   player: Player,
   rng: RNG,
-  floor = 1
+  floor = 1,
+  onProc?: (ab: AbilitySpec) => void
 ): string[] {
   const rt = ensureRuntime(m);
   const logs: string[] = [];
@@ -232,6 +244,8 @@ export function applyOnHitAbilities(
       player.hp -= ab.bonusDamage;
       logs.push(`${m.name}'s ${ab.label ?? 'blow'} strikes for ${ab.bonusDamage}!`);
     }
+    // Surface the proc as a floating ability-name label on the map.
+    onProc?.(ab);
     if (ab.thenFlee) rt.state = 'fleeing';
     // Blink only when the ability actually did something — a leprechaun that hit
     // a broke player has nothing to vanish with, so it stays and keeps swinging.

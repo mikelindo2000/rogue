@@ -8,7 +8,7 @@ import { monsterId, tierOf } from './discovery';
 const makeUi = () => ({
   renderLogs: () => {}, resetLog: () => {}, updateDropdowns: () => {}, updateStats: () => {},
   syncDiscovery: () => {}, render: () => {}, fxStrike: () => {}, fxHit: () => {}, mapRumble: () => {}, beginFloorTransition: () => {}, fxFreeze: () => {},
-  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {},
+  fxDeath: () => {}, fxPlayerHit: () => {}, fxDive: () => {}, fxWhiff: () => {}, fxMonsterDodge: () => {}, fxFloat: () => {},
 });
 
 const grid = <T,>(engine: GameEngine, fill: T) =>
