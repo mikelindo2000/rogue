@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { DeathTransitionRequest } from '../ui/deathTransition';
 import type { MapRenderer } from './mapRenderer';
 import { MapViewController } from './mapViewController';
 import type { MapSnapshot } from './mapSnapshot';
-import type { PresentationEvent } from './presentationEvents';
+import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
 import type { AsciiCanvasRendererOptions } from './renderers/asciiCanvasRenderer';
 
 class CapturingRenderer implements MapRenderer {
@@ -20,6 +21,31 @@ class CapturingRenderer implements MapRenderer {
   public resize(_bounds: DOMRectReadOnly): void {}
   public tick(_now: number): boolean { return false; }
   public destroy(): void {}
+}
+
+class ReceiverCheckingRenderer extends CapturingRenderer {
+  public runCalls: Array<{ path: readonly RunPathStep[]; ghosts: readonly RunGhostItem[] }> = [];
+  public deathRequests: DeathTransitionRequest[] = [];
+  public previewIds: string[] = [];
+  public dispatchedEvents: PresentationEvent[] = [];
+
+  public override dispatch(event: PresentationEvent): void {
+    this.dispatchedEvents.push(event);
+  }
+
+  public fxPlayerRun(path: readonly RunPathStep[], ghosts: readonly RunGhostItem[] = []): void {
+    this.runCalls.push({ path, ghosts });
+  }
+
+  public beginDeathTransition(request: DeathTransitionRequest): Promise<void> {
+    this.deathRequests.push(request);
+    return Promise.resolve();
+  }
+
+  public previewDeathTransition(id: string): Promise<void> {
+    this.previewIds.push(id);
+    return Promise.resolve();
+  }
 }
 
 function createHost(): HTMLElement {
@@ -72,6 +98,66 @@ describe('MapViewController reduced motion', () => {
     expect(mediaQuery.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
     expect(renderer).not.toBeNull();
     expect((renderer as CapturingRenderer | null)?.mountedReducedMotion).toBe(true);
+
+    controller.destroy();
+  });
+});
+
+describe('MapViewController renderer extras', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  it('invokes the player run extra with the renderer as receiver', () => {
+    let renderer!: ReceiverCheckingRenderer;
+    const controller = new MapViewController({
+      host: createHost(),
+      getReducedMotion: () => false,
+      createRenderer: options => {
+        renderer = new ReceiverCheckingRenderer(options);
+        return renderer;
+      },
+    });
+    const path: RunPathStep[] = [
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 3, y: 1 },
+    ];
+    const ghosts: RunGhostItem[] = [
+      { x: 2, y: 1, symbol: '!', color: '#fff7a8', pathIndex: 1 },
+    ];
+
+    expect(() => controller.dispatchPlayerRun(path, ghosts)).not.toThrow();
+
+    expect(renderer.runCalls).toEqual([{ path, ghosts }]);
+    expect(renderer.dispatchedEvents).toEqual([]);
+
+    controller.destroy();
+  });
+
+  it('invokes death transition extras with the renderer as receiver', async () => {
+    let renderer!: ReceiverCheckingRenderer;
+    const controller = new MapViewController({
+      host: createHost(),
+      getReducedMotion: () => false,
+      createRenderer: options => {
+        renderer = new ReceiverCheckingRenderer(options);
+        return renderer;
+      },
+    });
+    const request: DeathTransitionRequest = {
+      outcome: 'died',
+      runId: 'run-1',
+      floorReached: 6,
+    };
+
+    await expect((async () => controller.beginDeathTransition(request))()).resolves.toBeUndefined();
+    await expect((async () => controller.previewDeathTransition('last-spiral'))()).resolves.toBeUndefined();
+
+    expect(renderer.deathRequests).toEqual([request]);
+    expect(renderer.previewIds).toEqual(['last-spiral']);
 
     controller.destroy();
   });

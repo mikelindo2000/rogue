@@ -73,7 +73,7 @@ export class MapViewController {
   }
 
   public beginDeathTransition(request: DeathTransitionRequest): Promise<void> {
-    const begin = this.extras().beginDeathTransition;
+    const begin = this.rendererExtra('beginDeathTransition');
     if (!begin) return Promise.resolve();
     const done = begin(request);
     this.requestFrame();
@@ -86,7 +86,7 @@ export class MapViewController {
   }
 
   public previewDeathTransition(id: string): Promise<void> {
-    const preview = this.extras().previewDeathTransition;
+    const preview = this.rendererExtra('previewDeathTransition');
     if (!preview) return Promise.resolve();
     const done = preview(id);
     this.requestFrame();
@@ -108,7 +108,7 @@ export class MapViewController {
   }
 
   public dispatchPlayerRun(path: readonly RunPathStep[], ghosts: readonly RunGhostItem[] = []): void {
-    const run = this.extras().fxPlayerRun;
+    const run = this.rendererExtra('fxPlayerRun');
     if (run) run(path, ghosts);
     else this.dispatch({ type: 'player.run', path, ghosts });
     this.requestFrame();
@@ -198,5 +198,12 @@ export class MapViewController {
 
   private extras(): RendererExtras {
     return this.renderer as RendererExtras;
+  }
+
+  private rendererExtra<K extends keyof RendererExtras>(key: K): NonNullable<RendererExtras[K]> | null {
+    const extras = this.extras();
+    const method = extras[key] as ((...args: unknown[]) => unknown) | undefined;
+    if (!method) return null;
+    return method.bind(extras) as NonNullable<RendererExtras[K]>;
   }
 }
