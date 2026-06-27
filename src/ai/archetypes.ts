@@ -13,7 +13,7 @@
 import { BALANCE } from '../config';
 import { monsterId } from '../discovery';
 import type { MonsterTemplate } from '../types';
-import type { AttackSpec, MonsterBehavior } from './types';
+import type { AbilitySpec, AttackSpec, MonsterBehavior } from './types';
 import type { AttackShape } from './balance';
 
 const AGGRO = BALANCE.monster.aggroRange;
@@ -123,19 +123,15 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // landing when you DON'T dodge — so the dive hits hard but is fully avoidable.
   // (damageMultiplier tuned via the harness to keep it floor-1 fair.)
   //
-  // Poisonous Puke (sheet Ability 1, "3% on hit"): a landed bite has a 3% chance
-  // to inflict a poison DoT — 1 dmg/turn for 3 turns (sheet values verbatim). The
-  // poison effect itself draws no RNG beyond the standard per-ability chance gate
-  // (see applyOnHitAbilities); giving the bat its first ability does shift the
-  // seeded stream by that one chance roll per landed hit — the inherent, intended
-  // cost of the ability, not byte-for-byte parity with the abilityless bat.
-  // Balance-harness-neutral: the sim models only the primary attack's DPS, so the
-  // on-hit DoT sits outside it.
+  // The Brown Bat's Poisonous Puke is a per-monster on-hit ability, kept in
+  // MONSTER_ABILITIES below (not here) so the assignment lives in one place
+  // alongside monsters that share an archetype. The archetype itself is just the
+  // erratic-flier movement + telegraphed swoop.
   bat: {
     movement: { style: 'erratic', aggroRange: AGGRO + 1, erraticChance: 0.5 },
     attacks: [melee({ id: 'swoop', range: 2, damageMultiplier: 3.5, windupTurns: 1, cooldown: 1, animCue: 'swoop' })],
     defense: { dodgeChance: 0.25 },
-    abilities: [{ id: 'poison', chance: 0.03, magnitude: 1, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+    abilities: [],
   },
   // The Eagle: a faster, less-punishing cousin of the bat. Erratic flight with a
   // telegraphed dive you can step out of and light evasion — it teaches dodging
@@ -252,16 +248,62 @@ export const MONSTER_ARCHETYPE: Record<string, ArchetypeId> = {
   'marcus-the-brave': 'boss-swiper',
 };
 
+/**
+ * Per-monster on-hit abilities, keyed by monster id, merged on top of the
+ * monster's archetype abilities in `resolveBehavior`. This is the canonical home
+ * for a monster's GM-sheet "Ability 1/2" — keep abilities here, not on the
+ * archetype, because most monsters SHARE an archetype (default/brute/guardian/
+ * leech): putting an ability on the archetype would leak it to every sibling, and
+ * per-monster magnitudes (Snake +2 vs King Cobra +5) can't live on a shared
+ * preset. Keying by monster id keeps each assignment isolated and the values
+ * verbatim from the sheet. Merged additively, so a monster keeps any archetype
+ * ability too (e.g. Zachary keeps the leech heal AND gains Graveyard Grab).
+ *
+ * All values are the sheet's verbatim — chance = the "3% / 1% on hit" column,
+ * magnitude/duration from the ability text. Balance-harness-neutral (the sim
+ * models only the primary attack's DPS, so on-hit effects sit outside it).
+ */
+export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
+  // Brown Bat — Poisonous Puke: +1 poison/turn for 3 turns, 3% on hit.
+  'brown-bat': [{ id: 'poison', chance: 0.03, magnitude: 1, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  // Snake — Venomous Fangs: +2 poison/turn for 3 turns, 3% on hit.
+  'snake': [{ id: 'poison', chance: 0.03, magnitude: 2, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  // King Cobra — Venom Spit: +5 poison/turn for 3 turns, 3% on hit.
+  'king-cobra': [{ id: 'poison', chance: 0.03, magnitude: 5, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
+  // Cyclops — Munch (A2, 1%): "25 damage plus 5 bacterial damage for 3 turns".
+  // Only the DoT portion is modeled here; the +25 instant is a bonusDamage effect
+  // (its own category/task), not a status effect. Keyed to base Cyclops so the
+  // Colossal Cyclops (same 'brute' archetype, different sheet abilities) is unaffected.
+  'cyclops': [{ id: 'poison', chance: 0.01, magnitude: 5, duration: 3, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' }],
+  // Dragon — Molten Breath (A1, 3%): "+10 fire damage per turn until the fight is
+  // over". We have no "until combat ends" duration yet, so this is approximated as
+  // a sustained 5-turn fire DoT (flagged for a follow-up duration mode). Magnitude
+  // verbatim. Keyed to Dragon so the other 'guardian' monsters (Golem/Gary) are unaffected.
+  'dragon': [{ id: 'poison', chance: 0.03, magnitude: 10, duration: 5, damageType: 'fire', cooldown: 0, trigger: 'onHit' }],
+  // Zachary the Zombie — Graveyard Grab (A2, 1%): "infection that causes 25 damage
+  // for two turns". Modeled as a 25/turn bacterial DoT for 2 turns. Merges with the
+  // leech archetype's heal — Zachary keeps both.
+  'zachary-the-zombie': [{ id: 'poison', chance: 0.01, magnitude: 25, duration: 2, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' }],
+  // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
+  // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
+  // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.
+  'dragon-king': [{ id: 'poison', chance: 0.03, magnitude: 20, duration: 3, damageType: 'acid', cooldown: 0, trigger: 'onHit' }],
+};
+
 const resolved = new Map<string, MonsterBehavior>();
 
 /** The resolved behavior for a monster template (memoized). Falls back to the
- *  `default` archetype, which reproduces legacy behavior. */
+ *  `default` archetype, which reproduces legacy behavior. Per-monster abilities
+ *  from MONSTER_ABILITIES are merged on top of the archetype's own abilities. */
 export function resolveBehavior(template: { id?: string; name: string }): MonsterBehavior {
   const id = monsterId(template);
   let b = resolved.get(id);
   if (!b) {
     const archetype = MONSTER_ARCHETYPE[id] ?? 'default';
     b = { id: archetype, ...ARCHETYPES[archetype] };
+    const extra = MONSTER_ABILITIES[id];
+    // New abilities array (don't mutate the shared archetype preset's array).
+    if (extra) b.abilities = [...b.abilities, ...extra];
     resolved.set(id, b);
   }
   return b;

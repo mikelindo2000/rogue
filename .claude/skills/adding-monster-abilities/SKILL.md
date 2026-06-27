@@ -72,11 +72,18 @@ taxonomy in the framework plan). Two questions decide your work:
 
 ## C. Assign on the monster (every ability)
 
-6. `src/ai/archetypes.ts` — add the `AbilitySpec` to the monster's archetype `abilities: [...]`
+6. `src/ai/archetypes.ts` — add the `AbilitySpec` to **`MONSTER_ABILITIES`**, keyed by the
+   monster's id (`monsterId(template)` — usually the kebab-cased name, e.g. `'king-cobra'`),
    using the **sheet values verbatim**: `chance` = the sheet's "3% / 1% on hit" (0.03 / 0.01),
-   `magnitude` / `duration` from the ability text. Touch ONLY the target monster. If several
-   monsters share an archetype but only one should get the ability, give it its own archetype
-   or move the ability onto a per-monster assignment — do not poison siblings.
+   `magnitude` / `duration` from the ability text.
+   - **Always assign here, NOT on the archetype.** Most monsters share an archetype
+     (`default`/`brute`/`guardian`/`leech`), so an ability on the archetype leaks to every
+     sibling, and per-monster magnitudes (Snake +2 vs King Cobra +5) can't live on a shared
+     preset. `MONSTER_ABILITIES` is merged additively on top of the archetype's own abilities,
+     so a monster keeps any archetype ability too (e.g. Zachary keeps its leech heal AND gains
+     Graveyard Grab).
+   - The `AbilityId` is the **dispatch** id (e.g. all DoTs use `'poison'`); the *flavor*
+     (poison/fire/acid/bacterial) rides on `damageType`. Don't add a new `AbilityId` per flavor.
 
 ## D. Tests (every ability) — mirror the existing patterns
 
@@ -103,6 +110,7 @@ taxonomy in the framework plan). Two questions decide your work:
 | Effect/ability types | `src/types.ts` (`EffectKind`, `ActiveEffect`), `src/ai/types.ts` (`AbilityId`, `AbilitySpec`) |
 | Ability dispatch | `src/monster.ts` (`fireAbility`, `applyOnHitAbilities`) |
 | Monster→archetype | `src/ai/archetypes.ts` (`ARCHETYPES`, `MONSTER_ARCHETYPE`) |
+| Per-monster abilities | `src/ai/archetypes.ts` (`MONSTER_ABILITIES`) — the canonical home for sheet abilities |
 | Turn tick / death | `src/engine.ts` (`processTurn` ~L2374, death-cause block) |
 | Pure combat math | `src/combat.ts` (`computeStrike`, `computeMonsterDamage`) — keep pure |
 | GM sheet | id `1DXfUQDERdWntg4UuborVCLc5iFofAt61lviBCtHqYBc`, tab **Mobs**; read/write with `gog sheets get|update`. Cols L/M hold the effect-category mapping — keep it current. |
@@ -114,7 +122,13 @@ taxonomy in the framework plan). Two questions decide your work:
   through the engine death path.
 - `AbilityId` `'poison'`; `fireAbility` `case 'poison'` → `applyEffect({ kind:'dot', turns:3,
   magnitude:1, source, damageType:'poison' })` + a "pukes poison on you!" log.
-- Archetype: `bat.abilities = [{ id:'poison', chance:0.03, magnitude:1, duration:3,
-  damageType:'poison', cooldown:0, trigger:'onHit' }]`.
+- Assignment: `MONSTER_ABILITIES['brown-bat'] = [{ id:'poison', chance:0.03, magnitude:1,
+  duration:3, damageType:'poison', cooldown:0, trigger:'onHit' }]`.
 - Tests: `effects.test.ts` (spine) + `bat.test.ts` (proc/no-proc/parity) + `engine.test.ts`
-  (DoT death). No `MONSTER_DATABASE` change.
+  (DoT death) + `dot-abilities.test.ts` (per-monster resolution + no sibling leak). No
+  `MONSTER_DATABASE` change.
+
+> The same `'poison'` dispatch + `MONSTER_ABILITIES` row, with different
+> `magnitude`/`duration`/`damageType`, is all Snake / King Cobra / Cyclops-Munch /
+> Dragon / Zachary / Dragon-King needed — **pure data, no engine code**. That's the payoff
+> of extending the spine once.
