@@ -285,7 +285,16 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
   // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the
   // stun read site (engine takeStunTurn) makes it cost the player an action.
-  'xelhua': [{ id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],
+  // Xelhua also carries Giantfolk Growl (1%): a fear that sends the player
+  // fleeing in random directions for 3 turns. Appended to its Stomp stun row.
+  'xelhua': [
+    { id: 'stun', chance: 0.03, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' },
+    { id: 'fear', label: 'Giantfolk Growl', chance: 0.01, duration: 3, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Agitated Apperation — Ingest Spirit Dust (1%): a 2-turn fear. The sheet's
+  // ability also turns the apperation invisible — that self-buff portion is out of
+  // scope (a separate monster-self-buff category), so only the fear is modeled here.
+  'agitated-apperation': [{ id: 'fear', label: 'Ingest Spirit Dust', chance: 0.01, duration: 2, cooldown: 0, trigger: 'onHit' }],
   // Yeti — Freeze Frame (A2, 1%): "Freezes the target, resulting in a lost turn"
   // — a 1-turn stun. (The +5 damage portion is bonusDamage, a separate category.)
   'yeti': [{ id: 'stun', chance: 0.01, magnitude: 1, duration: 1, cooldown: 0, trigger: 'onHit' }],

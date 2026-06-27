@@ -459,6 +459,71 @@ describe('GameEngine stun read site', () => {
 const hasStun = (engine: GameEngine) =>
   engine.player.activeEffects.some((e) => e.kind === 'stun');
 
+describe('GameEngine fear read site', () => {
+  // Only the engine can prove the MOVE handler honors fear: a feared player's move
+  // intent is redirected to a random direction. We stub rng.pick to return a fixed
+  // cardinal that DIFFERS from the commanded direction, so a feared move landing on
+  // that other tile proves the intent was overridden.
+  it('a feared player moves in a random direction, not the one commanded', () => {
+    const engine = makeRunner();
+    // Carve a small plus so the player at (2,2) can go any cardinal.
+    carveRow(engine, 1, 1, 3);
+    carveRow(engine, 2, 1, 3);
+    carveRow(engine, 3, 1, 3);
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.hp = 50;
+    engine.player.hunger = 200;
+    engine.player.activeEffects = [{ kind: 'fear', turns: 2, magnitude: 1, source: 'Xelhua' }];
+
+    // Force rng.pick to choose DOWN ([0,1]); the dirs list is [R,L,D,U] so index 2.
+    (engine as any).rng = {
+      seed: 1,
+      next: () => 0,
+      int: () => 0,
+      range: (min: number) => min,
+      chance: () => false,
+      pick: (arr: readonly unknown[]) => arr[2],
+      getState: () => 0,
+    } as unknown as RNG;
+
+    // Command a move to the RIGHT — fear should redirect it DOWN instead.
+    engine.handlePlayerMove(1, 0);
+    expect(engine.player.x).toBe(2); // did NOT go right
+    expect(engine.player.y).toBe(3); // went down (the random pick)
+    expect(engine.logs.join(' ')).toMatch(/You flee in terror/);
+  });
+
+  it('fear ticks off (single decrement) and the player regains control', () => {
+    const engine = makeRunner();
+    carveRow(engine, 2, 1, 6);
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.player.hp = 50;
+    engine.player.hunger = 200;
+    engine.player.activeEffects = [{ kind: 'fear', turns: 1, magnitude: 1, source: 'Xelhua' }];
+
+    // Pick LEFT ([−1,0], index 1) while feared.
+    (engine as any).rng = {
+      seed: 1,
+      next: () => 0,
+      int: () => 0,
+      range: (min: number) => min,
+      chance: () => false,
+      pick: (arr: readonly unknown[]) => arr[1],
+      getState: () => 0,
+    } as unknown as RNG;
+
+    engine.handlePlayerMove(1, 0); // feared: redirected left to (1,2)
+    expect(engine.player.x).toBe(1);
+    expect(engine.player.activeEffects.some((e) => e.kind === 'fear')).toBe(false);
+
+    // No longer feared: the commanded right move lands.
+    engine.handlePlayerMove(1, 0);
+    expect(engine.player.x).toBe(2);
+  });
+});
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();

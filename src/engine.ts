@@ -448,6 +448,20 @@ export class GameEngine {
     if (this.takeSleepTurn()) return;
     if (this.takeStunTurn()) return;
 
+    // Fear read site: a feared player's MOVE intent is overridden to a RANDOM
+    // cardinal direction (real confusion, distinct from TrapEffects.confusedTurns
+    // which is only a visual warp in ui.ts). Read-only — the duration is owned by
+    // tickPlayerEffects inside processTurn, so we must NOT decrement the effect
+    // here (that would double-tick it; see the takeStunTurn note). Only movement
+    // is affected; non-movement actions ignore fear.
+    if (hasEffect(this.player, 'fear')) {
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const [rdx, rdy] = this.rng.pick(dirs);
+      dx = rdx;
+      dy = rdy;
+      this.addLog('You flee in terror!');
+    }
+
     const tx = this.player.x + dx;
     const ty = this.player.y + dy;
 

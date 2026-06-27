@@ -103,6 +103,14 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`You are frozen in fear${remainingSuffix(effect.turns)}.`);
     }
 
+    // Fear has no HP consequence — it's honored at its read site (the player MOVE
+    // handler sends the step in a random direction). The tick only logs a
+    // countdown so the affliction is visible each turn it persists. Suppressed on
+    // the expiring tick (the expiry line below covers that).
+    if (effect.kind === 'fear' && !expired) {
+      logs.push(`Terror grips you${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -128,6 +136,9 @@ function expiryLine(effect: ActiveEffect): string {
   }
   if (effect.kind === 'stun') {
     return 'You shake off your fear.';
+  }
+  if (effect.kind === 'fear') {
+    return 'Your courage returns.';
   }
   return `The ${effect.kind} wears off.`;
 }

@@ -22,6 +22,14 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('you lose 1 turn'); // singular
   });
 
+  it('describes fear with its sheet label and duration', () => {
+    const fear: AbilitySpec = { id: 'fear', label: 'Giantfolk Growl', chance: 0.01, duration: 3, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(fear);
+    expect(d.name).toBe('Giantfolk Growl');
+    expect(d.chance).toBe('1%');
+    expect(d.effect).toBe('you flee in fear for 3 turns');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

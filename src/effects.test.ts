@@ -124,6 +124,25 @@ describe('effects spine', () => {
     expect(p.activeEffects[0].source).toBe('Xelhua');
   });
 
+  it('applies fear, logs a countdown tick, and expires after its duration (no HP cost)', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'fear', turns: 2, magnitude: 1, source: 'Xelhua' });
+
+    expect(hasEffect(p, 'fear')).toBe(true);
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1, still active
+    expect(t1.damage).toBe(0);
+    expect(p.hp).toBe(20);
+    expect(hasEffect(p, 'fear')).toBe(true);
+    expect(t1.logs.join(' ')).toMatch(/Terror grips you, 1 turn left/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expires
+    expect(hasEffect(p, 'fear')).toBe(false);
+    expect(p.activeEffects).toHaveLength(0);
+    expect(t2.logs.join(' ')).toMatch(/Your courage returns/);
+    expect(t2.logs.join(' ')).not.toMatch(/Terror grips you/);
+  });
+
   it('a DoT can kill: HP is driven to 0 or below for the engine death path to catch', () => {
     const p = player({ hp: 2 });
     applyEffect(p, { kind: 'dot', turns: 5, magnitude: 1, source: 'Brown Bat', damageType: 'poison' });

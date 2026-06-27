@@ -302,6 +302,21 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} makes you cower in fear!`);
       return true;
     }
+    case 'fear': {
+      // Inflict fear: while it lasts the player's MOVE input is redirected to a
+      // random direction (honored at the engine MOVE handler). Like the poison/stun
+      // cases this body draws nothing from `rng` — the only roll is the per-ability
+      // chance gate in applyOnHitAbilities, so seeded parity is preserved.
+      // Re-applying refreshes the duration (applyEffect's stacking policy).
+      applyEffect(player, {
+        kind: 'fear',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+      });
+      logs.push(`${m.name} fills you with terror!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —

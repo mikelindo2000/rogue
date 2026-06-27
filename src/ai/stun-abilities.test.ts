@@ -74,8 +74,11 @@ describe('stun abilities (Cyclops / Xelhua)', () => {
     expect(stun).toBeDefined();
     expect(stun!.chance).toBe(0.03);
     expect(stun!.duration).toBe(1);
-    // Stomp is the only thing Xelhua adds — no DoT.
-    expect(b.abilities).toHaveLength(1);
+    // Stomp adds no DoT; Xelhua's other ability is its Giantfolk Growl fear (see
+    // fear-abilities.test.ts), so it carries exactly the stun + the fear.
+    expect(b.abilities).toHaveLength(2);
+    expect(b.abilities.find((a) => a.id === 'fear')).toBeDefined();
+    expect(b.abilities.find((a) => a.id === 'poison')).toBeUndefined();
   });
 
   it('inflicts a stun on a hit whose chance roll passes, which then ticks away', () => {

@@ -75,7 +75,8 @@ export type AbilityId =
   | 'summon'
   | 'leechHeal'
   | 'poison'
-  | 'stun';
+  | 'stun'
+  | 'fear';
 
 export interface AbilitySpec {
   id: AbilityId;
