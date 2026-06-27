@@ -16,6 +16,30 @@ export type PresentationMode =
 
 export const DEFAULT_PRESENTATION_MODE: PresentationMode = { type: 'dungeon-map' };
 
+export function copyPresentationMode(mode: PresentationMode): PresentationMode {
+  switch (mode.type) {
+    case 'dungeon-map':
+      return { type: 'dungeon-map' };
+    case 'boss-encounter':
+      return {
+        type: 'boss-encounter',
+        bossKey: mode.bossKey,
+        scope: {
+          kind: mode.scope.kind,
+          rect: {
+            l: mode.scope.rect.l,
+            t: mode.scope.rect.t,
+            r: mode.scope.rect.r,
+            b: mode.scope.rect.b,
+          },
+          entryDir: mode.scope.entryDir,
+        },
+      };
+    case 'end-run-transition':
+      return { type: 'end-run-transition', runId: mode.runId };
+  }
+}
+
 export interface HudSnapshot {
   readonly player: Player;
   readonly dungeonFloor: number;

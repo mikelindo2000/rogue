@@ -1,6 +1,8 @@
 import type { GameUI } from '../ui';
+import { ui as chromeUi } from '../ui/store.svelte';
 import type { Item, Monster, Player } from '../types';
 import {
+  copyPresentationMode,
   DEFAULT_PRESENTATION_MODE,
   type DiscoverySnapshot,
   type GamePresenter,
@@ -14,18 +16,19 @@ import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentatio
 const LEGACY_TILE_SIZE = 20;
 
 export class GameUiPresenterAdapter implements GamePresenter {
-  private mode: PresentationMode = DEFAULT_PRESENTATION_MODE;
+  private mode: PresentationMode = copyPresentationMode(DEFAULT_PRESENTATION_MODE);
   private readonly legacyMonsters = new Map<string, Monster>();
   private combatFocusMonsterKey: string | null = null;
 
   constructor(private readonly ui: GameUI) {}
 
   public setMode(mode: PresentationMode): void {
-    this.mode = mode;
+    this.mode = copyPresentationMode(mode);
+    chromeUi.presentationMode = copyPresentationMode(this.mode);
   }
 
   public getMode(): PresentationMode {
-    return this.mode;
+    return copyPresentationMode(this.mode);
   }
 
   public publishStats(snapshot: HudSnapshot): void {

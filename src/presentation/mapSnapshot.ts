@@ -1,4 +1,5 @@
 import { TILE } from '../tiles';
+import type { RoomRect } from '../map';
 import type { Item, Monster, Player, TrapState } from '../types';
 
 export type MapSnapshotScope =
@@ -11,11 +12,13 @@ export interface MapTileView {
   readonly kind: string;
   readonly explored: boolean;
   readonly visible: boolean;
+  readonly inScope: boolean;
 }
 
 export interface PlayerView {
   readonly x: number;
   readonly y: number;
+  readonly inScope: boolean;
 }
 
 export interface MonsterView {
@@ -35,6 +38,7 @@ export interface MonsterView {
   readonly special?: Monster['special'];
   readonly frozenTurns: number;
   readonly ai?: Monster['ai'];
+  readonly inScope: boolean;
 }
 
 export interface ItemView {
@@ -48,6 +52,7 @@ export interface ItemView {
   readonly explored: boolean;
   readonly visible: boolean;
   readonly data?: unknown;
+  readonly inScope: boolean;
 }
 
 export interface TrapView {
@@ -59,6 +64,7 @@ export interface TrapView {
   readonly armed: boolean;
   readonly explored: boolean;
   readonly visible: boolean;
+  readonly inScope: boolean;
 }
 
 export interface MapSnapshot {
@@ -106,21 +112,26 @@ export function monsterRenderKey(monster: Monster): string {
 }
 
 export function createMapSnapshot(input: CreateMapSnapshotInput): MapSnapshot {
+  const scope = copyScope(input.scope ?? { type: 'full-floor' });
   const tiles = Array.from({ length: input.rows }, (_, y) =>
-    Array.from({ length: input.cols }, (_, x): MapTileView => ({
-      x,
-      y,
-      kind: input.map[y]?.[x] ?? TILE.VOID,
-      explored: Boolean(input.explored[y]?.[x]),
-      visible: Boolean(input.visible[y]?.[x]),
-    }))
+    Array.from({ length: input.cols }, (_, x): MapTileView => {
+      const inScope = isInScope(scope, x, y);
+      return {
+        x,
+        y,
+        kind: inScope ? input.map[y]?.[x] ?? TILE.VOID : TILE.VOID,
+        explored: inScope && Boolean(input.explored[y]?.[x]),
+        visible: inScope && Boolean(input.visible[y]?.[x]),
+        inScope,
+      };
+    })
   );
 
   const snapshot: MapSnapshot = {
     cols: input.cols,
     rows: input.rows,
     floor: input.floor,
-    scope: copyScope(input.scope ?? { type: 'full-floor' }),
+    scope,
     gameOver: input.gameOver,
     gameWon: input.gameWon,
     monsterDetectionActive: input.monsterDetectionActive,
@@ -128,8 +139,9 @@ export function createMapSnapshot(input: CreateMapSnapshotInput): MapSnapshot {
     player: {
       x: input.player.x,
       y: input.player.y,
+      inScope: isInScope(scope, input.player.x, input.player.y),
     },
-    monsters: input.monsters.map((monster): MonsterView => {
+    monsters: input.monsters.filter(monster => isInScope(scope, monster.x, monster.y)).map((monster): MonsterView => {
       const visible = Boolean(input.visible[monster.y]?.[monster.x]);
       return {
         key: monsterRenderKey(monster),
@@ -148,21 +160,25 @@ export function createMapSnapshot(input: CreateMapSnapshotInput): MapSnapshot {
         special: monster.special,
         frozenTurns: monster.frozenTurns,
         ai: cloneValue(monster.ai),
+        inScope: true,
       };
     }),
-    items: input.items.map((item, index): ItemView => ({
-      key: `item-${index}-${item.type}-${item.x}-${item.y}`,
-      x: item.x,
-      y: item.y,
-      type: item.type,
-      amount: 'amount' in item ? item.amount : undefined,
-      glyph: item.symbol,
-      color: item.color,
-      explored: Boolean(input.explored[item.y]?.[item.x]),
-      visible: Boolean(input.visible[item.y]?.[item.x]),
-      data: 'data' in item ? cloneValue(item.data) : undefined,
-    })),
-    traps: input.traps.map((trap): TrapView => ({
+    items: input.items.map((item, index) => ({ item, index }))
+      .filter(({ item }) => isInScope(scope, item.x, item.y))
+      .map(({ item, index }): ItemView => ({
+        key: `item-${index}-${item.type}-${item.x}-${item.y}`,
+        x: item.x,
+        y: item.y,
+        type: item.type,
+        amount: 'amount' in item ? item.amount : undefined,
+        glyph: item.symbol,
+        color: item.color,
+        explored: Boolean(input.explored[item.y]?.[item.x]),
+        visible: Boolean(input.visible[item.y]?.[item.x]),
+        data: 'data' in item ? cloneValue(item.data) : undefined,
+        inScope: true,
+      })),
+    traps: input.traps.filter(trap => isInScope(scope, trap.x, trap.y)).map((trap): TrapView => ({
       id: trap.id,
       x: trap.x,
       y: trap.y,
@@ -171,6 +187,7 @@ export function createMapSnapshot(input: CreateMapSnapshotInput): MapSnapshot {
       armed: trap.armed,
       explored: Boolean(input.explored[trap.y]?.[trap.x]),
       visible: Boolean(input.visible[trap.y]?.[trap.x]),
+      inScope: true,
     })),
   };
 
@@ -186,6 +203,40 @@ function copyScope(scope: MapSnapshotScope): MapSnapshotScope {
       t: scope.rect.t,
       r: scope.rect.r,
       b: scope.rect.b,
+    },
+  };
+}
+
+function isInScope(scope: MapSnapshotScope, x: number, y: number): boolean {
+  if (scope.type === 'full-floor') return true;
+  return pointInRect(scope.rect, x, y);
+}
+
+export function pointInRect(rect: Pick<RoomRect, 'l' | 't' | 'r' | 'b'>, x: number, y: number): boolean {
+  return x >= rect.l && x <= rect.r && y >= rect.t && y <= rect.b;
+}
+
+export interface DeriveRoomScopeInput {
+  readonly rooms: readonly RoomRect[];
+  readonly player: { readonly x: number; readonly y: number };
+  readonly boss?: { readonly x: number; readonly y: number } | null;
+}
+
+export function deriveCurrentRoomScope(input: DeriveRoomScopeInput): MapSnapshotScope | null {
+  const playerRoom = input.rooms.find(room => pointInRect(room, input.player.x, input.player.y));
+  if (!playerRoom) return null;
+
+  if (input.boss && !pointInRect(playerRoom, input.boss.x, input.boss.y)) {
+    return null;
+  }
+
+  return {
+    type: 'room',
+    rect: {
+      l: playerRoom.l,
+      t: playerRoom.t,
+      r: playerRoom.r,
+      b: playerRoom.b,
     },
   };
 }

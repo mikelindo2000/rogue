@@ -16,6 +16,7 @@ import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
 import type { RunSummaryV1 } from '../runStats';
 import type { BrowserRecords, RunRecordComparison } from '../persistence/runHistory';
 import type { ShortcutInfo } from '../keyboard';
+import { copyPresentationMode, DEFAULT_PRESENTATION_MODE, type PresentationMode } from '../presentation/presenter';
 
 /** One selectable option in an equipment slot's picker. */
 export interface EquipOption {
@@ -248,6 +249,9 @@ export interface UIState {
   boardSize: BoardSizeId;
   // active floor-change transition effect id (mirrors persisted settings.floorTransition)
   floorTransition: string;
+  /** Presentation framing mode published by the browser presenter. Components do
+   *  not consume this yet; Phase 4 exposes it as chrome state only. */
+  presentationMode: PresentationMode;
   // meta-progression: which monsters the player has discovered
   discovery: DiscoveryState;
   // end-run stats and browser-local records
@@ -318,6 +322,7 @@ export const ui = $state<UIState>({
   musicVolume: 0.4,
   boardSize: 'classic',
   floorTransition: 'zpush',
+  presentationMode: copyPresentationMode(DEFAULT_PRESENTATION_MODE),
   discovery: emptyDiscovery(),
   endRunSummary: null,
   endRunPresentationReady: true,

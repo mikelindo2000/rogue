@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayer } from '../player';
 import { TILE } from '../tiles';
+import type { RoomRect } from '../map';
 import type { Item, Monster, TrapState } from '../types';
-import { createMapSnapshot } from './mapSnapshot';
+import { createMapSnapshot, deriveCurrentRoomScope } from './mapSnapshot';
 
 const monster = (overrides: Partial<Monster> = {}): Monster => ({
   x: 1,
@@ -59,9 +60,10 @@ describe('createMapSnapshot', () => {
     expect(snapshot.rows).toBe(2);
     expect(snapshot.floor).toBe(4);
     expect(snapshot.scope).toEqual({ type: 'full-floor' });
-    expect(snapshot.tiles[0][0]).toEqual({ x: 0, y: 0, kind: TILE.FLOOR, explored: true, visible: true });
-    expect(snapshot.tiles[0][1]).toEqual({ x: 1, y: 0, kind: TILE.DOOR, explored: true, visible: false });
-    expect(snapshot.tiles[1][2]).toEqual({ x: 2, y: 1, kind: TILE.STAIRS_DOWN, explored: true, visible: true });
+    expect(snapshot.tiles[0][0]).toEqual({ x: 0, y: 0, kind: TILE.FLOOR, explored: true, visible: true, inScope: true });
+    expect(snapshot.tiles[0][1]).toEqual({ x: 1, y: 0, kind: TILE.DOOR, explored: true, visible: false, inScope: true });
+    expect(snapshot.tiles[1][2]).toEqual({ x: 2, y: 1, kind: TILE.STAIRS_DOWN, explored: true, visible: true, inScope: true });
+    expect(snapshot.player).toEqual({ x: 1, y: 0, inScope: true });
   });
 
   it('breaks aliases to engine grids and entity objects', () => {
@@ -142,7 +144,7 @@ describe('createMapSnapshot', () => {
     sourceMonster.x = 2;
     const second = createMapSnapshot(baseInput({ monsters: [sourceMonster, secondMonster], items: [sourceItem] }));
 
-    expect(first.player).toEqual({ x: 1, y: 0 });
+    expect(first.player).toEqual({ x: 1, y: 0, inScope: true });
     expect(second.monsters[0].key).toBe(first.monsters[0].key);
     expect(first.monsters[0].key).not.toBe(first.monsters[1].key);
     expect(first.monsters[0]).toMatchObject({
@@ -159,6 +161,7 @@ describe('createMapSnapshot', () => {
       special: 'boss',
       frozenTurns: 2,
       visible: false,
+      inScope: true,
     });
     expect(first.items[0]).toMatchObject({
       x: 0,
@@ -169,6 +172,7 @@ describe('createMapSnapshot', () => {
       color: '#ffd84d',
       explored: true,
       visible: true,
+      inScope: true,
     });
   });
 
@@ -198,8 +202,77 @@ describe('createMapSnapshot', () => {
     expect(snapshot.gameOver).toBe(true);
     expect(snapshot.gameWon).toBe(true);
     expect(snapshot.traps).toEqual([
-      { id: 'bear-1', kind: 'bear', x: 0, y: 0, revealed: true, armed: false, explored: true, visible: true },
-      { id: 'gas-1', kind: 'sleep_gas', x: 2, y: 1, revealed: false, armed: true, explored: true, visible: true },
+      { id: 'bear-1', kind: 'bear', x: 0, y: 0, revealed: true, armed: false, explored: true, visible: true, inScope: true },
+      { id: 'gas-1', kind: 'sleep_gas', x: 2, y: 1, revealed: false, armed: true, explored: true, visible: true, inScope: true },
     ]);
+  });
+
+  it('builds room-scoped snapshots from the authoritative full-floor state', () => {
+    const insideMonster = monster({ x: 1, y: 1, name: 'Inside Orc' });
+    const outsideMonster = monster({ x: 0, y: 0, name: 'Outside Orc' });
+    const insideItem: Item = { type: 'gold', x: 2, y: 1, symbol: '$', color: '#ffd84d', amount: 7 };
+    const outsideItem: Item = { type: 'food', x: 0, y: 0, symbol: '%', color: '#ff9900' };
+    const insideTrap: TrapState = { id: 'inside-trap', kind: 'bear', x: 1, y: 0, revealed: true, armed: true };
+    const outsideTrap: TrapState = { id: 'outside-trap', kind: 'dart', x: 0, y: 1, revealed: true, armed: true };
+
+    const snapshot = createMapSnapshot(baseInput({
+      monsters: [outsideMonster, insideMonster],
+      items: [outsideItem, insideItem],
+      traps: [outsideTrap, insideTrap],
+      monsterDetectionActive: true,
+      scope: { type: 'room', rect: { l: 1, t: 0, r: 2, b: 1 } },
+    }));
+
+    expect(snapshot.cols).toBe(3);
+    expect(snapshot.rows).toBe(2);
+    expect(snapshot.scope).toEqual({ type: 'room', rect: { l: 1, t: 0, r: 2, b: 1 } });
+    expect(snapshot.tiles[0][0]).toEqual({ x: 0, y: 0, kind: TILE.VOID, explored: false, visible: false, inScope: false });
+    expect(snapshot.tiles[0][1]).toEqual({ x: 1, y: 0, kind: TILE.DOOR, explored: true, visible: false, inScope: true });
+    expect(snapshot.tiles[1][2]).toEqual({ x: 2, y: 1, kind: TILE.STAIRS_DOWN, explored: true, visible: true, inScope: true });
+    expect(snapshot.monsters.map(mon => mon.name)).toEqual(['Inside Orc']);
+    expect(snapshot.monsters[0]).toMatchObject({ x: 1, y: 1, visible: false, detected: true, inScope: true });
+    expect(snapshot.items).toHaveLength(1);
+    expect(snapshot.items[0]).toMatchObject({ key: 'item-1-gold-2-1', x: 2, y: 1, visible: true, explored: true, inScope: true });
+    expect(snapshot.traps).toEqual([
+      { id: 'inside-trap', kind: 'bear', x: 1, y: 0, revealed: true, armed: true, explored: true, visible: false, inScope: true },
+    ]);
+  });
+
+  it('returns to a full-floor snapshot after a scoped room snapshot', () => {
+    createMapSnapshot(baseInput({ scope: { type: 'room', rect: { l: 1, t: 0, r: 2, b: 1 } } }));
+
+    const fullFloor = createMapSnapshot(baseInput());
+
+    expect(fullFloor.scope).toEqual({ type: 'full-floor' });
+    expect(fullFloor.tiles[0][0]).toEqual({ x: 0, y: 0, kind: TILE.FLOOR, explored: true, visible: true, inScope: true });
+  });
+});
+
+describe('deriveCurrentRoomScope', () => {
+  const rooms: RoomRect[] = [
+    { l: 1, t: 1, r: 4, b: 4, cx: 2, cy: 2 },
+    { l: 8, t: 2, r: 12, b: 6, cx: 10, cy: 4 },
+  ];
+
+  it('returns the room containing the player when no boss position is supplied', () => {
+    expect(deriveCurrentRoomScope({ rooms, player: { x: 3, y: 2 } })).toEqual({
+      type: 'room',
+      rect: { l: 1, t: 1, r: 4, b: 4 },
+    });
+  });
+
+  it('returns the player room when player and boss share it', () => {
+    expect(deriveCurrentRoomScope({ rooms, player: { x: 3, y: 2 }, boss: { x: 1, y: 4 } })).toEqual({
+      type: 'room',
+      rect: { l: 1, t: 1, r: 4, b: 4 },
+    });
+  });
+
+  it('returns null when the player is not in a known room', () => {
+    expect(deriveCurrentRoomScope({ rooms, player: { x: 6, y: 2 }, boss: { x: 3, y: 2 } })).toBeNull();
+  });
+
+  it('returns null when a boss position is outside the player room', () => {
+    expect(deriveCurrentRoomScope({ rooms, player: { x: 3, y: 2 }, boss: { x: 10, y: 4 } })).toBeNull();
   });
 });

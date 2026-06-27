@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
   - Created a planning document for splitting the GameUI and support for boss presentation modes.
   - Added immutable map snapshots for the engine-to-presenter render path.
   - Routed gameplay visual effects through typed presentation events while preserving the existing GameUI adapter behavior.
+  - Added first-class presentation mode state and room-scoped map snapshots for future boss encounter framing.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
 
