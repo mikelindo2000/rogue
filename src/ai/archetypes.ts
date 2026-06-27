@@ -122,11 +122,20 @@ export const ARCHETYPES: Record<ArchetypeId, Omit<MonsterBehavior, 'id'>> = {
   // step out of, and flits aside from your own blows. Its danger is the swoop
   // landing when you DON'T dodge — so the dive hits hard but is fully avoidable.
   // (damageMultiplier tuned via the harness to keep it floor-1 fair.)
+  //
+  // Poisonous Puke (sheet Ability 1, "3% on hit"): a landed bite has a 3% chance
+  // to inflict a poison DoT — 1 dmg/turn for 3 turns (sheet values verbatim). The
+  // poison effect itself draws no RNG beyond the standard per-ability chance gate
+  // (see applyOnHitAbilities); giving the bat its first ability does shift the
+  // seeded stream by that one chance roll per landed hit — the inherent, intended
+  // cost of the ability, not byte-for-byte parity with the abilityless bat.
+  // Balance-harness-neutral: the sim models only the primary attack's DPS, so the
+  // on-hit DoT sits outside it.
   bat: {
     movement: { style: 'erratic', aggroRange: AGGRO + 1, erraticChance: 0.5 },
     attacks: [melee({ id: 'swoop', range: 2, damageMultiplier: 3.5, windupTurns: 1, cooldown: 1, animCue: 'swoop' })],
     defense: { dodgeChance: 0.25 },
-    abilities: [],
+    abilities: [{ id: 'poison', chance: 0.03, magnitude: 1, duration: 3, damageType: 'poison', cooldown: 0, trigger: 'onHit' }],
   },
   // The Eagle: a faster, less-punishing cousin of the bat. Erratic flight with a
   // telegraphed dive you can step out of and light evasion — it teaches dodging

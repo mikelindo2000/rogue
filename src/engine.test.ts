@@ -374,6 +374,35 @@ describe('GameEngine terminal run summaries', () => {
     expect(engine.finalRunSummary?.killedByMonsterId).toBe('orc');
   });
 
+  it('routes a lethal poison DoT tick through the game-over path as a monster death', () => {
+    const engine = makeRunner();
+    engine.player.hp = 1;
+    engine.player.hunger = 100; // high, so starvation can't claim the death
+    engine.player.activeEffects = [
+      { kind: 'dot', turns: 3, magnitude: 5, source: 'Brown Bat', damageType: 'poison' },
+    ];
+
+    engine.processTurn();
+
+    expect(engine.gameOver).toBe(true);
+    expect(engine.finalRunSummary?.outcome).toBe('died');
+    expect(engine.finalRunSummary?.deathCause).toBe('monster');
+    // The poison tick that did the killing emitted its log line.
+    expect(engine.logs.join(' ')).toMatch(/Brown Bat's poison courses through you/);
+  });
+
+  it('still reports starvation when an HP-zero turn carried no DoT', () => {
+    const engine = makeRunner();
+    engine.player.hp = 1;
+    engine.player.hunger = 0;
+    engine.player.activeEffects = []; // no poison in play
+
+    engine.processTurn();
+
+    expect(engine.gameOver).toBe(true);
+    expect(engine.finalRunSummary?.deathCause).toBe('starvation');
+  });
+
 });
 
 describe('GameEngine vital warning sounds', () => {

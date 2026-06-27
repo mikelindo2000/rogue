@@ -29,6 +29,7 @@ const player = (): Player => ({
   regenTurns: 0,
   disarmedHits: 0,
   undeadFoods: 0,
+  activeEffects: [],
   level: 3,
   xp: 14,
   inventory: {

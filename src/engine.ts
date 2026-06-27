@@ -9,6 +9,7 @@ import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
 import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
+import { tickPlayerEffects, hasEffect } from './effects';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
 import { computeStrike, isHeavyHit, rumbleStrength } from './combat';
 import { type SoundSink, noopSink } from './audio/events';
@@ -2365,6 +2366,14 @@ export class GameEngine {
       if (this.trapEffects.confusedTurns === 0) this.addLog("Your senses clear.");
     }
 
+    // Tick persistent monster-inflicted effects (poison DoT, …) alongside the
+    // status decrements. The tick mutates player HP for DoTs and returns the log
+    // lines; a lethal DoT falls through to the death block below, routed through
+    // the same game-over path as starvation HP loss (which records the full HP
+    // delta there, so no separate accounting here).
+    const poisonedThisTurn = hasEffect(this.player, 'dot');
+    tickPlayerEffects(this.player).logs.forEach((msg) => this.addLog(msg));
+
     // Tick down wand recharge timers (cooldowns, not charges). Set to K on zap
     // and ticked here in that same turn (like every status timer), so the next
     // zap lands exactly K turns later — cooldown 3 ⇒ zap on turn N, next on N+3.
@@ -2390,7 +2399,10 @@ export class GameEngine {
 
     if (this.player.hp <= 0) {
       this.gameOver = true;
-      const cause: DeathCause = hpAtTurnStart <= 0 ? 'trap_scroll' : 'starvation';
+      // A poison/DoT death is a monster kill (a monster inflicted the effect),
+      // distinct from starvation; trap-scroll HP loss still wins if HP was already
+      // gone at turn start.
+      const cause: DeathCause = hpAtTurnStart <= 0 ? 'trap_scroll' : poisonedThisTurn ? 'monster' : 'starvation';
       recordDamageTaken(this.stats, Math.max(0, hpAtTurnStart - this.player.hp));
       recordVitals(this.stats, this.player.hp, this.player.hunger);
       this.finalizeRun('died', cause);
@@ -2594,6 +2606,8 @@ export class GameEngine {
       if (!Array.isArray(this.player.inventory.scrolls)) this.player.inventory.scrolls = [];
       // Backfill the wands bucket for saves written before wands existed.
       if (!Array.isArray(this.player.inventory.wands)) this.player.inventory.wands = [];
+      // Backfill activeEffects for saves written before the effect spine existed.
+      if (!Array.isArray(this.player.activeEffects)) this.player.activeEffects = [];
       this.statusEffects = {
         ...save.statusEffects,
         monsterDetectionTurns: save.statusEffects.monsterDetectionTurns ?? 0,

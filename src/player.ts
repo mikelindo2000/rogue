@@ -15,6 +15,7 @@ export function createPlayer(): Player {
     regenTurns: 0,
     disarmedHits: 0,
     undeadFoods: 0,
+    activeEffects: [],
     level: 1,
     xp: 0,
     inventory: {

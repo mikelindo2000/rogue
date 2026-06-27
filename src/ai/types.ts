@@ -73,14 +73,19 @@ export type AbilityId =
   | 'freeze'
   | 'drainStrength'
   | 'summon'
-  | 'leechHeal';
+  | 'leechHeal'
+  | 'poison';
 
 export interface AbilitySpec {
   id: AbilityId;
   /** Probability the ability fires when its trigger occurs. */
   chance: number;
-  /** Magnitude (gold stolen, turns frozen, …) — meaning depends on the ability. */
+  /** Magnitude (gold stolen, turns frozen, dmg/turn, …) — meaning depends on the ability. */
   magnitude?: number;
+  /** Turns the inflicted player effect lasts (DoT and other persistent kinds). */
+  duration?: number;
+  /** DoT flavor for effect-inflicting abilities (poison/fire/acid/bacterial). */
+  damageType?: 'poison' | 'fire' | 'acid' | 'bacterial';
   /** Turns before it can fire again. */
   cooldown: number;
   trigger: 'onHit' | 'onEngage';

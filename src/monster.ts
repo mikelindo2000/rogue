@@ -2,6 +2,7 @@ import { Monster, Player, StatusEffects } from './types';
 import { getScaledMonsterAtk } from './config';
 import { RNG } from './rng';
 import { computeMonsterDamage } from './combat';
+import { applyEffect } from './effects';
 import { decideMonsterAction, ensureRuntime } from './ai/brain';
 import { resolveBehavior, defaultBehavior } from './ai/archetypes';
 import type { AIAction, AbilitySpec, AttackSpec, MonsterBehavior, MonsterAIRuntime } from './ai/types';
@@ -268,6 +269,23 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
         return true;
       }
       return false;
+    }
+    case 'poison': {
+      // Inflict a damage-over-time effect on the player. Like stealItem/leechHeal
+      // this case body draws nothing from `rng` — it adds no EXTRA draw beyond the
+      // standard per-ability chance gate in applyOnHitAbilities. (That gate is the
+      // one draw a no-proc hit still costs; it is not "free" parity with a monster
+      // that had no abilities at all — see the bat archetype note.)
+      // Re-applying refreshes the duration (see applyEffect's stacking policy).
+      applyEffect(player, {
+        kind: 'dot',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+        damageType: ab.damageType ?? 'poison',
+      });
+      logs.push(`${m.name} pukes ${ab.damageType ?? 'poison'} on you!`);
+      return true;
     }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random

@@ -247,6 +247,37 @@ export interface StatusEffects {
   monsterDetectionTurns: number;
 }
 
+/** The persistent player-effect kinds a monster ability can inflict — the spine
+ *  the sheet's "Ability" columns translate into (see
+ *  design/planning/monster_abilities_framework_plan.md). Only `dot` is wired
+ *  today (Brown Bat poison); the rest are the schema the engine grows into one
+ *  read site at a time. Distinct from StatusEffects (buffs) and TrapEffects
+ *  (legacy debuff timers, which coexist additively). */
+export type EffectKind =
+  | 'dot'
+  | 'stun'
+  | 'missChance'
+  | 'fear'
+  | 'weaponDebuff'
+  | 'armorDebuff'
+  | 'atkDebuff'
+  | 'silenceMagic';
+
+/** One active player effect with a remaining duration. Lives in
+ *  `Player.activeEffects`; `applyEffect`/`tickPlayerEffects` (src/effects.ts)
+ *  own its lifecycle. */
+export interface ActiveEffect {
+  kind: EffectKind;
+  /** Remaining duration; ticked down each player turn, removed at 0. */
+  turns: number;
+  /** Per-turn damage, def reduction, miss probability, … — meaning is kind-specific. */
+  magnitude: number;
+  /** Monster name that applied it, for log flavor ("the bat's poison"). */
+  source: string;
+  /** DoT flavor (log line + future weakness routing). */
+  damageType?: 'poison' | 'fire' | 'acid' | 'bacterial';
+}
+
 export type TrapKind = 'bear' | 'sleep_gas' | 'dart' | 'teleport' | 'trapdoor';
 
 export interface TrapState {
@@ -306,6 +337,9 @@ export interface Player {
   regenTurns: number;
   disarmedHits: number;
   undeadFoods: number;
+  /** Persistent monster-inflicted effects (poison DoT, …). Run state, defaults
+   *  to []. Coexists with TrapEffects; see ActiveEffect / src/effects.ts. */
+  activeEffects: ActiveEffect[];
   level: number;
   xp: number;
   inventory: Inventory;
