@@ -4,6 +4,7 @@ import { Monster } from './types';
 import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
 import { RecordingSink } from './audio/events';
+import { getTotalDef } from './player';
 
 const makeUi = (overrides: Record<string, unknown> = {}) => ({
   renderLogs: () => {},
@@ -521,6 +522,33 @@ describe('GameEngine fear read site', () => {
     // No longer feared: the commanded right move lands.
     engine.handlePlayerMove(1, 0);
     expect(engine.player.x).toBe(2);
+  });
+});
+
+describe('GameEngine armorDebuff read site', () => {
+  // Only the engine's defense computation can prove armorDebuff is honored:
+  // getTotalDef must subtract the effect's magnitude, clamped to >= 0.
+  it('lowers effective defense by the debuff magnitude', () => {
+    const engine = makeRunner();
+    // Give the player some armor so there's defense to erode.
+    engine.player.inventory.helm[0] = { name: 'Iron Helm', def: 3, maxDef: 3 };
+    engine.player.equipped.helm = 0;
+
+    const before = getTotalDef(engine.player, engine.statusEffects);
+    expect(before).toBeGreaterThanOrEqual(3);
+
+    engine.player.activeEffects = [{ kind: 'armorDebuff', turns: 3, magnitude: 3, source: 'Pygmy' }];
+    const after = getTotalDef(engine.player, engine.statusEffects);
+    expect(after).toBe(before - 3);
+  });
+
+  it('clamps a large debuff so defense floors at 0 (Miniaturize)', () => {
+    const engine = makeRunner();
+    engine.player.inventory.helm[0] = { name: 'Iron Helm', def: 3, maxDef: 3 };
+    engine.player.equipped.helm = 0;
+
+    engine.player.activeEffects = [{ kind: 'armorDebuff', turns: 2, magnitude: 99, source: 'Pantier Pygmy King' }];
+    expect(getTotalDef(engine.player, engine.statusEffects)).toBe(0);
   });
 });
 

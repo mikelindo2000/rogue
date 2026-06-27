@@ -1,6 +1,7 @@
 import { Player, StatusEffects, ARMOR_SLOTS, EquipSlot, EquipTarget, InventoryRef } from './types';
 import { getConfig, getScaledXpRequirements, BALANCE } from './config';
 import { effectiveDefense, normalizeAllGearHealth } from './gearHealth';
+import { effectMagnitude } from './effects';
 
 export function createPlayer(): Player {
   const tunables = getConfig();
@@ -60,6 +61,12 @@ export function getTotalDef(player: Player, statusEffects: StatusEffects): numbe
   if (statusEffects.armorTurns > 0) {
     def += BALANCE.status.armorDefBonus;
   }
+
+  // armorDebuff read site: a monster-inflicted armor debuff (e.g. Pygmy "Shrink")
+  // subtracts its magnitude from the computed defense, clamped at 0 so a large
+  // reduction zeroes armor rather than going negative. Passive read — the
+  // effect's duration is owned by tickPlayerEffects, not touched here.
+  def = Math.max(0, def - effectMagnitude(player, 'armorDebuff'));
 
   return def;
 }

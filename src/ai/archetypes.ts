@@ -317,6 +317,14 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.
   'dragon-king': [{ id: 'poison', chance: 0.03, magnitude: 20, duration: 3, damageType: 'acid', cooldown: 0, trigger: 'onHit' }],
+  // Pygmy — Shrink (3%): sheet "helm -3 for 3 turns". We have no per-slot armor
+  // debuff, so this is approximated as a flat TOTAL-defense reduction of 3 for 3
+  // turns (honored at getTotalDef, clamped to >= 0).
+  'pygmy': [{ id: 'armorDebuff', label: 'Shrink', chance: 0.03, magnitude: 3, duration: 3, cooldown: 0, trigger: 'onHit' }],
+  // Pantier Pygmy King — Miniaturize (3%): sheet "-100% armor for 2 turns".
+  // Approximated as a large flat reduction (99) that effectively zeroes the
+  // player's defense for the duration (getTotalDef clamps the result to >= 0).
+  'pantier-pygmy-king': [{ id: 'armorDebuff', label: 'Miniaturize', chance: 0.03, magnitude: 99, duration: 2, cooldown: 0, trigger: 'onHit' }],
 };
 
 const resolved = new Map<string, MonsterBehavior>();
