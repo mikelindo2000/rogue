@@ -1,6 +1,7 @@
 import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects, GearItem, EquipSlot, GearSlot, ArmorSlot, InventoryAction, InventoryRef, ScrollType, TrapEffects, TrapKind, TrapState, WandItem, ARMOR_SLOTS } from './types';
 import type { GamePresenter } from './presentation/presenter';
-import { createMapSnapshot } from './presentation/mapSnapshot';
+import { createMapSnapshot, monsterRenderKey } from './presentation/mapSnapshot';
+import type { PresentationEvent } from './presentation/presentationEvents';
 import { formatStyledItemName } from './presentation/itemNameFormatter';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
@@ -180,6 +181,10 @@ export class GameEngine {
     this.onRunChanged?.();
   }
 
+  private publishPresentationEvent(event: PresentationEvent): void {
+    this.presenter.publishEvent(event);
+  }
+
   constructor(presenter: GamePresenter, sound: SoundSink = noopSink) {
     this.presenter = presenter;
     this.sound = sound;
@@ -237,6 +242,7 @@ export class GameEngine {
     this.trapdoorGeneratedThisRun = false;
     this.vitals.reset();
     this.logs = ["Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors."];
+    this.publishPresentationEvent({ type: 'presentation.modeChanged', mode: { type: 'dungeon-map' } });
 
     this.generateFloor();
     this.presenter.updateDropdowns(this.player);
@@ -693,7 +699,7 @@ export class GameEngine {
     if (damage > 0) {
       this.player.hp -= damage;
       recordDamageTaken(this.stats, damage);
-      this.presenter.fxPlayerHit();
+      this.publishPresentationEvent({ type: 'combat.playerHit' });
     }
     return damage;
   }
@@ -906,7 +912,7 @@ export class GameEngine {
       const steps = runPath.length - 1;
       if (steps <= 1) return;
       this.sound.emit({ type: 'movement.run', steps });
-      this.presenter.fxPlayerRun(runPath, ghostItems);
+      this.publishPresentationEvent({ type: 'player.run', path: runPath, ghosts: ghostItems });
     };
 
     for (let step = 0; step < maxSteps; step++) {
@@ -999,7 +1005,7 @@ export class GameEngine {
 
     // Snapshot the floor we're leaving for the transition BEFORE the live canvas
     // repaints to the new one. Purely visual; the logical swap below stays sync.
-    this.presenter.beginFloorTransition(delta > 0 ? 'down' : 'up');
+    this.publishPresentationEvent({ type: 'map.floorTransition', dir: delta > 0 ? 'down' : 'up' });
 
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
@@ -1103,8 +1109,19 @@ export class GameEngine {
     const evade = effectiveBehavior(monster).defense.dodgeChance ?? 0;
     if (evade > 0 && this.rng.chance(evade)) {
       this.addLog(`${monster.name} flits aside!`);
-      this.presenter.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
-      this.presenter.fxMonsterDodge(monster, this.player.x, this.player.y);
+      this.publishPresentationEvent({
+        type: 'combat.strike',
+        fromX: this.player.x,
+        fromY: this.player.y,
+        toX: monster.x,
+        toY: monster.y,
+      });
+      this.publishPresentationEvent({
+        type: 'combat.monsterDodge',
+        monsterKey: monsterRenderKey(monster),
+        fromX: this.player.x,
+        fromY: this.player.y,
+      });
       this.sound.emit({ type: 'combat.miss', actor: 'monster' });
       recordMonsterDodge(this.stats);
       return;
@@ -1137,7 +1154,7 @@ export class GameEngine {
     if (outcome.freezeTurns > 0) {
       monster.frozenTurns = outcome.freezeTurns;
       this.addLog(`${monster.name} frozen!`);
-      this.presenter.fxFreeze(monster.x, monster.y);
+      this.publishPresentationEvent({ type: 'combat.freeze', x: monster.x, y: monster.y });
     }
 
     monster.hp -= outcome.damage;
@@ -1146,8 +1163,20 @@ export class GameEngine {
     this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: outcome.damage });
 
     // Combat flavor: lunge the player into the blow and pop a damage number.
-    this.presenter.fxStrike(this.player.x, this.player.y, monster.x, monster.y);
-    this.presenter.fxHit(monster.x, monster.y, outcome.damage, monster.hp <= 0);
+    this.publishPresentationEvent({
+      type: 'combat.strike',
+      fromX: this.player.x,
+      fromY: this.player.y,
+      toX: monster.x,
+      toY: monster.y,
+    });
+    this.publishPresentationEvent({
+      type: 'combat.hit',
+      x: monster.x,
+      y: monster.y,
+      damage: outcome.damage,
+      crit: monster.hp <= 0,
+    });
 
     // A heavy blow shakes the map and plays the rumble cue, in addition to the
     // normal hit feedback above (sound is always additive, never the only cue).
@@ -1155,7 +1184,7 @@ export class GameEngine {
     // "did this blow take a big share of what it had" is the right denominator.
     const targetMax = monster.maxHp ?? monster.hp + outcome.damage;
     if (isHeavyHit(outcome.damage, targetMax)) {
-      this.presenter.mapRumble(rumbleStrength(outcome.damage, targetMax));
+      this.publishPresentationEvent({ type: 'map.rumble', strength: rumbleStrength(outcome.damage, targetMax) });
       this.sound.emit({ type: 'combat.heavyHit', damage: outcome.damage });
     }
   }
@@ -1177,12 +1206,12 @@ export class GameEngine {
     // turn is still spent by the caller's processTurn; we just skip the damage.
     if (hasEffect(this.player, 'missChance') && this.rng.chance(effectMagnitude(this.player, 'missChance'))) {
       this.addLog('You miss!');
-      this.presenter.focusCombatMonster(monster);
+      this.publishPresentationEvent({ type: 'combat.focusMonster', monsterKey: monsterRenderKey(monster) });
       this.sound.emit({ type: 'combat.miss', actor: 'player' });
       return;
     }
     // Focus the combat portrait on whoever we're swinging at.
-    this.presenter.focusCombatMonster(monster);
+    this.publishPresentationEvent({ type: 'combat.focusMonster', monsterKey: monsterRenderKey(monster) });
     this.sound.emit({ type: 'combat.swing', actor: 'player' });
     const mainWep = this.player.inventory.weapons[this.player.equipped.mainHand];
     if (mainWep) {
@@ -1210,9 +1239,15 @@ export class GameEngine {
    * the win path, which spends it here (matching the legacy melee behavior).
    */
   private handleMonsterDeath(monster: Monster) {
-    this.presenter.clearCombatFocusMonster(monster);
+    this.publishPresentationEvent({ type: 'combat.clearFocusMonster', monsterKey: monsterRenderKey(monster) });
     this.addLog(`The ${monster.name} dies!`);
-    this.presenter.fxDeath(monster.x, monster.y, monster.symbol, monster.color);
+    this.publishPresentationEvent({
+      type: 'combat.death',
+      x: monster.x,
+      y: monster.y,
+      glyph: monster.symbol,
+      color: monster.color,
+    });
     this.sound.emit({
       type: 'combat.death',
       monsterId: monsterId(monster),
@@ -1663,7 +1698,7 @@ export class GameEngine {
     for (const m of this.monsters) {
       if (this.visible[m.y]?.[m.x]) {
         m.frozenTurns = Math.max(m.frozenTurns, BALANCE.scrolls.holdMonsterTurns);
-        this.presenter.fxFreeze(m.x, m.y);
+        this.publishPresentationEvent({ type: 'combat.freeze', x: m.x, y: m.y });
         held++;
       }
     }
@@ -1794,7 +1829,7 @@ export class GameEngine {
       return this.zapWand(ref.index, 0, 0);
     }
     this.aiming = { ref };
-    this.presenter.setAiming({ wandName: wand.name });
+    this.publishPresentationEvent({ type: 'aiming.changed', wandName: wand.name });
     return true;
   }
 
@@ -1803,7 +1838,7 @@ export class GameEngine {
     if (!this.aiming) return false;
     const index = this.aiming.ref.index;
     this.aiming = null;
-    this.presenter.setAiming(null);
+    this.publishPresentationEvent({ type: 'aiming.changed', wandName: null });
     return this.zapWand(index, dx, dy);
   }
 
@@ -1811,7 +1846,7 @@ export class GameEngine {
   public cancelZap(): void {
     if (!this.aiming) return;
     this.aiming = null;
-    this.presenter.setAiming(null);
+    this.publishPresentationEvent({ type: 'aiming.changed', wandName: null });
   }
 
   /**
@@ -1945,14 +1980,14 @@ export class GameEngine {
         return;
       case 'cold': {
         target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.coldFreezeTurns);
-        this.presenter.fxFreeze(target.x, target.y);
+        this.publishPresentationEvent({ type: 'combat.freeze', x: target.x, y: target.y });
         this.addLog(`${target.name} is frozen!`);
         this.damageMonsterWithWand(target, this.wandDamage(wand), wand);
         return;
       }
       case 'sleep':
         target.frozenTurns = Math.max(target.frozenTurns, BALANCE.wands.sleepFreezeTurns);
-        this.presenter.fxFreeze(target.x, target.y);
+        this.publishPresentationEvent({ type: 'combat.freeze', x: target.x, y: target.y });
         this.addLog(`You zap the ${wand.name}. ${target.name} falls into a deep sleep.`);
         return;
       case 'drain_life': {
@@ -1996,7 +2031,13 @@ export class GameEngine {
     recordDamageDealt(this.stats, damage);
     this.addLog(`Your ${wand.name} hits ${monster.name} for ${damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
     this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage });
-    this.presenter.fxHit(monster.x, monster.y, damage, monster.hp <= 0);
+    this.publishPresentationEvent({
+      type: 'combat.hit',
+      x: monster.x,
+      y: monster.y,
+      damage,
+      crit: monster.hp <= 0,
+    });
     if (monster.hp <= 0) this.handleMonsterDeath(monster);
   }
 
@@ -2525,9 +2566,16 @@ export class GameEngine {
       this.rng,
       this.turn,
       {
-        dive: (fx, fy, tx, ty, color) => this.presenter.fxDive(fx, fy, tx, ty, color),
-        whiff: (x, y) => this.presenter.fxWhiff(x, y),
-        float: (x, y, text, color) => this.presenter.fxFloat(x, y, text, color),
+        dive: (fx, fy, tx, ty, color) => this.publishPresentationEvent({
+          type: 'combat.dive',
+          fromX: fx,
+          fromY: fy,
+          toX: tx,
+          toY: ty,
+          color,
+        }),
+        whiff: (x, y) => this.publishPresentationEvent({ type: 'combat.whiff', x, y }),
+        float: (x, y, text, color) => this.publishPresentationEvent({ type: 'combat.float', x, y, text, color }),
       },
       this.dark,
       this.dungeonFloor,
@@ -2537,7 +2585,7 @@ export class GameEngine {
         const ox = m.x;
         const oy = m.y;
         if (this.teleportMonsterSafely(m)) {
-          this.presenter.fxDeath(ox, oy, m.symbol, m.color);
+          this.publishPresentationEvent({ type: 'combat.death', x: ox, y: oy, glyph: m.symbol, color: m.color });
           this.addLog(`The ${m.name} blinks away!`);
         }
       },
@@ -2560,7 +2608,7 @@ export class GameEngine {
             : `Your ${gearDamage.item.name} is worn. (${gearDamage.after}/${gearDamage.max})`
         );
       }
-      this.presenter.fxPlayerHit();
+      this.publishPresentationEvent({ type: 'combat.playerHit' });
       this.sound.emit({ type: 'combat.hit', actor: 'monster', target: 'player' });
     }
 
@@ -2636,6 +2684,7 @@ export class GameEngine {
       killedByMonsterId,
     });
     this.finalRunSummary = summary;
+    this.publishPresentationEvent({ type: 'presentation.modeChanged', mode: { type: 'end-run-transition', runId: summary.runId } });
     this.onRunFinished?.(summary);
     return summary;
   }

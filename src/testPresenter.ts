@@ -1,4 +1,5 @@
 import type { GamePresenter } from './presentation/presenter';
+import type { PresentationEvent } from './presentation/presentationEvents';
 
 export const createTestPresenter = (overrides: Partial<GamePresenter> = {}): GamePresenter => ({
   setMode: () => {},
@@ -13,20 +14,20 @@ export const createTestPresenter = (overrides: Partial<GamePresenter> = {}): Gam
   resetLog: () => {},
   renderLogs: () => {},
   syncDiscovery: () => {},
-  fxPlayerRun: () => {},
-  fxStrike: () => {},
-  fxHit: () => {},
-  fxFreeze: () => {},
-  fxDeath: () => {},
-  fxPlayerHit: () => {},
-  fxDive: () => {},
-  fxWhiff: () => {},
-  fxFloat: () => {},
-  fxMonsterDodge: () => {},
-  mapRumble: () => {},
-  beginFloorTransition: () => {},
-  setAiming: () => {},
-  focusCombatMonster: () => {},
-  clearCombatFocusMonster: () => {},
   ...overrides,
 });
+
+export interface RecordingGamePresenter extends GamePresenter {
+  readonly events: PresentationEvent[];
+}
+
+export const createRecordingPresenter = (overrides: Partial<GamePresenter> = {}): RecordingGamePresenter => {
+  const events: PresentationEvent[] = [];
+  return {
+    ...createTestPresenter({
+      publishEvent: event => events.push(event),
+      ...overrides,
+    }),
+    events,
+  };
+};

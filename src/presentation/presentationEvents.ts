@@ -23,6 +23,8 @@ export type PresentationEvent =
   | { type: 'combat.whiff'; x: number; y: number }
   | { type: 'combat.float'; x: number; y: number; text: string; color?: string }
   | { type: 'combat.monsterDodge'; monsterKey: string; fromX: number; fromY: number }
+  | { type: 'combat.focusMonster'; monsterKey: string }
+  | { type: 'combat.clearFocusMonster'; monsterKey: string }
   | { type: 'map.rumble'; strength: number }
   | { type: 'map.floorTransition'; dir: 'down' | 'up' }
   | { type: 'presentation.modeChanged'; mode: PresentationMode }

@@ -5,7 +5,7 @@ import { spawnWand } from './wands';
 import { TILE } from './tiles';
 import type { Monster, WandItem, WandType } from './types';
 import type { RNG } from './rng';
-import { createTestPresenter } from './testPresenter';
+import { createRecordingPresenter, createTestPresenter } from './testPresenter';
 
 const makePresenter = createTestPresenter;
 
@@ -24,9 +24,9 @@ const makeRng = (): RNG => ({
 const blank = (e: GameEngine) => new Array(e.ROWS).fill(0).map(() => new Array(e.COLS).fill(false));
 
 /** A straight east-west corridor on row 2, player at (2,2), floor 5. */
-const setup = (floor = 5) => {
+const setup = (floor = 5, presenter = makePresenter()) => {
   rngNext = 0.5;
-  const engine = new GameEngine(makePresenter());
+  const engine = new GameEngine(presenter);
   engine.map = new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(TILE.VOID));
   for (let x = 1; x <= 25; x++) engine.map[2][x] = TILE.FLOOR;
   engine.explored = blank(engine);
@@ -102,7 +102,8 @@ describe('wand damage effects', () => {
   });
 
   it('cold damages and freezes the first monster', () => {
-    const engine = setup();
+    const presenter = createRecordingPresenter();
+    const engine = setup(5, presenter);
     const orc = mkMonster(5, 2);
     engine.monsters = [orc];
     give(engine, 'cold');
@@ -112,6 +113,7 @@ describe('wand damage effects', () => {
     // The freeze is applied, then processTurn ticks every timer once this turn
     // (same as melee freeze / potion durations), so it reads one below the set.
     expect(orc.frozenTurns).toBe(BALANCE.wands.coldFreezeTurns - 1);
+    expect(presenter.events).toContainEqual({ type: 'combat.freeze', x: 5, y: 2 });
   });
 
   it('lightning is a beam: every monster in line takes damage', () => {
@@ -294,17 +296,20 @@ describe('hunger gate', () => {
 
 describe('aiming flow', () => {
   it('directional wand: beginZap enters aiming, zapInDirection fires and clears it', () => {
-    const engine = setup();
+    const presenter = createRecordingPresenter();
+    const engine = setup(5, presenter);
     const orc = mkMonster(5, 2);
     engine.monsters = [orc];
     give(engine, 'cold');
 
     expect(engine.beginZap({ kind: 'wand', index: 0 })).toBe(true);
     expect(engine.aiming).not.toBeNull();
+    expect(presenter.events).toContainEqual({ type: 'aiming.changed', wandName: 'Wand of Cold' });
 
     expect(engine.zapInDirection(1, 0)).toBe(true);
     expect(engine.aiming).toBeNull();
     expect(orc.frozenTurns).toBeGreaterThan(0);
+    expect(presenter.events).toContainEqual({ type: 'aiming.changed', wandName: null });
   });
 
   it('self-targeted wand: beginZap fires immediately without entering aiming', () => {

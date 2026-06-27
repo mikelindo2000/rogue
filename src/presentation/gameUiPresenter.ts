@@ -8,7 +8,7 @@ import {
   type InventorySnapshot,
   type PresentationMode,
 } from './presenter';
-import { cloneValue, monsterRenderKey, type MapSnapshot, type MonsterView } from './mapSnapshot';
+import { cloneValue, type MapSnapshot, type MonsterView } from './mapSnapshot';
 import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
 
 const LEGACY_TILE_SIZE = 20;
@@ -146,6 +146,13 @@ export class GameUiPresenterAdapter implements GamePresenter {
         this.setAiming(event.wandName ? { wandName: event.wandName } : null);
         break;
       case 'combat.monsterDodge':
+        this.fxMonsterDodge(event.monsterKey, event.fromX, event.fromY);
+        break;
+      case 'combat.focusMonster':
+        this.focusCombatMonster(event.monsterKey);
+        break;
+      case 'combat.clearFocusMonster':
+        this.clearCombatFocusMonster(event.monsterKey);
         break;
     }
   }
@@ -206,9 +213,9 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.ui.fxFloat(...args);
   }
 
-  public fxMonsterDodge(monster: Monster, fromX: number, fromY: number): void {
-    const key = monsterRenderKey(monster);
-    this.ui.fxMonsterDodge(this.legacyMonsters.get(key) ?? cloneMonsterForEffect(monster), fromX, fromY);
+  public fxMonsterDodge(monsterKey: string, fromX: number, fromY: number): void {
+    const monster = this.legacyMonsters.get(monsterKey);
+    if (monster) this.ui.fxMonsterDodge(monster, fromX, fromY);
   }
 
   public mapRumble(...args: Parameters<GameUI['mapRumble']>): void {
@@ -223,13 +230,13 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.ui.setAiming(...args);
   }
 
-  public focusCombatMonster(monster: Monster): void {
-    this.combatFocusMonsterKey = monsterRenderKey(monster);
-    this.ui.combatFocusMonster = this.legacyMonsters.get(this.combatFocusMonsterKey) ?? null;
+  public focusCombatMonster(monsterKey: string): void {
+    this.combatFocusMonsterKey = monsterKey;
+    this.ui.combatFocusMonster = this.legacyMonsters.get(monsterKey) ?? null;
   }
 
-  public clearCombatFocusMonster(monster: Monster): void {
-    if (this.combatFocusMonsterKey === monsterRenderKey(monster)) {
+  public clearCombatFocusMonster(monsterKey: string): void {
+    if (this.combatFocusMonsterKey === monsterKey) {
       this.combatFocusMonsterKey = null;
       this.ui.combatFocusMonster = null;
     }
@@ -256,14 +263,6 @@ export class GameUiPresenterAdapter implements GamePresenter {
     this.legacyMonsters.set(view.key, monster);
     return monster;
   }
-}
-
-function cloneMonsterForEffect(monster: Monster): Monster {
-  return {
-    ...monster,
-    ai: cloneValue(monster.ai),
-    stolenLoot: cloneValue(monster.stolenLoot),
-  };
 }
 
 function setOptional<K extends keyof Monster>(monster: Monster, key: K, value: Monster[K] | undefined): void {

@@ -5,7 +5,7 @@ import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
 import { RecordingSink } from './audio/events';
 import { getTotalDef } from './player';
-import { createTestPresenter } from './testPresenter';
+import { createRecordingPresenter, createTestPresenter } from './testPresenter';
 import type { MapSnapshot } from './presentation/mapSnapshot';
 
 const makePresenter = createTestPresenter;
@@ -174,6 +174,86 @@ describe('GameEngine boss victory conditions', () => {
     expect(finale.hasAmulet).toBe(true);
     expect(finale.gameWon).toBe(false);
     expect(finale.finalRunSummary).toBeNull();
+  });
+});
+
+describe('GameEngine presentation events', () => {
+  it('publishes melee hit, death, focus, and heavy-hit rumble events', () => {
+    const presenter = createRecordingPresenter();
+    const engine = makeRunner(undefined, presenter);
+    setChanceRoll(engine, 0.99);
+    engine.player.baseAtk = 20;
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 20 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    const orc: Monster = {
+      x: 3,
+      y: 2,
+      id: 'orc',
+      symbol: 'O',
+      name: 'Orc',
+      hp: 10,
+      maxHp: 20,
+      atk: 1,
+      color: '#556b2f',
+      minFloor: 1,
+      frozenTurns: 0,
+    };
+    engine.monsters = [orc];
+
+    engine.playerAttack(orc);
+
+    expect(presenter.events.some(event => event.type === 'combat.focusMonster')).toBe(true);
+    expect(presenter.events.some(event => event.type === 'combat.strike')).toBe(true);
+    expect(presenter.events).toContainEqual(expect.objectContaining({
+      type: 'combat.hit',
+      x: 3,
+      y: 2,
+      crit: true,
+    }));
+    expect(presenter.events.some(event => event.type === 'map.rumble')).toBe(true);
+    expect(presenter.events).toContainEqual({
+      type: 'combat.death',
+      x: 3,
+      y: 2,
+      glyph: 'O',
+      color: '#556b2f',
+    });
+    expect(presenter.events.some(event => event.type === 'combat.clearFocusMonster')).toBe(true);
+  });
+
+  it('publishes melee dodge using a monster render key instead of a monster object', () => {
+    const presenter = createRecordingPresenter();
+    const engine = makeRunner(undefined, presenter);
+    setChanceRoll(engine, 0);
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 4 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    const bat: Monster = {
+      x: 3,
+      y: 2,
+      id: 'brown-bat',
+      symbol: 'B',
+      name: 'Brown Bat',
+      hp: 22,
+      maxHp: 22,
+      atk: 8,
+      color: '#8b4513',
+      minFloor: 1,
+      frozenTurns: 0,
+    };
+    engine.monsters = [bat];
+
+    engine.playerAttack(bat);
+
+    expect(presenter.events).toContainEqual(expect.objectContaining({
+      type: 'combat.monsterDodge',
+      fromX: 2,
+      fromY: 2,
+    }));
+    const dodge = presenter.events.find(event => event.type === 'combat.monsterDodge');
+    expect(dodge).toMatchObject({ monsterKey: expect.stringMatching(/^monster-/) });
+    expect(presenter.events.some(event => event.type === 'combat.hit')).toBe(false);
   });
 });
 
@@ -1194,7 +1274,8 @@ describe('GameEngine hidden traps', () => {
 describe('GameEngine run movement', () => {
   it('moves in a straight line until the next tile is blocked', () => {
     const sink = new RecordingSink();
-    const engine = makeRunner(sink);
+    const presenter = createRecordingPresenter();
+    const engine = makeRunner(sink, presenter);
     carveRow(engine, 2, 2, 6);
 
     engine.handlePlayerRun(1, 0);
@@ -1203,6 +1284,28 @@ describe('GameEngine run movement', () => {
     expect(engine.player.y).toBe(2);
     expect(engine.turn).toBe(4);
     expect(sink.ofType('movement.run')[0]).toMatchObject({ steps: 4 });
+    expect(presenter.events).toContainEqual({
+      type: 'player.run',
+      path: [
+        { x: 2, y: 2 },
+        { x: 3, y: 2 },
+        { x: 4, y: 2 },
+        { x: 5, y: 2 },
+        { x: 6, y: 2 },
+      ],
+      ghosts: [],
+    });
+  });
+
+  it('publishes floor transition events before changing floors', () => {
+    const presenter = createRecordingPresenter();
+    const engine = makeRunner(undefined, presenter);
+    carveRow(engine, 2, 2, 3);
+    engine.map[2][3] = TILE.STAIRS_DOWN;
+
+    engine.handlePlayerMove(1, 0);
+
+    expect(presenter.events).toContainEqual({ type: 'map.floorTransition', dir: 'down' });
   });
 
   it('stops at the doorway when running down a corridor into a room', () => {

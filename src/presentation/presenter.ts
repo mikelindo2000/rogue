@@ -1,7 +1,7 @@
 import type { DiscoveryState } from '../discovery';
-import type { StatusEffects, Monster, Player, TrapEffects } from '../types';
+import type { StatusEffects, Player, TrapEffects } from '../types';
 import type { MapSnapshot } from './mapSnapshot';
-import type { PresentationEvent, RunGhostItem, RunPathStep } from './presentationEvents';
+import type { PresentationEvent } from './presentationEvents';
 
 export interface EncounterScope {
   readonly kind: 'room';
@@ -56,19 +56,4 @@ export interface GamePresenter {
   resetLog(): void;
   renderLogs(logs: readonly string[]): void;
   syncDiscovery(state: DiscoveryState): void;
-  fxPlayerRun(path: readonly RunPathStep[], ghosts: readonly RunGhostItem[]): void;
-  fxStrike(fromX: number, fromY: number, toX: number, toY: number): void;
-  fxHit(x: number, y: number, damage: number, crit?: boolean): void;
-  fxFreeze(x: number, y: number): void;
-  fxDeath(x: number, y: number, glyph: string, color: string): void;
-  fxPlayerHit(): void;
-  fxDive(fromX: number, fromY: number, toX: number, toY: number, color: string): void;
-  fxWhiff(x: number, y: number): void;
-  fxFloat(x: number, y: number, text: string, color?: string): void;
-  fxMonsterDodge(monster: Monster, fromX: number, fromY: number): void;
-  mapRumble(strength?: number): void;
-  beginFloorTransition(dir: 'down' | 'up'): void;
-  setAiming(aiming: { wandName: string } | null): void;
-  focusCombatMonster(monster: Monster): void;
-  clearCombatFocusMonster(monster: Monster): void;
 }
