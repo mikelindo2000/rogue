@@ -312,7 +312,16 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   // Zachary the Zombie — Graveyard Grab (A2, 1%): "infection that causes 25 damage
   // for two turns". Modeled as a 25/turn bacterial DoT for 2 turns. Merges with the
   // leech archetype's heal — Zachary keeps both.
-  'zachary-the-zombie': [{ id: 'poison', chance: 0.01, magnitude: 25, duration: 2, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' }],
+  // Zachary keeps its Graveyard Grab DoT (above) AND its leech-archetype heal;
+  // Maggot Infestation (3%) appends an attack debuff (-10 base atk for 3 turns).
+  'zachary-the-zombie': [
+    { id: 'poison', chance: 0.01, magnitude: 25, duration: 2, damageType: 'bacterial', cooldown: 0, trigger: 'onHit' },
+    { id: 'atkDebuff', label: 'Maggot Infestation', chance: 0.03, magnitude: 10, duration: 3, cooldown: 0, trigger: 'onHit' },
+  ],
+  // Golem — Oxidize (3%): sheet "-3 weapon damage". Modeled as a flat attack
+  // reduction of 3 for 3 turns (subtracted from base atk at the computeStrike
+  // caller). Keyed to base Golem so the other 'guardian' monsters are unaffected.
+  'golem': [{ id: 'atkDebuff', label: 'Oxidize', chance: 0.03, magnitude: 3, duration: 3, cooldown: 0, trigger: 'onHit' }],
   // Dragon King — Acidic Molten Breath (A1, 3%): "fire damage plus 20 acid damage
   // for 3 turns". The acid DoT portion is modeled here; the base fire damage is the
   // attack itself (bonusDamage), and the A2 Black Death combo is a separate effect.

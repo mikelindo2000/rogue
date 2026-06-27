@@ -119,6 +119,14 @@ export function tickPlayerEffects(player: Player): EffectTickResult {
       logs.push(`Your armor feels brittle${remainingSuffix(effect.turns)}.`);
     }
 
+    // atkDebuff has no HP consequence — it's a passive read honored at the
+    // computeStrike caller (engine.ts), which subtracts its magnitude from the
+    // player's base attack. The tick only logs a countdown so the affliction is
+    // visible each turn it persists.
+    if (effect.kind === 'atkDebuff' && !expired) {
+      logs.push(`Your strikes feel feeble${remainingSuffix(effect.turns)}.`);
+    }
+
     if (expired) {
       const idx = effects.indexOf(effect);
       if (idx >= 0) effects.splice(idx, 1);
@@ -150,6 +158,9 @@ function expiryLine(effect: ActiveEffect): string {
   }
   if (effect.kind === 'armorDebuff') {
     return 'Your armor feels solid again.';
+  }
+  if (effect.kind === 'atkDebuff') {
+    return 'Your strength returns to your arm.';
   }
   return `The ${effect.kind} wears off.`;
 }

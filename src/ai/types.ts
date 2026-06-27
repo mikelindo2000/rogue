@@ -77,7 +77,8 @@ export type AbilityId =
   | 'poison'
   | 'stun'
   | 'fear'
-  | 'armorDebuff';
+  | 'armorDebuff'
+  | 'atkDebuff';
 
 export interface AbilitySpec {
   id: AbilityId;

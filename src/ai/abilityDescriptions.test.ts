@@ -37,6 +37,13 @@ describe('ability descriptions (bestiary)', () => {
     expect(d.effect).toBe('your armor drops by 3 for 3 turns');
   });
 
+  it('describes atkDebuff with its magnitude and duration', () => {
+    const deb: AbilitySpec = { id: 'atkDebuff', label: 'Oxidize', chance: 0.03, magnitude: 3, duration: 3, cooldown: 0, trigger: 'onHit' };
+    const d = describeAbility(deb);
+    expect(d.name).toBe('Oxidize');
+    expect(d.effect).toBe('your attacks weaken by 3 for 3 turns');
+  });
+
   it('falls back gracefully for an id it does not know', () => {
     const d = describeAbility({ id: 'summon', chance: 0.05, duration: 4, cooldown: 0, trigger: 'onHit' });
     expect(d.name).toBe('Summon');

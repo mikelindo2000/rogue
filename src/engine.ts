@@ -9,7 +9,7 @@ import { SCROLLS, scrollDisplayName, isScrollImplemented } from './scrolls';
 import { potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
-import { tickPlayerEffects, hasEffect } from './effects';
+import { tickPlayerEffects, hasEffect, effectMagnitude } from './effects';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
 import { computeStrike, isHeavyHit, rumbleStrength } from './combat';
 import { type SoundSink, noopSink } from './audio/events';
@@ -1099,7 +1099,12 @@ export class GameEngine {
     }
 
     const outcome = computeStrike({
-      baseAtk: Math.max(1, this.player.baseAtk - this.trapEffects.strengthDrained),
+      // atkDebuff read site: a monster-inflicted attack debuff (Zachary "Maggot
+      // Infestation", Golem "Oxidize") subtracts its magnitude from base attack
+      // alongside the existing trap strength-drain, floored at 1. combat.ts stays
+      // pure — the resolved number is passed in. Passive read; the effect's
+      // duration is owned by tickPlayerEffects, not touched here.
+      baseAtk: Math.max(1, this.player.baseAtk - this.trapEffects.strengthDrained - effectMagnitude(this.player, 'atkDebuff')),
       weapon,
       strengthActive: this.statusEffects.strengthTurns > 0,
       disarmed: this.player.disarmedHits > 0,

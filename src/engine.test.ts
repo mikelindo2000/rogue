@@ -552,6 +552,41 @@ describe('GameEngine armorDebuff read site', () => {
   });
 });
 
+describe('GameEngine atkDebuff read site', () => {
+  // Only the engine's executeStrike can prove atkDebuff is honored: the
+  // computeStrike caller subtracts the effect's magnitude from base attack, so a
+  // debuffed player deals strictly less melee damage. rng is stubbed deterministic
+  // so the damage roll depends only on baseAtk.
+  const strikeFor = (debuff: number) => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.999); // near-max roll → damage tracks dmgBase deterministically
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Blade', dmg: 0 };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    if (debuff > 0) {
+      engine.player.activeEffects = [{ kind: 'atkDebuff', turns: 3, magnitude: debuff, source: 'Golem' }];
+    }
+    const m: Monster = {
+      x: 3, y: 2, symbol: 'Z', name: 'Dummy', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.playerAttack(m);
+    return 100000 - m.hp; // damage dealt
+  };
+
+  it('lowers player melee damage by reducing base attack', () => {
+    const clean = strikeFor(0);
+    const debuffed = strikeFor(10);
+    expect(debuffed).toBeLessThan(clean);
+    // The reduction tracks the magnitude one-for-one in dmgBase (max roll).
+    expect(clean - debuffed).toBe(10);
+  });
+});
+
 describe('GameEngine vital warning sounds', () => {
   it('uses Vigor-adjusted max HP for critical and dual survival warnings', () => {
     const sink = new RecordingSink();

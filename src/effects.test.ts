@@ -160,6 +160,23 @@ describe('effects spine', () => {
     expect(t2.logs.join(' ')).toMatch(/Your armor feels solid again/);
   });
 
+  it('applies atkDebuff, exposes its magnitude, logs a countdown, and expires (no HP cost)', () => {
+    const p = player({ hp: 20 });
+    applyEffect(p, { kind: 'atkDebuff', turns: 2, magnitude: 10, source: 'Zachary the Zombie' });
+
+    expect(hasEffect(p, 'atkDebuff')).toBe(true);
+    expect(effectMagnitude(p, 'atkDebuff')).toBe(10);
+
+    const t1 = tickPlayerEffects(p); // 2 -> 1, still active
+    expect(t1.damage).toBe(0);
+    expect(p.hp).toBe(20);
+    expect(t1.logs.join(' ')).toMatch(/Your strikes feel feeble, 1 turn left/);
+
+    const t2 = tickPlayerEffects(p); // 1 -> 0, expires
+    expect(hasEffect(p, 'atkDebuff')).toBe(false);
+    expect(t2.logs.join(' ')).toMatch(/Your strength returns to your arm/);
+  });
+
   it('a DoT can kill: HP is driven to 0 or below for the engine death path to catch', () => {
     const p = player({ hp: 2 });
     applyEffect(p, { kind: 'dot', turns: 5, magnitude: 1, source: 'Brown Bat', damageType: 'poison' });

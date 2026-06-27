@@ -332,6 +332,21 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} weakens your armor!`);
       return true;
     }
+    case 'atkDebuff': {
+      // Inflict an attack debuff: its magnitude is subtracted from the player's
+      // base attack at the computeStrike caller (engine.ts). Like the other
+      // persistent-effect cases this body draws nothing from `rng` — the only roll
+      // is the per-ability chance gate in applyOnHitAbilities, so seeded parity is
+      // preserved. Re-applying refreshes the duration.
+      applyEffect(player, {
+        kind: 'atkDebuff',
+        turns: ab.duration ?? 1,
+        magnitude: ab.magnitude ?? 1,
+        source: m.name,
+      });
+      logs.push(`${m.name} saps your strength!`);
+      return true;
+    }
     case 'stealItem': {
       // The canonical Rogue nymph: snatch an item and vanish. We steal a random
       // POTION, which is the only inventory bucket safe to mutate blindly —
