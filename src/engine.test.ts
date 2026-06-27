@@ -2169,8 +2169,9 @@ describe('GameEngine monster loot drops (MONSTER_DROPS)', () => {
       if (g.type === 'gear') expect(g.data.rarity).toBe('legendary');
     }
     const names = gear.flatMap((g) => (g.type === 'gear' ? [g.data.name] : []));
-    expect(names).toContain("Dragonslayer's Tenacity");
-    expect(names).toContain("King Ellowyn's Cutlass");
+    // The spawned item keeps the generator's " +N" depth suffix after the flavor name.
+    expect(names.some((n) => n.startsWith("Dragonslayer's Tenacity"))).toBe(true);
+    expect(names.some((n) => n.startsWith("King Ellowyn's Cutlass"))).toBe(true);
     const log = engine.logs.join('\n');
     expect(log).toContain("Dragon King drops Dragonslayer's Tenacity!");
     expect(log).toContain("Dragon King drops King Ellowyn's Cutlass!");
@@ -2210,7 +2211,7 @@ describe('GameEngine monster loot drops (MONSTER_DROPS)', () => {
     const gear = engine.items.find((i) => i.type === 'gear');
     expect(gear?.type).toBe('gear');
     if (gear?.type === 'gear') {
-      expect(gear.data.name).toBe('Giant Thighbone');
+      expect(gear.data.name.startsWith('Giant Thighbone')).toBe(true);
       expect(gear.data.category).toBe('2h_mace');
       expect(gear.x).toBe(5);
       expect(gear.y).toBe(5);

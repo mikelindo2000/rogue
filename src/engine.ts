@@ -2193,7 +2193,13 @@ export class GameEngine {
   private gearSpawnFor(category: string, rarity: Rarity, name?: string): ItemSpawn | null {
     const gear = generateGearItemInCategory(category, this.dungeonFloor, rarity, this.rng);
     if (!gear) return null;
-    if (name) gear.name = name;
+    // Keep the flavor name, but preserve the generator's " +N" depth-bonus suffix
+    // so a named drop reads like floor loot ("Giant Thighbone +3"), not a plain
+    // name that hides its actual enchant level.
+    if (name) {
+      const suffix = gear.name.match(/ \+\d+$/)?.[0] ?? '';
+      gear.name = `${name}${suffix}`;
+    }
     const isWeapon = category.includes('sword') || category.includes('mace') || category === 'dagger' || category === 'staff';
     return { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear };
   }
