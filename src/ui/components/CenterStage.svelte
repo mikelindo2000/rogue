@@ -127,7 +127,9 @@
     </div>
   {/if}
 
-  {#if ui.nearbyMonster}
+  <!-- The default nearby-monster tooltip yields to the boss banner during a boss
+       fight, so the two never overlap (the banner carries the same HP + name). -->
+  {#if ui.nearbyMonster && !ui.bossEncounter}
     <MonsterTooltip />
   {/if}
 

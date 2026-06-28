@@ -15,22 +15,34 @@
   const phaseLabel = $derived(boss.phase === 1 ? '' : boss.phase === 2 ? 'ENRAGED' : 'FRENZIED');
 </script>
 
-<!-- Boss health rail + name banner. Slides in from the top of the stage on
-     engage; the HP fill drains crimson, segment ticks mark the phase thresholds
-     (66% / 33%), and the frame intensifies with the fight via --fx. -->
+<!-- Boss health rail + name banner. Replaces the default monster tooltip during
+     a boss fight (same name + HP, boss-styled). Slides in on engage; the HP fill
+     drains crimson, segment ticks mark the phase thresholds (66% / 33%), and the
+     frame intensifies with the fight via --fx. -->
 <div
   class="boss-banner phase-{boss.phase}"
   style="--fx: {boss.intensity};"
   transition:fly={{ y: -28, duration: dur }}
-  aria-hidden="true"
+  role="img"
+  aria-label="{boss.name} (Boss), {boss.hp} of {boss.maxHp} health"
 >
   <div class="head">
-    <span class="name">{boss.name}</span>
-    {#if phaseLabel}
-      <span class="phase" in:fade={{ duration: dur }}>{phaseLabel}</span>
-    {/if}
+    <span class="title">
+      <span class="name">{boss.name}</span>
+      <span class="tag">Boss</span>
+      {#if phaseLabel}
+        <span class="phase" in:fade={{ duration: dur }}>{phaseLabel}</span>
+      {/if}
+    </span>
+    <span class="hp-val">{boss.hp} / {boss.maxHp}</span>
   </div>
-  <div class="track">
+  <div
+    class="track"
+    role="progressbar"
+    aria-valuenow={boss.hp}
+    aria-valuemin={0}
+    aria-valuemax={boss.maxHp}
+  >
     <div class="fill" style="width: {fillPct}%;"></div>
     <span class="tick tick-66"></span>
     <span class="tick tick-33"></span>
@@ -62,9 +74,16 @@
   .head {
     display: flex;
     align-items: baseline;
-    justify-content: center;
+    justify-content: space-between;
     gap: 10px;
     margin-bottom: 6px;
+  }
+  /* Name + tags grouped on the left; the HP readout pinned right. */
+  .title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
   }
   .name {
     font: 800 var(--fs-sm, 13px) var(--font-display, var(--font-ui));
@@ -72,6 +91,25 @@
     text-transform: uppercase;
     color: #ffd9d2;
     text-shadow: 0 0 8px rgba(190, 30, 24, 0.7), 0 1px 2px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tag {
+    flex: none;
+    font: 800 var(--fs-2xs, 10px) var(--font-display, var(--font-ui));
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #e88;
+    opacity: 0.85;
+  }
+  .hp-val {
+    flex: none;
+    font: 700 var(--fs-2xs, 10px) var(--font-display, var(--font-ui));
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: #ffd9d2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
   .phase {
     font: 800 var(--fs-2xs, 10px) var(--font-display, var(--font-ui));
