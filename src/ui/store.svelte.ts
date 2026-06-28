@@ -264,8 +264,8 @@ export interface UIState {
    *  view). Set when the hub is opened from a HUD slot. */
   selectedEquipSlot: EquipSlot | null;
   potionMenuOpen: boolean;
-  /** Dev-only balance report overlay (⌘/Ctrl+B). */
-  balancePanelOpen: boolean;
+  /** Dev-only debug panel overlay — balance reports + dev tools (⌘/Ctrl+B). */
+  debugPanelOpen: boolean;
   settingsOpen: boolean;
   /** Keyboard-shortcuts help modal (opened with `?` or the footer affordance). */
   shortcutsOpen: boolean;
@@ -350,7 +350,7 @@ export const ui = $state<UIState>({
   selectedInventoryRef: null,
   selectedEquipSlot: null,
   potionMenuOpen: false,
-  balancePanelOpen: false,
+  debugPanelOpen: false,
   settingsOpen: false,
   shortcutsOpen: false,
   introOpen: false,
@@ -391,7 +391,7 @@ export interface UIActions {
   setInventoryOpen(open: boolean): void;
   setInventoryFilterKind(kind: InventoryFilterKind): void;
   setPotionMenuOpen(open: boolean): void;
-  setBalancePanelOpen(open: boolean): void;
+  setDebugPanelOpen(open: boolean): void;
   setSettingsOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
   /** Dismiss the first-run intro gate: hides it, persists the seen flag, and
@@ -437,7 +437,7 @@ export const actions: UIActions = {
   setInventoryOpen: () => {},
   setInventoryFilterKind: () => {},
   setPotionMenuOpen: () => {},
-  setBalancePanelOpen: () => {},
+  setDebugPanelOpen: () => {},
   setSettingsOpen: () => {},
   setShortcutsOpen: () => {},
   dismissIntro: () => {},

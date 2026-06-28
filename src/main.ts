@@ -296,9 +296,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (open && (overlayOpen() || ui.potions.length === 0)) return;
     ui.potionMenuOpen = open;
   };
-  actions.setBalancePanelOpen = (open) => {
+  actions.setDebugPanelOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
-    ui.balancePanelOpen = open;
+    ui.debugPanelOpen = open;
   };
   actions.setSettingsOpen = (open) => {
     if (open) ui.potionMenuOpen = false;
@@ -556,13 +556,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   keyboard.register({
     keys: ['b'],
-    description: 'Toggle the balance report (dev)',
+    description: 'Toggle the debug panel (dev)',
     context: 'game',
     ctrlOrMeta: true,
     hidden: true,
     callback: () => {
-      if (ui.balancePanelOpen || !overlayOpen()) {
-        ui.balancePanelOpen = !ui.balancePanelOpen;
+      if (ui.debugPanelOpen || !overlayOpen()) {
+        ui.debugPanelOpen = !ui.debugPanelOpen;
       }
     },
   });

@@ -58,7 +58,7 @@
   // Recompute only while the panel is open (and when the boss toggle flips), so
   // it always reflects the current tunables/balance constants on reopen.
   const report = $derived.by(() => {
-    if (!ui.balancePanelOpen || view !== 'monsters') return null;
+    if (!ui.debugPanelOpen || view !== 'monsters') return null;
     const opts = { trials: TRIALS, shapeFor: shapeForTemplate, includeBosses };
     return { rows: balanceReport(opts), curve: curveReport(opts) };
   });
@@ -73,7 +73,7 @@
 
   $effect(() => {
     // Mirror the previous `$derived` dependencies.
-    const active = ui.balancePanelOpen && view === 'run';
+    const active = ui.debugPanelOpen && view === 'run';
     if (!active) {
       // Leaving the tab (or closing the panel): invalidate any in-flight compute
       // and clear state so re-entering shows the loading state, not a stale run.
@@ -112,11 +112,11 @@
   const pct = (x: number) => `${Math.round(x * 100)}%`;
 
   function close() {
-    actions.setBalancePanelOpen(false);
+    actions.setDebugPanelOpen(false);
   }
 </script>
 
-<Modal open={ui.balancePanelOpen} title="Balance Report — dev" onClose={close}>
+<Modal open={ui.debugPanelOpen} title="Debug — dev tools" onClose={close}>
   <div class="balance-body">
     <div class="tabs">
       <button class="tab" class:active={view === 'monsters'} onclick={() => (view = 'monsters')}>Per-monster</button>

@@ -260,7 +260,7 @@
   }
 
   function handleKeyboard(event: KeyboardEvent) {
-    if (!ui.inventoryOpen || ui.settingsOpen || ui.shortcutsOpen || ui.compendiumOpen || ui.balancePanelOpen) return;
+    if (!ui.inventoryOpen || ui.settingsOpen || ui.shortcutsOpen || ui.compendiumOpen || ui.debugPanelOpen) return;
     const bodyEl = spineEl?.closest('.inv-modal-body');
     if (!bodyEl) return;
 

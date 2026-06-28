@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { flushSync, mount, unmount } from 'svelte';
-import BalancePanel from './BalancePanel.svelte';
+import DebugPanel from './DebugPanel.svelte';
 import { actions, ui } from '../store.svelte';
 
 let host: ReturnType<typeof mount> | null = null;
 
 function openPanel() {
-  ui.balancePanelOpen = true;
-  host = mount(BalancePanel, { target: document.body });
+  ui.debugPanelOpen = true;
+  host = mount(DebugPanel, { target: document.body });
   flushSync();
 }
 
@@ -25,9 +25,9 @@ function loading(): HTMLElement | null {
 }
 
 beforeEach(() => {
-  ui.balancePanelOpen = false;
-  actions.setBalancePanelOpen = (open) => {
-    ui.balancePanelOpen = open;
+  ui.debugPanelOpen = false;
+  actions.setDebugPanelOpen = (open) => {
+    ui.debugPanelOpen = open;
   };
 });
 
@@ -37,10 +37,10 @@ afterEach(() => {
     host = null;
   }
   document.body.innerHTML = '';
-  ui.balancePanelOpen = false;
+  ui.debugPanelOpen = false;
 });
 
-describe('BalancePanel full-run tab', () => {
+describe('DebugPanel full-run tab', () => {
   it('switches to the run tab instantly with a loading state, then fills the result', async () => {
     openPanel();
 

@@ -11,7 +11,7 @@
   import Footer from './components/Footer.svelte';
   import Compendium from './components/Compendium.svelte';
   import InventoryModal from './components/InventoryModal.svelte';
-  import BalancePanel from './components/BalancePanel.svelte';
+  import DebugPanel from './components/DebugPanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
   import ShortcutsModal from './components/ShortcutsModal.svelte';
   import IntroScreen from './components/IntroScreen.svelte';
@@ -48,7 +48,7 @@
 
 <Compendium />
 <InventoryModal />
-<BalancePanel />
+<DebugPanel />
 <SettingsModal />
 <ShortcutsModal />
 <IntroScreen />

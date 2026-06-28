@@ -1,5 +1,5 @@
 // Declarative dev-tools registry rendered generically by the Dev tab in
-// BalancePanel.svelte. The point is EXTENSIBILITY: adding a future dev toggle or
+// DebugPanel.svelte. The point is EXTENSIBILITY: adding a future dev toggle or
 // action (god mode, jump to level, reveal map, spawn monster…) should mean
 // adding ONE entry to buildDevControls() — never editing the panel template.
 //
@@ -44,7 +44,7 @@ export type DevControl = DevToggleControl | DevActionControl;
  * toggle) need none of this. Engine-backed controls (jump-to-level, spawn,
  * reveal map) will read `engine`/`ui` — both optional so the registry still
  * builds in headless contexts (tests, the balance sim) where no live engine
- * exists. Threading a real engine into BalancePanel is the only extra plumbing a
+ * exists. Threading a real engine into DebugPanel is the only extra plumbing a
  * future engine-backed control needs; the registry shape already supports it.
  */
 export interface DevToolsContext {
@@ -54,7 +54,7 @@ export interface DevToolsContext {
   engine?: unknown;
   ui?: unknown;
   /** Drop a boss beside the player to exercise the boss-fight FX. Passed in by
-   *  BalancePanel as actions.devSpawnBoss; absent in headless contexts so the
+   *  DebugPanel as actions.devSpawnBoss; absent in headless contexts so the
    *  control is simply omitted there. */
   spawnBoss?: (name?: string, hpFraction?: number) => void;
 }
@@ -135,7 +135,7 @@ export function buildDevControls(ctx: DevToolsContext = {}): DevControl[] {
   }
 
   // SEAM — engine-backed controls go here once a live engine is threaded into
-  // BalancePanel. Shape stays one entry; e.g. a "jump to level" action:
+  // DebugPanel. Shape stays one entry; e.g. a "jump to level" action:
   //
   //   const engine = _ctx.engine as GameEngine | undefined;
   //   if (engine) {
@@ -148,7 +148,7 @@ export function buildDevControls(ctx: DevToolsContext = {}): DevControl[] {
   //     });
   //   }
   //
-  // TODO: thread the live GameEngine/ui into BalancePanel (it currently takes no
+  // TODO: thread the live GameEngine/ui into DebugPanel (it currently takes no
   // props) and pass them here as { engine, ui } to unlock engine-backed controls.
 
   return controls;

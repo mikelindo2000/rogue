@@ -32,6 +32,29 @@ Rules:
 - **Adding an event/cue:** add the `SoundEvent` in `src/audio/events.ts`, emit it from the relevant engine path, then add the asset + prompt row in the house guide and a manifest entry. Keep prompts in the guide so every clip stays reproducible.
 - The ElevenLabs API key lives in `~/.secrets` (`ELEVENLABS_API_KEY`); never echo or commit it.
 
+## Debug panel (dev tools)
+
+The in-app **Debug panel** (`src/ui/components/DebugPanel.svelte`, toggle ⌘/Ctrl+B,
+DEV builds only) is the home for manual test/debug affordances. It holds the
+balance reports (Per-monster, Full run) plus a **Dev** tab of toggles/actions.
+
+When you need a way to exercise a feature by hand — spawn an entity, force a
+state, flip a behavior, jump somewhere — add it here rather than wiring a one-off
+button or relying only on a `window.*` console helper. It keeps test hooks
+discoverable in one place and out of production.
+
+How (brief):
+- Append ONE entry to `buildDevControls()` in `src/ui/devTools.ts` — a `toggle`
+  (reads/writes live state) or an `action` (one-shot). The Dev tab renders the
+  registry generically; never edit the panel template per control.
+- Config-only controls need nothing extra. Engine-backed ones take a callback via
+  the `actions` store seam: add it to `UIActions` (`src/ui/store.svelte.ts`), wire
+  it to the engine in `main.ts` behind `import.meta.env.DEV`, and pass it into
+  `buildDevControls({ ... })` from `DebugPanel.svelte` (wrap, don't capture the
+  action directly — it is wired after the panel initializes).
+- Example: the boss-fight FX testers (`Spawn boss` / `Spawn frenzied boss`) →
+  `actions.devSpawnBoss` → `GameEngine.debugSpawnBoss`.
+
 ## Worktrees
 
 Building a feature in an isolated git worktree? See [`WORKTREES.md`](WORKTREES.md).
