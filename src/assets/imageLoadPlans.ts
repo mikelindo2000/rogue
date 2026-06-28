@@ -4,8 +4,11 @@ import {
   chromeOverlayUrl,
   chromeOverlaysForFloor,
 } from '../ui/chromeOverlays';
+import { pickFallbackEndRunArt, pickOpeningEndRunArt, type EndRunArt } from '../ui/endRunArt';
+import type { RunSummaryV1 } from '../runStats';
 
 export const FLOOR_BACKGROUND_READY_WAIT_MS = 180;
+export const END_RUN_ART_READY_WAIT_MS = 220;
 
 interface ArtUrlView {
   artUrl?: string;
@@ -32,6 +35,11 @@ export interface FloorStageImageTarget {
 export interface FloorStageImagePlan {
   current: FloorStageImageTarget;
   neighbor: FloorStageImageTarget | null;
+}
+
+export interface EndRunArtReadinessPlan {
+  selected: EndRunArt;
+  fallback: EndRunArt;
 }
 
 export function floorStageImagePlan(input: FloorStageImagePlanInput): FloorStageImagePlan {
@@ -84,6 +92,13 @@ export function inventoryArtUrlsForReadiness(
 export function combatPortraitArtUrlForReadiness(portrait: PortraitSlugView | null | undefined): string | null {
   const id = cleanUrlPart(portrait?.id);
   return id ? `/bestiary/${id}.png` : null;
+}
+
+export function endRunArtReadinessPlan(summary: RunSummaryV1): EndRunArtReadinessPlan {
+  return {
+    selected: pickOpeningEndRunArt(summary),
+    fallback: pickFallbackEndRunArt(summary),
+  };
 }
 
 export function uniqueImageUrls(urls: readonly (string | null | undefined)[]): string[] {

@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
   - Added a browser-only `AssetReadinessService` image queue with dedupe, priority promotion, bounded decoded-image caching, and stale prediction handling.
   - Warmed current and likely next floor stage backgrounds/chrome overlays through the asset readiness queue, with floor background swaps waiting up to 180 ms for decode before crossfading.
   - Warmed carried inventory/equipment art after HUD updates and promoted visible inventory modal art plus active combat portraits through the asset readiness queue.
+  - Warmed only the selected opening end-run artwork as critical readiness, with a 220 ms fallback cap that preserves lazy monster-specific death variants.
 
 ### Changed
 - **Developer Workflow**:
