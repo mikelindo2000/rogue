@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - The Amulet of Ballard pickup played the level-up chime as a stand-in; it now has its own discovery stinger, distinct from the escape-victory fanfare.
 - Removed debug wand seeding from `createPlayer()` (a rare Wand of Cold + epic Staff of Lightning that shipped at game start); the player again starts with no wands, fixing five wand tests.
+- Kept the level-up bloom static under `prefers-reduced-motion`, and deferred fallback audio prewarming until after the first audio unlock so preload-by-default does not start eager audio work on page load.
 
 ## [2026-06-27]
 

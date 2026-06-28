@@ -57,6 +57,73 @@ describe('AudioService unlock timing', () => {
     __resetAudioContextForTest();
   });
 
+  it('does not prewarm fallback audio before the first unlock gesture', () => {
+    __resetAudioContextForTest();
+    let loads = 0;
+
+    class FakeAudio {
+      preload = '';
+      constructor(public src = '') {}
+      load() {
+        loads++;
+      }
+      cloneNode() {
+        return new FakeAudio(this.src);
+      }
+      async play() {}
+    }
+
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 0;
+      destination = {};
+
+      createGain() {
+        const node = {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+        };
+        return node;
+      }
+
+      createBufferSource() {
+        const node = {
+          buffer: null,
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          onended: null,
+        };
+        return node;
+      }
+
+      async resume() {}
+
+      async decodeAudioData() {
+        return {} as AudioBuffer;
+      }
+    }
+
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(1),
+    })));
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    expect(loads).toBe(0);
+
+    audio.unlock();
+    expect(loads).toBeGreaterThan(0);
+  });
+
   it('schedules events immediately while the first gesture is still resuming audio', async () => {
     __resetAudioContextForTest();
     let resolveResume!: () => void;
@@ -478,4 +545,3 @@ describe('AudioService sound logging', () => {
     expect(ui.debugMessages[0].count).toBe(2);
   });
 });
-

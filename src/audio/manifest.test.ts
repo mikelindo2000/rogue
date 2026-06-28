@@ -101,7 +101,8 @@ describe('manifest integrity', () => {
   it('every resolvable clip id exists in SOUND_ASSETS', () => {
     const ids = [
       'combat-swing', 'combat-hit', 'player-hit', 'combat-miss', 'death-default', 'death-boss',
-      'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death', 'victory-amulet',
+      'player-levelup', 'player-lowhealth', 'player-criticalhealth', 'player-death',
+      'amulet-found', 'victory-amulet',
       'hunger-hungry', 'hunger-nearstarved', 'hunger-fatigued', 'hunger-starving', 'hunger-starvetick',
       'survival-dualwarning',
       'equip-weapon', 'equip-armor', 'equip-unequip', 'equip-rejected',
@@ -113,6 +114,10 @@ describe('manifest integrity', () => {
 
   it('routes the final victory event to the amulet sting', () => {
     expect(resolveClipId({ type: 'game.victory' })).toBe('victory-amulet');
+  });
+
+  it('routes the amulet discovery beat to its own stinger', () => {
+    expect(resolveClipId({ type: 'game.amuletFound' })).toBe('amulet-found');
   });
 
   it('every per-archetype death clip resolves to a real asset', () => {

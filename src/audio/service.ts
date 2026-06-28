@@ -44,7 +44,6 @@ export class AudioService implements SoundSink {
   constructor(config: AudioServiceConfig) {
     this.muted = config.muted;
     this.volume = clamp01(config.volume);
-    this.prewarmHtmlFallbacks();
   }
 
   // --- lifecycle ---------------------------------------------------------
@@ -77,8 +76,9 @@ export class AudioService implements SoundSink {
       this.master.gain.value = this.effectiveGain();
       this.master.connect(this.ctx.destination);
       this.unlocked = true;
-      this.resumeAndFlush();
+      this.prewarmHtmlFallbacks();
       this.preloadCore();
+      this.resumeAndFlush();
     } catch {
       // Web Audio unavailable/blocked — stay a silent no-op.
       this.ctx = null;
