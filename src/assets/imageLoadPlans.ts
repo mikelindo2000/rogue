@@ -7,6 +7,14 @@ import {
 
 export const FLOOR_BACKGROUND_READY_WAIT_MS = 180;
 
+interface ArtUrlView {
+  artUrl?: string;
+}
+
+interface PortraitSlugView {
+  id?: string;
+}
+
 export interface FloorStageImagePlanInput {
   floor: number;
   stairsNearby: boolean;
@@ -63,6 +71,33 @@ export function chromeOverlayTextureUrlsForFloor(floor: number): string[] {
     .map(texture => chromeOverlayUrl(texture.file));
 }
 
+export function inventoryArtUrlsForReadiness(
+  inventoryItems: readonly ArtUrlView[],
+  equipment: readonly ArtUrlView[] = [],
+): string[] {
+  return uniqueImageUrls([
+    ...inventoryItems.map(item => item.artUrl),
+    ...equipment.map(item => item.artUrl),
+  ]);
+}
+
+export function combatPortraitArtUrlForReadiness(portrait: PortraitSlugView | null | undefined): string | null {
+  const id = cleanUrlPart(portrait?.id);
+  return id ? `/bestiary/${id}.png` : null;
+}
+
+export function uniqueImageUrls(urls: readonly (string | null | undefined)[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of urls) {
+    const url = cleanUrlPart(raw);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push(url);
+  }
+  return out;
+}
+
 function floorStageImageTarget(
   floor: number,
   pickBackground: (floor: number) => string,
@@ -83,4 +118,8 @@ function clampFloor(floor: number, maxFloor?: number): number {
 function validMaxFloor(maxFloor?: number): number {
   if (typeof maxFloor !== 'number' || !Number.isFinite(maxFloor)) return FLOOR_MAX;
   return Math.min(FLOOR_MAX, Math.max(FLOOR_MIN, Math.trunc(maxFloor)));
+}
+
+function cleanUrlPart(value: string | null | undefined): string {
+  return typeof value === 'string' ? value.trim() : '';
 }

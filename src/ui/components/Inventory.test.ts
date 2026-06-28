@@ -5,11 +5,12 @@
 // carried item — padding with empty slots up to inventoryMax when the pack is
 // light, and growing past inventoryMax (the overflow then scrolls via CSS) once
 // the player carries more than the baseline slot count.
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, unmount, flushSync } from 'svelte';
 import Inventory from './Inventory.svelte';
-import { ui, actions, type InventoryCell } from '../store.svelte';
+import { ui, actions, type EquipSlotView, type InventoryCell } from '../store.svelte';
 import type { InventoryRef } from '../../types';
+import { assetReadinessService, type AssetReadinessRequest } from '../../assets/readiness';
 
 function potionCell(i: number): InventoryCell {
   const ref: InventoryRef = { kind: 'potion', potionType: 'healing' };
@@ -21,6 +22,23 @@ function potionCell(i: number): InventoryCell {
     detail: 'A test potion.',
     ref,
     actions: [{ action: 'use', label: 'Quaff' }],
+  };
+}
+
+function equippedWeapon(): EquipSlotView {
+  return {
+    slot: 'mainHand',
+    label: 'Main hand',
+    icon: 'sword',
+    itemName: 'Long Sword',
+    statLabel: 'ATK 4',
+    rarityColor: '#fff',
+    empty: false,
+    artUrl: '/inventory/long-sword.png',
+    availableCount: 0,
+    availableLabel: '0 items available',
+    hasUpgrade: false,
+    options: [],
   };
 }
 
@@ -48,7 +66,9 @@ afterEach(() => {
   if (host) { unmount(host); host = null; }
   document.body.innerHTML = '';
   ui.inventoryItems = [];
+  ui.equipment = [];
   ui.inventoryCount = 0;
+  vi.restoreAllMocks();
 });
 
 describe('HUD inventory grid', () => {
@@ -81,5 +101,34 @@ describe('HUD inventory grid', () => {
   it('uses a singular label for a single item', () => {
     render(1);
     expect(document.querySelector('.meta')?.textContent?.trim()).toBe('1 item');
+  });
+
+  it('queues carried inventory and equipped art as soon without requiring images for layout', () => {
+    const requestImage = vi.spyOn(assetReadinessService, 'requestImage').mockImplementation((request: AssetReadinessRequest) => ({
+      url: request.url,
+      cancel: vi.fn(),
+      snapshot: () => ({ kind: 'image', url: request.url, state: 'queued', priority: request.priority }),
+      whenReady: () => Promise.resolve(false),
+    }));
+
+    ui.inventoryItems = [{ ...potionCell(0), artUrl: '/inventory/potion-of-healing.png' }];
+    ui.equipment = [equippedWeapon()];
+    ui.inventoryCount = 1;
+    host = mount(Inventory, { target: document.body });
+    flushSync();
+
+    expect(requestImage).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/inventory/potion-of-healing.png',
+      priority: 'soon',
+      reason: 'carried inventory/equipment art',
+      owner: 'inventory-hud',
+      optional: true,
+    }));
+    expect(requestImage).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/inventory/long-sword.png',
+      priority: 'soon',
+    }));
+    expect(document.querySelector('.meta')?.textContent?.trim()).toBe('1 item');
+    expect(document.querySelectorAll('.grid .slot.filled').length).toBe(1);
   });
 });

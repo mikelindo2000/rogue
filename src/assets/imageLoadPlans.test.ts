@@ -4,8 +4,11 @@ import { chromeOverlaysForFloor } from '../ui/chromeOverlays';
 import {
   FLOOR_BACKGROUND_READY_WAIT_MS,
   chromeOverlayTextureUrlsForFloor,
+  combatPortraitArtUrlForReadiness,
   floorStageImagePlan,
+  inventoryArtUrlsForReadiness,
   likelyNeighborFloor,
+  uniqueImageUrls,
 } from './imageLoadPlans';
 
 describe('floor stage image load plans', () => {
@@ -65,5 +68,37 @@ describe('floor stage image load plans', () => {
     expect(urls).toHaveLength(chromeOverlaysForFloor(12).length);
     expect(urls.every(url => url.startsWith('/chrome-overlays/'))).toBe(true);
     expect(urls.every(url => url.endsWith('.png'))).toBe(true);
+  });
+});
+
+describe('gameplay surface image load plans', () => {
+  it('dedupes inventory and equipment art without including empty placeholders', () => {
+    expect(inventoryArtUrlsForReadiness(
+      [
+        { artUrl: '/inventory/scroll-of-light.png' },
+        { artUrl: '' },
+        { artUrl: '/inventory/scroll-of-light.png' },
+      ],
+      [
+        { artUrl: '/inventory/long-sword.png' },
+        { artUrl: '   ' },
+      ],
+    )).toEqual([
+      '/inventory/scroll-of-light.png',
+      '/inventory/long-sword.png',
+    ]);
+  });
+
+  it('plans only the active combat portrait image from its slug', () => {
+    expect(combatPortraitArtUrlForReadiness({ id: 'vampire-bat' })).toBe('/bestiary/vampire-bat.png');
+    expect(combatPortraitArtUrlForReadiness(null)).toBeNull();
+    expect(combatPortraitArtUrlForReadiness({ id: '' })).toBeNull();
+  });
+
+  it('preserves the first-seen order when collapsing duplicate image URLs', () => {
+    expect(uniqueImageUrls(['/a.png', null, '/b.png', '/a.png', undefined, ''])).toEqual([
+      '/a.png',
+      '/b.png',
+    ]);
   });
 });
