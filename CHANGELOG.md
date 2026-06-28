@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
   - Refined the asset readiness pipeline plan.
   - Added development-only asset readiness diagnostics and baseline readiness budgets.
   - Added a browser-only `AssetReadinessService` image queue with dedupe, priority promotion, bounded decoded-image caching, and stale prediction handling.
+  - Warmed current and likely next floor stage backgrounds/chrome overlays through the asset readiness queue, with floor background swaps waiting up to 180 ms for decode before crossfading.
 
 ### Changed
 - **Developer Workflow**:

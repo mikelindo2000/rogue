@@ -4,6 +4,15 @@
   import MonsterPortrait from './MonsterPortrait.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
+  import {
+    assetReadinessService,
+    type AssetReadinessHandle,
+    type AssetReadinessPriority,
+  } from '../../assets/readiness';
+  import {
+    FLOOR_BACKGROUND_READY_WAIT_MS,
+    floorStageImagePlan,
+  } from '../../assets/imageLoadPlans';
   import { getDungeonStyle } from '../../theme';
   import { backgroundUrl, createFloorBackgroundPicker } from '../backgrounds';
 
@@ -11,6 +20,7 @@
   const floorBg = $derived(dungeonStyle.background);
 
   let backgroundPicker = createFloorBackgroundPicker();
+  let backgroundPickerGeneration = $state(0);
   let currentBg = $state(backgroundPicker.pick(ui.floor));
   let previousBg = $state<string | null>(null);
   let isTransitioning = $state(false);
@@ -19,16 +29,58 @@
   let lastFloor = ui.floor;
   let lastTurn = ui.turn;
 
-  function transitionToBackground(nextBg: string) {
-    if (nextBg === currentBg) return;
-    previousBg = currentBg;
-    currentBg = nextBg;
-    isTransitioning = true;
-    const timer = setTimeout(() => {
-      previousBg = null;
-      isTransitioning = false;
-    }, 1000);
-    return () => clearTimeout(timer);
+  function requestStageImage(
+    url: string,
+    priority: AssetReadinessPriority,
+    reason: string,
+    isStale?: () => boolean,
+  ): AssetReadinessHandle {
+    return assetReadinessService.requestImage({
+      kind: 'image',
+      url,
+      priority,
+      reason,
+      owner: 'center-stage',
+      optional: true,
+      isStale,
+    });
+  }
+
+  function requestFloorBackground(bg: string, priority: AssetReadinessPriority): AssetReadinessHandle {
+    return requestStageImage(
+      backgroundUrl(bg),
+      priority,
+      priority === 'critical-now' ? 'current floor background' : 'likely floor background',
+      () => priority !== 'critical-now' && !ui.stairsNearby,
+    );
+  }
+
+  function transitionToBackground(nextBg: string, readiness?: AssetReadinessHandle) {
+    if (nextBg === currentBg) {
+      readiness?.cancel();
+      return;
+    }
+    let canceled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    void (async () => {
+      await readiness?.whenReady(FLOOR_BACKGROUND_READY_WAIT_MS);
+      if (canceled) return;
+
+      previousBg = currentBg;
+      currentBg = nextBg;
+      isTransitioning = true;
+      timer = setTimeout(() => {
+        previousBg = null;
+        isTransitioning = false;
+      }, 1000);
+    })();
+
+    return () => {
+      canceled = true;
+      readiness?.cancel();
+      if (timer) clearTimeout(timer);
+    };
   }
 
   $effect(() => {
@@ -40,16 +92,85 @@
 
     if (isNewRun) {
       backgroundPicker = createFloorBackgroundPicker();
-      cleanup = transitionToBackground(backgroundPicker.pick(floor));
+      backgroundPickerGeneration += 1;
+      const nextBg = backgroundPicker.pick(floor);
+      cleanup = transitionToBackground(
+        nextBg,
+        requestFloorBackground(nextBg, 'critical-now'),
+      );
       lastFloor = floor;
     } else if (floor !== lastFloor) {
-      cleanup = transitionToBackground(backgroundPicker.pick(floor));
+      const nextBg = backgroundPicker.pick(floor);
+      cleanup = transitionToBackground(
+        nextBg,
+        requestFloorBackground(nextBg, 'critical-now'),
+      );
       lastFloor = ui.floor;
     }
 
     wasEnded = isEnded;
     lastTurn = turn;
     return cleanup;
+  });
+
+  $effect(() => {
+    const floor = ui.floor;
+    const stairsNearby = ui.stairsNearby;
+    const hasAmulet = ui.hasAmulet;
+    const floorMax = ui.floorMax;
+    backgroundPickerGeneration;
+    const plan = floorStageImagePlan({
+      floor,
+      stairsNearby,
+      hasAmulet,
+      maxFloor: floorMax,
+      pickBackground: nextFloor => backgroundPicker.pick(nextFloor),
+    });
+    const handles: AssetReadinessHandle[] = [];
+
+    handles.push(
+      requestStageImage(
+        plan.current.backgroundUrl,
+        'critical-now',
+        'current floor background',
+        () => ui.floor !== plan.current.floor,
+      ),
+    );
+    for (const url of plan.current.chromeOverlayUrls) {
+      handles.push(
+        requestStageImage(
+          url,
+          'critical-now',
+          'current floor chrome overlay',
+          () => ui.floor !== plan.current.floor,
+        ),
+      );
+    }
+
+    if (plan.neighbor) {
+      handles.push(
+        requestStageImage(
+          plan.neighbor.backgroundUrl,
+          'soon',
+          'likely floor background',
+          () => !ui.stairsNearby || ui.floor !== plan.current.floor,
+        ),
+      );
+      for (const url of plan.neighbor.chromeOverlayUrls) {
+        handles.push(
+          requestStageImage(
+            url,
+            'soon',
+            'likely floor chrome overlay',
+            () => !ui.stairsNearby || ui.floor !== plan.current.floor,
+          ),
+        );
+      }
+    }
+
+    return () => {
+      for (const handle of handles) handle.cancel();
+    };
   });
 </script>
 
