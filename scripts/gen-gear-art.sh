@@ -43,7 +43,10 @@ gen 8706 spear          "long spear with a leaf-shaped polished steel point and 
 gen 8707 halberd        "two-handed halberd with an axe blade, top spike, and rear hook on a long wooden shaft, accent color iron gray"
 gen 8708 glaive-of-ruin "legendary glaive of ruin polearm with a long curved blade wreathed in dark violet energy on a tall shaft, accent color violet"
 # bow
-gen 8716 short-bow      "a single short bow, one compact curved wooden bow with a single taut bowstring, vertical, accent color warm brown"
+# short-bow: mflux kept rendering two crossed bows / double grips. Regenerated
+# with the braid Gemini adapter (one-shot, correct single strung bow) — see
+# scripts/gen-named-gear-art.sh notes. Do NOT regenerate here or it reverts.
+# gen 8716 short-bow    "a single short bow, one compact curved wooden bow with a single taut bowstring, vertical, accent color warm brown"
 gen 8710 long-bow       "tall elegant wooden long bow with a taut bowstring, accent color rich brown"
 gen 8711 storm-recurve  "enchanted storm recurve bow crackling with arcs of blue lightning along its curved limbs, accent color electric blue"
 # blunderbuss

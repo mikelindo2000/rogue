@@ -151,6 +151,66 @@ reserve the 8700+ block. Slugs are `slugify(item.name)`, guarded by
 | Thunder Cannon | massive legendary thunder cannon firearm with a huge flared barrel wreathed in smoke and golden sparks (accent molten gold) | 8714 |
 | Shadow Staff | wooden wizard staff tipped with a swirling dark shadow crystal leaking violet-black smoke (accent shadow violet) | 8715 |
 
+## Named gear line (starting loadout + monster drops)
+
+Named gear that lives OUTSIDE `GEAR_POOL` still resolves art by
+`slugify(item.name)`, so each needs a matching PNG. Two sources, both now
+enumerated by `src/assetManifest.ts` (the `starting-gear` and `gear-drops`
+groups) and guarded by `src/assetManifest.test.ts`:
+
+- **Starting loadout** — hardcoded in `createPlayer()` (`src/player.ts`).
+- **Monster gear drops** — the `gear` kinds in `MONSTER_DROPS` (`src/drops.ts`).
+  Potion/scroll/food/wand/gold drops resolve back to standard types and reuse
+  existing art, so they need no new PNG.
+
+Generated at **8 steps** by `scripts/gen-named-gear-art.sh` (idempotent, mflux
+flux2-klein). Seeds reserve the 8720+ block. Slugs are `slugify(item.name)`,
+matching `inventoryArtName` (the " +N" depth suffix is stripped, so
+"Giant Thighbone +3" → `giant-thighbone.png`).
+
+| Item | Source | Seed |
+| --- | --- | --- |
+| Iron Dagger | starting (player.ts) | 8720 |
+| Tattered Rags | starting (player.ts) | 8721 |
+| Giant Thighbone | orc drop | 8722 |
+| Sapphire Enlayed Dagger | brown-bat drop | 8723 |
+| Talon Dagger | eagle drop | 8724 |
+| Thick Leafy Armor | jungle-flesheater drop | 8725 |
+| Staff of Seduction | nymph drop | 8726 |
+| Spiny Feathered Bow | rabid-ostrich drop | 8727 |
+| Labrynth Pole | minotaur drop | 8728 |
+| Untarnished Horn | unicorn drop | 8729 |
+| Stolen Poker | troll drop | 8730 |
+| Xelhua's Carbonsteel | xelhua drop | 8731 |
+| Cow Hide Armor | quinotaur drop | 8732 |
+| Splintered Horn | quinotaur drop | 8733 |
+| Serpent Leather Armor | flying-serpent drop | 8734 |
+| Hardened Fists | golem drop | 8735 |
+| Scale Armor | dragon drop | 8736 |
+| Black Onyx Sword | apperation drop | 8737 |
+| Kalius' Barb | kalius-king-cobra drop | 8738 |
+| King's Staff | pantier-pygmy-king drop | 8739 |
+| Tiny Booties | pantier-pygmy-king drop | 8740 |
+| Skull of Michael | michael-the-minotaur drop | 8741 |
+| Michael's Armor | michael-the-minotaur drop | 8742 |
+| Golemic Claymore | gary-the-golem drop | 8743 |
+| Hardened Clay Armor | gary-the-golem drop | 8744 |
+| Subcolossal Mace | colossal-cyclops drop | 8745 |
+| Dragonslayer's Tenacity | dragon-king drop (legendary) | 8746 |
+| King Ellowyn's Cutlass | dragon-king drop (legendary) | 8747 |
+
+## Gemini-generated overrides
+
+A few icons are generated with the **braid Gemini adapter**
+(`braid image generate -a gemini`) instead of mflux, where mflux reliably
+misfired. Gemini is one-shot and not seed-deterministic, so these are not in the
+mflux scripts — regenerate by hand if ever needed, then downscale to 512x512.
+
+| Item | Reason |
+| --- | --- |
+| Short Bow | mflux rendered a double-grip / two crossed bows; Gemini produces a single correctly-strung bow |
+| Michael's Armor | mflux drew the whole minotaur wearing the armor; Gemini produces the empty horned cuirass as an item |
+
 ## Wand / Staff line
 
 Generated at **8 steps** (not the 2-step baseline) for sharper, richer art — see

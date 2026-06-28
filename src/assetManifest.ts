@@ -17,6 +17,9 @@
  */
 import { GEAR_POOL, WAND_POOL, MONSTER_DATABASE } from './config';
 import { POTION_TYPES, SCROLL_TYPES } from './itemVisuals';
+import { ARMOR_SLOTS } from './types';
+import { createPlayer } from './player';
+import { MONSTER_DROPS } from './drops';
 import { monsterArtUrl } from './ui/monsterArt';
 import {
   foodArtUrl,
@@ -24,6 +27,8 @@ import {
   scrollArtUrl,
   wandArtUrl,
   gearArtUrl,
+  inventoryArtUrl,
+  inventoryArtName,
 } from './ui/inventoryArt';
 import { FLOOR_BACKGROUNDS, LEGACY_DUNGEON_BACKGROUNDS, backgroundUrl } from './ui/backgrounds';
 import { CHROME_OVERLAY_TEXTURES, chromeOverlayUrl } from './ui/chromeOverlays';
@@ -107,6 +112,50 @@ export function buildAssetManifest(): AssetGroup[] {
     items.map(item => entry(`${item.name} (${slot})`, gearArtUrl(item))),
   );
 
+  // Named gear that lives OUTSIDE GEAR_POOL still resolves art by its slugified
+  // name, so the audit must know about it too. Two extra sources:
+  //   1. Starting loadout hardcoded in createPlayer() (src/player.ts).
+  //   2. Flavor-named monster drops in MONSTER_DROPS (src/drops.ts) — only the
+  //      `gear` kinds; potion/scroll/food/wand/gold drops resolve back to
+  //      standard types and reuse existing art (see buildDropSpawn in engine.ts).
+  // The art url strips any " +N" depth suffix (inventoryArtName), exactly as the
+  // UI does, so e.g. "Giant Thighbone +3" maps to /inventory/giant-thighbone.png.
+  const namedGearArtUrl = (name: string) => inventoryArtUrl(inventoryArtName(name));
+
+  // Anything already covered by a core inventory group (food/potion/scroll/wand
+  // /GEAR_POOL) needs no second entry — dedupe by path so a flavor name that
+  // happens to match a pooled item doesn't create a duplicate-path conflict.
+  const claimedInventoryPaths = new Set(
+    [...foodEntries, ...potionEntries, ...scrollEntries, ...wandEntries, ...gearEntries].map(e => e.path),
+  );
+  const dedupeNew = (entries: AssetEntry[]): AssetEntry[] => {
+    const out: AssetEntry[] = [];
+    for (const e of entries) {
+      if (claimedInventoryPaths.has(e.path)) continue;
+      claimedInventoryPaths.add(e.path);
+      out.push(e);
+    }
+    return out;
+  };
+
+  const player = createPlayer();
+  const startingGearNames = [
+    ...player.inventory.weapons.map(w => w.name),
+    ...player.inventory.shield.map(s => s.name),
+    ...ARMOR_SLOTS.flatMap(slot => player.inventory[slot].map(g => g.name)),
+  ].filter(name => name && name !== 'None');
+  const startingGearEntries = dedupeNew(
+    startingGearNames.map(name => entry(name, namedGearArtUrl(name))),
+  );
+
+  const dropGearNames = Object.values(MONSTER_DROPS)
+    .flat()
+    .filter(d => d.kind.type === 'gear' && d.name)
+    .map(d => d.name as string);
+  const dropGearEntries = dedupeNew(
+    dropGearNames.map(name => entry(name, namedGearArtUrl(name))),
+  );
+
   const monsterEntries: AssetEntry[] = MONSTER_DATABASE.map(monster =>
     entry(monster.name, monsterArtUrl(monster)),
   );
@@ -181,6 +230,24 @@ export function buildAssetManifest(): AssetGroup[] {
       designDoc: inventoryDoc,
       generator: 'mflux-generate-flux2 (manual, see doc)',
       entries: gearEntries,
+    },
+    {
+      category: 'starting-gear',
+      title: 'Starting Gear',
+      dir: 'inventory',
+      sourceOfTruth: 'src/player.ts createPlayer() starting inventory',
+      designDoc: inventoryDoc,
+      generator: 'scripts/gen-named-gear-art.sh',
+      entries: startingGearEntries,
+    },
+    {
+      category: 'gear-drops',
+      title: 'Monster Gear Drops',
+      dir: 'inventory',
+      sourceOfTruth: 'src/drops.ts MONSTER_DROPS (gear kinds)',
+      designDoc: inventoryDoc,
+      generator: 'scripts/gen-named-gear-art.sh',
+      entries: dropGearEntries,
     },
     {
       category: 'monsters',
