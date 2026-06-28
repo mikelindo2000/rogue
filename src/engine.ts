@@ -12,6 +12,7 @@ import { SCROLLS, scrollDisplayName, isScrollImplemented, pickScrollForFloor } f
 import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { rollLootRarity, generateGearItemInCategory } from './items';
 import { MONSTER_DROPS, type MonsterDrop } from './drops';
+import { MONSTER_WEAKNESSES, weaknessBonus } from './weaknesses';
 import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { tickPlayerEffects, hasEffect, effectMagnitude } from './effects';
@@ -1160,10 +1161,23 @@ export class GameEngine {
       this.publishPresentationEvent({ type: 'combat.freeze', x: monster.x, y: monster.y });
     }
 
-    monster.hp -= outcome.damage;
-    recordDamageDealt(this.stats, outcome.damage);
-    this.addLog(`You strike ${monster.name} for ${outcome.damage} dmg. (${Math.max(0, monster.hp)} HP left)`);
-    this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: outcome.damage });
+    // Weakness bonus: if the player is using the weapon/magic CLASS this monster
+    // is weak to, the blow deals `bonusDamage` extra. Resolved in the engine
+    // (combat.ts stays pure, mirroring how disarmed/strengthDrained are resolved
+    // here) and ADDED on top of the base strike. This is a DETERMINISTIC
+    // equipment comparison — it draws NO rng, so seeded play is unchanged.
+    // (Bespoke weakness EFFECTS are deferred — td-44f2d8.)
+    const bonus = weaknessBonus(MONSTER_WEAKNESSES[monsterId(monster)], weapon);
+    const totalDamage = outcome.damage + bonus;
+
+    monster.hp -= totalDamage;
+    recordDamageDealt(this.stats, totalDamage);
+    this.addLog(`You strike ${monster.name} for ${totalDamage} dmg. (${Math.max(0, monster.hp)} HP left)`);
+    if (bonus > 0) {
+      const label = MONSTER_WEAKNESSES[monsterId(monster)].label;
+      this.addLog(`${label} is super effective! (+${bonus})`);
+    }
+    this.sound.emit({ type: 'combat.hit', actor: 'player', target: 'monster', damage: totalDamage });
 
     // Combat flavor: lunge the player into the blow and pop a damage number.
     this.publishPresentationEvent({
@@ -1177,7 +1191,7 @@ export class GameEngine {
       type: 'combat.hit',
       x: monster.x,
       y: monster.y,
-      damage: outcome.damage,
+      damage: totalDamage,
       crit: monster.hp <= 0,
     });
 
@@ -1185,10 +1199,10 @@ export class GameEngine {
     // normal hit feedback above (sound is always additive, never the only cue).
     // maxHp is display-only and may be absent, so fall back to the pre-hit HP —
     // "did this blow take a big share of what it had" is the right denominator.
-    const targetMax = monster.maxHp ?? monster.hp + outcome.damage;
-    if (isHeavyHit(outcome.damage, targetMax)) {
-      this.publishPresentationEvent({ type: 'map.rumble', strength: rumbleStrength(outcome.damage, targetMax) });
-      this.sound.emit({ type: 'combat.heavyHit', damage: outcome.damage });
+    const targetMax = monster.maxHp ?? monster.hp + totalDamage;
+    if (isHeavyHit(totalDamage, targetMax)) {
+      this.publishPresentationEvent({ type: 'map.rumble', strength: rumbleStrength(totalDamage, targetMax) });
+      this.sound.emit({ type: 'combat.heavyHit', damage: totalDamage });
     }
   }
 

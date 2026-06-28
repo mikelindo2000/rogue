@@ -7,6 +7,7 @@
   import { monsterArtUrl } from '../monsterArt';
   import { monsterAbilities } from '../../ai/abilityDescriptions';
   import { monsterDrops } from '../../drops';
+  import { monsterWeakness } from '../../weaknesses';
   import { monsterId } from '../../discovery';
 
   let {
@@ -29,6 +30,9 @@
   // Thematic loot this monster can drop on death. Data-driven from MONSTER_DROPS
   // (keyed by monsterId), mirroring the abilities section — empty when none.
   const drops = $derived(monster ? monsterDrops(monsterId(monster)) : []);
+  // The weapon/magic class this monster is weak to, data-driven from
+  // MONSTER_WEAKNESSES (keyed by monsterId) — null when none, omitting the line.
+  const weakness = $derived(monster ? monsterWeakness(monsterId(monster)) : null);
 
   const lore = $derived(
     monster?.lore ??
@@ -99,6 +103,20 @@
                   <span class="ability-effect">{ability.effect}</span>
                 </li>
               {/each}
+            </ul>
+          </div>
+        {/if}
+
+        {#if weakness}
+          <div class="abilities">
+            <span class="section-label">Weakness</span>
+            <ul class="ability-list">
+              <li class="ability">
+                <div class="ability-head">
+                  <span class="ability-name">{weakness.label}</span>
+                  <span class="ability-chance">{weakness.bonus}</span>
+                </div>
+              </li>
             </ul>
           </div>
         {/if}

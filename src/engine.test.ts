@@ -777,6 +777,56 @@ describe('GameEngine missChance read site', () => {
   });
 });
 
+describe('GameEngine monster weakness bonus', () => {
+  // Only the engine's executeStrike can prove the weakness bonus is honored: it
+  // adds the weakness's bonusDamage on top of the base strike when the equipped
+  // weapon counters the monster's class. The orc is weak to 2H Mace (+3). rng is
+  // stubbed deterministic so the base roll is identical across weapons; the only
+  // difference is the weakness bonus.
+  const strikeWith = (type: 'dagger' | '2h_mace') => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.999);
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Weapon', dmg: 0, type };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    const m: Monster = {
+      id: 'orc', x: 3, y: 2, symbol: 'o', name: 'Orc', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.playerAttack(m);
+    return 100000 - m.hp; // damage dealt
+  };
+
+  it('deals exactly bonusDamage MORE with the countering weapon class', () => {
+    const plain = strikeWith('dagger'); // not a counter for the orc
+    const countered = strikeWith('2h_mace'); // orc weakness: 2H Mace +3
+    expect(countered).toBeGreaterThan(plain);
+    expect(countered - plain).toBe(3); // MONSTER_WEAKNESSES['orc'].bonusDamage
+  });
+
+  it('logs "super effective" only when the weapon counters', () => {
+    const engine = makeRunner();
+    setChanceRoll(engine, 0.999);
+    engine.player.baseAtk = 50;
+    engine.player.inventory.weapons[0] = { name: 'Test Mace', dmg: 0, type: '2h_mace' };
+    engine.player.equipped.mainHand = 0;
+    engine.player.equipped.offHand = 'none:0';
+    const m: Monster = {
+      id: 'orc', x: 3, y: 2, symbol: 'o', name: 'Orc', hp: 100000, maxHp: 100000,
+      atk: 1, color: '#fff', minFloor: 1, frozenTurns: 0,
+    };
+    engine.monsters = [m];
+    engine.player.x = 2;
+    engine.player.y = 2;
+    engine.playerAttack(m);
+    expect(engine.logs.join(' ')).toMatch(/2H Mace is super effective! \(\+3\)/);
+  });
+});
+
 describe('GameEngine silenceMagic read site', () => {
   // Only the engine's zapWand gate can prove silenceMagic is honored: a silenced
   // player cannot zap, and the block consumes no wand cooldown.
