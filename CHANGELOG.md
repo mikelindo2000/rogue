@@ -29,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
   - Added development-only asset readiness diagnostics and baseline readiness budgets.
+  - Added a browser-only `AssetReadinessService` image queue with dedupe, priority promotion, bounded decoded-image caching, and stale prediction handling.
 
 ### Changed
 - **Developer Workflow**:
