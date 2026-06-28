@@ -33,7 +33,7 @@
     url: string,
     priority: AssetReadinessPriority,
     reason: string,
-    isStale?: () => boolean,
+    isStale: (() => boolean) | undefined = undefined,
   ): AssetReadinessHandle {
     return assetReadinessService.requestImage({
       kind: 'image',
@@ -46,7 +46,10 @@
     });
   }
 
-  function requestFloorBackground(bg: string, priority: AssetReadinessPriority): AssetReadinessHandle {
+  function requestFloorBackground(
+    bg: string,
+    priority: AssetReadinessPriority,
+  ): AssetReadinessHandle {
     return requestStageImage(
       backgroundUrl(bg),
       priority,
@@ -55,7 +58,10 @@
     );
   }
 
-  function transitionToBackground(nextBg: string, readiness?: AssetReadinessHandle) {
+  function transitionToBackground(
+    nextBg: string,
+    readiness: AssetReadinessHandle | undefined = undefined,
+  ): (() => void) | undefined {
     if (nextBg === currentBg) {
       readiness?.cancel();
       return;
