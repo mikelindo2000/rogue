@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [2026-06-28]
 
 ### Added
+- Added a planning audit for fast-moving subsystems, covering refactor
+  candidates around the presentation split, turn/action choreography,
+  ChromePresenter, AsciiCanvasRenderer, inventory identity, status timers,
+  audio runtime coupling, and documentation drift.
 - **Level-Up Experience**:
   - Added a golden "level-up bloom" — a warm vignette that flares in from the screen edges in three soft blinks when the player gains a level, the reward counterpart to the crimson boss-tension wash. Rendered as a DOM `stage-overlay` layer like the survival/boss washes, so it covers the whole board area (not just the map canvas).
   - Regenerated the level-up chime (`player-levelup`) with a brighter ascending-arpeggio prompt, and added `scripts/gen-progression-sfx.mjs` to reproducibly generate the player vitals & progression cues.

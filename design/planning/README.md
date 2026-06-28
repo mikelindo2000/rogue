@@ -43,6 +43,10 @@ and don't collide:
   god object into engine-facing presentation contracts, Svelte chrome projection,
   typed presentation events, and a renderer boundary while keeping the current
   canvas map as the only implemented presentation.
+- **[Fast-Moving Subsystem Refactor Audit](fast_moving_subsystem_refactor_audit.md)** —
+  maps code smells and documentation drift introduced while visual effects,
+  presentation boundaries, gear systems, inventory actions, and audio evolved
+  quickly, with prioritized refactor candidates before the next wave of work.
 
 ## Cross-cutting concerns (read before implementing any one of them)
 
