@@ -8,6 +8,7 @@ import { RecordingSink } from './audio/events';
 import { getTotalDef } from './player';
 import { createRecordingPresenter, createTestPresenter } from './testPresenter';
 import type { MapSnapshot } from './presentation/mapSnapshot';
+import type { GamePresenter } from './presentation/presenter';
 
 const makePresenter = createTestPresenter;
 
@@ -1579,13 +1580,25 @@ describe('GameEngine board size', () => {
 });
 
 describe('GameEngine inventory commands', () => {
-  it('publishes armor pickup to inventory UI immediately', () => {
-    let dropdownPlayer = null as unknown;
+  it('publishes armor pickup through the narrowed presenter API immediately', () => {
+    let inventoryPlayer = null as unknown;
     let statsCalls = 0;
-    const engine = makeRunner(undefined, makePresenter({
-      updateDropdowns: (player: unknown) => { dropdownPlayer = player; },
-      updateStats: () => { statsCalls++; },
-    }));
+    const noop = () => {};
+    const presenter: GamePresenter = {
+      setMode: noop,
+      publishMap: noop,
+      publishLogs: noop,
+      publishDiscovery: noop,
+      publishEvent: noop,
+      publishInventory: ({ player }) => { inventoryPlayer = player; },
+      publishStats: () => { statsCalls++; },
+      showItemPickup: noop,
+      clearItemPickup: noop,
+      resetLog: noop,
+      renderLogs: noop,
+      syncDiscovery: noop,
+    };
+    const engine = makeRunner(undefined, presenter);
     engine.items = [{
       type: 'gear',
       x: 2,
@@ -1599,7 +1612,7 @@ describe('GameEngine inventory commands', () => {
 
     expect(engine.player.inventory.chest.at(-1)?.name).toBe('Chainmail');
     expect(engine.items).toHaveLength(0);
-    expect(dropdownPlayer).toBe(engine.player);
+    expect(inventoryPlayer).toBe(engine.player);
     expect(statsCalls).toBe(1);
   });
 

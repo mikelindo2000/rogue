@@ -608,16 +608,16 @@ describe('savegame restore refreshes UI and recomputes visible', () => {
     for (let i = 0; i < 5; i++) engineA.processTurn();
     const snap = engineA.snapshot();
 
-    const updateDropdowns = vi.fn();
-    const updateStats = vi.fn();
+    const publishInventory = vi.fn();
+    const publishStats = vi.fn();
     const renderLogs = vi.fn();
     const resetLog = vi.fn();
-    const presenter = makePresenter({ updateDropdowns, updateStats, renderLogs, resetLog });
+    const presenter = makePresenter({ publishInventory, publishStats, renderLogs, resetLog });
     const engineB = new GameEngine(presenter);
     expect(engineB.restore(snap)).toBe(true);
 
-    expect(updateDropdowns).toHaveBeenCalled();
-    expect(updateStats).toHaveBeenCalled();
+    expect(publishInventory).toHaveBeenCalled();
+    expect(publishStats).toHaveBeenCalled();
     expect(renderLogs).toHaveBeenCalled();
     expect(resetLog).toHaveBeenCalled();
 

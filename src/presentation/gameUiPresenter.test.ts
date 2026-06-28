@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ui } from '../ui/store.svelte';
+import type { Player, StatusEffects, TrapEffects } from '../types';
 import { GameUiPresenterAdapter, type GameUiPresenterTarget } from './gameUiPresenter';
 import { copyPresentationMode, DEFAULT_PRESENTATION_MODE, type PresentationMode } from './presenter';
 
@@ -85,5 +86,27 @@ describe('GameUiPresenterAdapter presentation mode', () => {
     expect(legacyUi.setAiming).toHaveBeenNthCalledWith(1, { wandName: 'Wand of Cold' });
     expect(legacyUi.setAiming).toHaveBeenNthCalledWith(2, null);
     expect(legacyUi.publishMapEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('forwards stats and inventory snapshots to the legacy GameUI methods', () => {
+    const legacyUi = createLegacyUiFake();
+    const presenter = new GameUiPresenterAdapter(legacyUi);
+    const player = { gold: 12 } as Player;
+    const statusEffects = { vigorTurns: 0 } as StatusEffects;
+    const trapEffects = { bearTrapTurns: 0 } as TrapEffects;
+
+    presenter.publishStats({
+      player,
+      dungeonFloor: 4,
+      statusEffects,
+      totalDef: 7,
+      turn: 33,
+      trapEffects,
+      hasAmulet: true,
+    });
+    presenter.publishInventory({ player });
+
+    expect(legacyUi.updateStats).toHaveBeenCalledWith(player, 4, statusEffects, 7, 33, trapEffects, true);
+    expect(legacyUi.updateDropdowns).toHaveBeenCalledWith(player);
   });
 });

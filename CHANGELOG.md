@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
   - Added a `Play level-up FX` Dev-tab action (and a `window.rogueLevelUpFx` helper) to replay the bloom + chime without grinding XP.
 
 ### Changed
+- Narrowed the `GamePresenter` stats/inventory API so the engine publishes
+  typed `publishStats` / `publishInventory` snapshots while the browser adapter
+  preserves the existing `GameUI` forwarding behavior.
 - Sound assets now **preload by default** after the audio context unlocks, so a newly added cue is ready on first play; only the bulk per-monster death cascade opts out (`preload: false`) to avoid eager-loading dozens of clips that may never play in a run.
 - Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
 
