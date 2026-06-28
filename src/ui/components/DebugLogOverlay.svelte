@@ -4,6 +4,7 @@
   import { fade, slide } from 'svelte/transition';
 
   let copiedId = $state<string | null>(null);
+  let listEl = $state<HTMLDivElement | null>(null);
 
   function copyMessage(text: string, id: string) {
     navigator.clipboard.writeText(text).then(() => {
@@ -13,15 +14,26 @@
       }, 1000);
     });
   }
+
+  $effect(() => {
+    if (listEl && ui.debugMessages) {
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+  });
 </script>
 
 {#if ui.showSoundDebug && ui.debugMessages.length > 0}
   <div class="debug-overlay" transition:fade={{ duration: 150 }}>
     <div class="header">SOUND LOG</div>
-    <div class="list">
+    <div class="list" bind:this={listEl}>
       {#each ui.debugMessages as msg (msg.id)}
         <div class="message-row" transition:slide={{ duration: 150 }}>
-          <span class="message-text">{msg.text}</span>
+          <span class="message-text">
+            {msg.text}
+            {#if msg.count && msg.count > 1}
+              <span class="multiplier">×{msg.count}</span>
+            {/if}
+          </span>
           <button
             class="copy-btn"
             class:copied={copiedId === msg.id}
@@ -103,6 +115,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .multiplier {
+    font: 700 var(--fs-micro) var(--font-display);
+    color: var(--accent);
+    background: rgba(224, 164, 90, 0.15);
+    padding: 1px 4px;
+    border-radius: var(--r-2xs);
+    border: 1px solid rgba(224, 164, 90, 0.3);
   }
 
   .copy-btn {

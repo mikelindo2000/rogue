@@ -433,5 +433,49 @@ describe('AudioService sound logging', () => {
 
     expect(ui.debugMessages).toHaveLength(0);
   });
+
+  it('de-duplicates consecutive identical sound events and increments count', () => {
+    ui.showSoundDebug = true;
+    ui.debugMessages = [];
+
+    class FakeAudio {
+      cloneNode() {
+        return {
+          play: async () => {},
+          onended: null,
+        };
+      }
+    }
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 0;
+      destination = {};
+      createGain() {
+        return {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn((dest) => dest),
+        };
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    audio.emit({ type: 'item.pickup', kind: 'gold' });
+    // Increment fake context currentTime (in seconds) to bypass cooldown
+    if (audio['ctx']) (audio['ctx'] as any).currentTime += 0.1; // 100ms
+    audio.emit({ type: 'item.pickup', kind: 'gold' });
+
+    expect(ui.debugMessages).toHaveLength(1);
+    expect(ui.debugMessages[0].text).toBe('item-gold');
+    expect(ui.debugMessages[0].count).toBe(2);
+  });
 });
 

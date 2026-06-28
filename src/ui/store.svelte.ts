@@ -169,6 +169,7 @@ export interface DebugMessage {
   id: string;
   text: string;
   timestamp: number;
+  count?: number;
 }
 
 export interface UIState {

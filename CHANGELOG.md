@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [2026-06-27]
 
 ### Added
+- **Sound Debug Overlay & Dev Toggle**:
+  - Introduced a floating, beautiful debug log overlay displaying the names of sound cues as they are played, themed to match the game's dark aesthetic.
+  - Added a "Show sound debug overlay" toggle setting inside the Dev tab (third tab) of the dev panel (`Command-B`).
+  - Implemented consecutive sound de-duplication with a visual multiplier badge, ensuring the badge text itself is not copied.
+  - Automatically scrolls the sound log overlay to the newest message using Svelte 5 reactive effects.
 - **Monster Abilities Framework & Integration**:
   - Implemented `bonusDamage` abilities adding a flat +N on-hit damage.
   - Implemented `silenceMagic` to seal player wand zaps.

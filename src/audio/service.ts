@@ -225,14 +225,27 @@ export class AudioService implements SoundSink {
     if (this.activeVoices >= GLOBAL_MAX_VOICES) return;
 
     if (ui.showSoundDebug) {
-      ui.debugMessages = [
-        ...ui.debugMessages,
-        {
-          id: Math.random().toString(36).substring(2, 9),
-          text: asset.id,
-          timestamp: Date.now(),
-        },
-      ].slice(-20);
+      const lastMsg = ui.debugMessages[ui.debugMessages.length - 1];
+      if (lastMsg && lastMsg.text === asset.id) {
+        ui.debugMessages = [
+          ...ui.debugMessages.slice(0, -1),
+          {
+            ...lastMsg,
+            count: (lastMsg.count ?? 1) + 1,
+            timestamp: Date.now(),
+          },
+        ];
+      } else {
+        ui.debugMessages = [
+          ...ui.debugMessages,
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            text: asset.id,
+            timestamp: Date.now(),
+            count: 1,
+          },
+        ].slice(-20);
+      }
     }
 
     const file = asset.variants.length === 1
