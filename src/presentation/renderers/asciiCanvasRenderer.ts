@@ -19,6 +19,7 @@ import type {
   RunGhostItem as PresentationRunGhostItem,
   RunPathStep,
 } from '../presentationEvents';
+import { PLAYER_RUN_ANIMATION } from '../presentationEvents';
 
 export interface AsciiCanvasRendererOptions {
   now?: () => number;
@@ -111,12 +112,6 @@ interface PlayerRunAnim {
   ghosts: RenderedRunGhostItem[];
 }
 
-export const PLAYER_RUN_ANIMATION = {
-  msPerTile: 32,
-  maxDurationMs: 480,
-  trailCount: 5,
-  trailSpacingMs: 28,
-} as const;
 
 /** Snapshot of the board for a single frame — lets the animation loop repaint
  *  between turns without the turn-based engine driving every frame. */

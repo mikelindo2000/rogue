@@ -32,6 +32,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Dungeon View**:
   - Reverted the drop shadow effect on the map canvas.
+- **Audio**:
+  - Synchronized item pickup sounds with the player's movement during run mode by calculating run path velocities and scheduling sound playback with a matching delay.
+  - Added support for delayed SoundEvents in `AudioService.emit` using faked/real timer scheduling.
 
 ### Fixed
 - Fixed review findings in the effect-kinds layer.

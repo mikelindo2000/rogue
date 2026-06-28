@@ -165,6 +165,13 @@ export class AudioService implements SoundSink {
 
   /** SoundSink. Resolve the event to an asset and play it; never throws. */
   emit(event: SoundEvent): void {
+    if (event.delayMs && event.delayMs > 0) {
+      const { delayMs, ...rest } = event;
+      setTimeout(() => {
+        this.emit(rest as SoundEvent);
+      }, delayMs);
+      return;
+    }
     if (!this.unlocked) {
       this.queuePending(event);
       return;

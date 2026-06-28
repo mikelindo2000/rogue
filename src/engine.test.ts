@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GameEngine } from './engine';
+import { PLAYER_RUN_ANIMATION } from './presentation/presentationEvents';
 import { Monster } from './types';
 import { TILE, isWalkable } from './tiles';
 import type { RNG } from './rng';
@@ -2280,5 +2281,53 @@ describe('GameEngine monster loot drops (MONSTER_DROPS)', () => {
     expect(gold).toBeDefined();
     expect(gold?.x).toBe(4);
     expect(gold?.y).toBe(4);
+  });
+});
+
+describe('GameEngine delayed pickup sounds in run mode', () => {
+  it('does not play pickup sounds immediately during run, but schedules them with delayMs', () => {
+    const presenter = makePresenter();
+    const sound = { emit: vi.fn() };
+    const engine = new GameEngine(presenter, sound);
+    
+    // Set up a simple 3-tile run path (4 points including start)
+    engine.COLS = 10;
+    engine.ROWS = 10;
+    engine.map = Array.from({ length: 10 }, () => Array(10).fill(TILE.VOID));
+    for (let x = 0; x < 10; x++) {
+      engine.map[1][x] = TILE.CORRIDOR;
+    }
+    engine.visible = Array.from({ length: 10 }, () => Array(10).fill(false));
+    engine.explored = Array.from({ length: 10 }, () => Array(10).fill(false));
+    
+    engine.player.x = 1;
+    engine.player.y = 1;
+    engine.items = [
+      { type: 'gold', amount: 50, symbol: '$', color: '#ffff55', x: 2, y: 1 }
+    ];
+    
+    // Trigger run mode to the right
+    engine.handlePlayerRun(1, 0);
+    
+    // The items list should have the gold removed logically
+    expect(engine.items.some(i => i.type === 'gold')).toBe(false);
+    
+    // Verify sound emissions:
+    // 1. movement.run should be emitted immediately
+    // 2. item.pickup for gold should be emitted with delayMs
+    const runEmit = sound.emit.mock.calls.find(c => c[0].type === 'movement.run');
+    const pickupEmit = sound.emit.mock.calls.find(c => c[0].type === 'item.pickup');
+    
+    expect(runEmit).toBeDefined();
+    expect(pickupEmit).toBeDefined();
+    
+    // steps should be runPath.length - 1
+    const steps = runEmit[0].steps;
+    expect(steps).toBeGreaterThan(1);
+    
+    // delayMs should be equal to pickup step index * tileMs
+    const tileMs = Math.min(PLAYER_RUN_ANIMATION.msPerTile, PLAYER_RUN_ANIMATION.maxDurationMs / steps);
+    const expectedDelay = 1 * tileMs; // picked up on the 1st step (x=2, y=1)
+    expect(pickupEmit[0].delayMs).toBeCloseTo(expectedDelay, 1);
   });
 });

@@ -9,7 +9,7 @@
 
 import type { ScrollType, WandType } from '../types';
 
-export type SoundEvent =
+export type SoundEvent = (
   // combat
   | { type: 'combat.swing'; actor: 'player' | 'monster' }
   | { type: 'combat.hit'; actor: 'player' | 'monster'; target: 'player' | 'monster'; damage?: number }
@@ -48,7 +48,8 @@ export type SoundEvent =
   // map / navigation
   | { type: 'map.stairs'; dir: 'up' | 'down' }
   | { type: 'map.secretReveal' }
-  | { type: 'movement.run'; steps: number };
+  | { type: 'movement.run'; steps: number }
+) & { delayMs?: number };
 
 export type SoundEventType = SoundEvent['type'];
 

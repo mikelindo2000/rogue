@@ -271,4 +271,78 @@ describe('AudioService unlock timing', () => {
 
     expect(htmlPlays).toBe(1);
   });
+
+  it('schedules delayed events using setTimeout when delayMs is provided', () => {
+    vi.useFakeTimers();
+    __resetAudioContextForTest();
+
+    class FakeAudio {
+      preload = '';
+      volume = 1;
+      currentTime = 0;
+      constructor(public src = '') {}
+      load() {}
+      cloneNode() {
+        return new FakeAudio(this.src);
+      }
+      async play() {}
+    }
+
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 10;
+      destination = {};
+
+      createGain() {
+        const node = {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+        };
+        return node;
+      }
+
+      createBufferSource() {
+        const node = {
+          buffer: null,
+          connect: vi.fn(() => node),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          onended: null,
+        };
+        return node;
+      }
+
+      async resume() {}
+
+      async decodeAudioData() {
+        return {} as AudioBuffer;
+      }
+    }
+
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    const playEventSpy = vi.spyOn(audio as any, 'playEvent');
+
+    audio.emit({ type: 'item.pickup', kind: 'gold', delayMs: 150 });
+
+    expect(playEventSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(100);
+    expect(playEventSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(50);
+    expect(playEventSpy).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
 });

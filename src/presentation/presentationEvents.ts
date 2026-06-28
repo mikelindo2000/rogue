@@ -30,3 +30,10 @@ export type PresentationEvent =
   | { type: 'presentation.modeChanged'; mode: PresentationMode }
   | { type: 'player.run'; path: readonly RunPathStep[]; ghosts: readonly RunGhostItem[] }
   | { type: 'aiming.changed'; wandName: string | null };
+
+export const PLAYER_RUN_ANIMATION = {
+  msPerTile: 32,
+  maxDurationMs: 480,
+  trailCount: 5,
+  trailSpacingMs: 28,
+} as const;

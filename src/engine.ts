@@ -2,6 +2,7 @@ import { Player, Monster, Item, ItemSpawn, MazeDetail, FloorGear, StatusEffects,
 import type { GamePresenter } from './presentation/presenter';
 import { createMapSnapshot, monsterRenderKey } from './presentation/mapSnapshot';
 import type { PresentationEvent } from './presentation/presentationEvents';
+import { PLAYER_RUN_ANIMATION } from './presentation/presentationEvents';
 import { formatStyledItemName } from './presentation/itemNameFormatter';
 import { generateLevel, type RoomRect } from './map';
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, resolveBoardSize, type BoardConfig, type BoardSizeId } from './boards';
@@ -912,11 +913,18 @@ export class GameEngine {
     // player actually reaches it — picking up an item never looks like it vanished
     // before you touched it.
     const ghostItems: { x: number; y: number; symbol: string; color: string; pathIndex: number }[] = [];
+    const runPickups: { kind: 'gold' | 'food' | 'potion' | 'scroll' | 'gear' | 'wand'; pathIndex: number }[] = [];
     const finishRunPresentation = () => {
       const steps = runPath.length - 1;
       if (steps <= 1) return;
       this.sound.emit({ type: 'movement.run', steps });
       this.publishPresentationEvent({ type: 'player.run', path: runPath, ghosts: ghostItems });
+
+      const tileMs = Math.min(PLAYER_RUN_ANIMATION.msPerTile, PLAYER_RUN_ANIMATION.maxDurationMs / steps);
+      for (const pickup of runPickups) {
+        const delayMs = pickup.pathIndex * tileMs;
+        this.sound.emit({ type: 'item.pickup', kind: pickup.kind, delayMs });
+      }
     };
 
     for (let step = 0; step < maxSteps; step++) {
@@ -961,9 +969,16 @@ export class GameEngine {
       const trapResult = this.triggerTrapAtPlayer();
       if (trapResult.travelled) return;
       if (!trapResult.teleported) {
-        const picked = this.checkItems();
+        const picked = this.checkItems(true);
         if (picked) {
+          const kind =
+            picked.type === 'gold' ? 'gold' :
+            picked.type === 'food' ? 'food' :
+            picked.type === 'potion' ? 'potion' :
+            picked.type === 'gear' ? 'gear' :
+            picked.type === 'wand' ? 'wand' : 'scroll';
           ghostItems.push({ x: picked.x, y: picked.y, symbol: picked.symbol, color: picked.color, pathIndex: runPath.length - 1 });
+          runPickups.push({ kind, pathIndex: runPath.length - 1 });
         }
       }
 
@@ -1329,7 +1344,7 @@ export class GameEngine {
     this.finalizeRun('won');
   }
 
-  public checkItems(): Item | undefined {
+  public checkItems(isRun = false): Item | undefined {
     const idx = this.items.findIndex(i => i.x === this.player.x && i.y === this.player.y);
     if (idx !== -1) {
       const item = this.items[idx];
@@ -1421,7 +1436,9 @@ export class GameEngine {
           item.type === 'potion' ? 'potion' :
           item.type === 'gear' ? 'gear' :
           item.type === 'wand' ? 'wand' : 'scroll';
-        this.sound.emit({ type: 'item.pickup', kind });
+        if (!isRun) {
+          this.sound.emit({ type: 'item.pickup', kind });
+        }
         return item;
       }
     }
