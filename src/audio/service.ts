@@ -105,15 +105,17 @@ export class AudioService implements SoundSink {
   }
 
   private preloadCore(): void {
+    // preload defaults to true; only assets that explicitly opt out (preload:
+    // false — the per-monster death cascade) lazy-load on first use.
     for (const asset of Object.values(SOUND_ASSETS)) {
-      if (asset.preload) for (const v of asset.variants) void this.load(v);
+      if (asset.preload !== false) for (const v of asset.variants) void this.load(v);
     }
   }
 
   private prewarmHtmlFallbacks(): void {
     if (typeof Audio === 'undefined') return;
     for (const asset of Object.values(SOUND_ASSETS)) {
-      if (!asset.preload) continue;
+      if (asset.preload === false) continue;
       for (const file of asset.variants) this.htmlFallbackFor(file);
     }
   }

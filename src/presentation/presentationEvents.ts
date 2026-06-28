@@ -26,6 +26,7 @@ export type PresentationEvent =
   | { type: 'combat.focusMonster'; monsterKey: string }
   | { type: 'combat.clearFocusMonster'; monsterKey: string }
   | { type: 'map.rumble'; strength: number }
+  | { type: 'player.levelUp' }
   | { type: 'map.floorTransition'; dir: 'down' | 'up' }
   | { type: 'presentation.modeChanged'; mode: PresentationMode }
   | { type: 'player.run'; path: readonly RunPathStep[]; ghosts: readonly RunGhostItem[] }

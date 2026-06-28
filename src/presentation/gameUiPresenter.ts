@@ -32,6 +32,7 @@ export type GameUiPresenterTarget = Pick<
   | 'fxFloat'
   | 'fxMonsterDodge'
   | 'mapRumble'
+  | 'fxLevelUp'
   | 'beginFloorTransition'
   | 'setAiming'
   | 'showItemPickup'
@@ -111,6 +112,9 @@ export class GameUiPresenterAdapter implements GamePresenter {
         break;
       case 'map.rumble':
         this.mapRumble(event.strength);
+        break;
+      case 'player.levelUp':
+        this.fxLevelUp();
         break;
       case 'map.floorTransition':
         this.beginFloorTransition(event.dir);
@@ -200,6 +204,10 @@ export class GameUiPresenterAdapter implements GamePresenter {
 
   public mapRumble(...args: Parameters<GameUI['mapRumble']>): void {
     this.ui.mapRumble(...args);
+  }
+
+  public fxLevelUp(): void {
+    this.ui.fxLevelUp();
   }
 
   public beginFloorTransition(...args: Parameters<GameUI['beginFloorTransition']>): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { visualEffectLayers, visualEffectStyle } from './visualEffects';
+import { levelUpBloomEffect, visualEffectLayers, visualEffectStyle } from './visualEffects';
 
 // Mirrors format.test.ts's survival baseline so the two stay in lockstep.
 // Floor 2 has only the baseline chrome texture, no fog/glow/survival effects.
@@ -131,6 +131,24 @@ describe('visualEffectLayers — floor 1 airy glow', () => {
     expect(airy).toBeTruthy();
     expect(survival).toBeTruthy();
     expect(airy!.layer).toBeLessThan(survival!.layer);
+  });
+});
+
+describe('levelUpBloomEffect', () => {
+  it('builds a full-stage overlay layer above the survival/boss washes', () => {
+    const fx = levelUpBloomEffect(1);
+    expect(fx.kind).toBe('levelup-bloom');
+    // Renders over the whole stage like the other washes — never the map canvas.
+    expect(fx.target).toBe('stage-overlay');
+    expect(fx.className).toBe('fx-levelup-bloom');
+    expect(fx.vars?.['--fx-intensity']).toBe(1);
+  });
+
+  it('encodes the token in the id so a new flash restarts the CSS animation', () => {
+    // The keyed `{#each}` keys on id; a changed id remounts the node, replaying
+    // the one-shot animation on back-to-back level-ups.
+    expect(levelUpBloomEffect(1).id).toBe('levelup-bloom-1');
+    expect(levelUpBloomEffect(2).id).not.toBe(levelUpBloomEffect(1).id);
   });
 });
 

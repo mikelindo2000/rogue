@@ -58,6 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
     (window as Window & {
       __roguePreviewDeathTransition?: (id: string) => Promise<void>;
     }).__roguePreviewDeathTransition = (id: string) => ui_.previewDeathTransition(id);
+    // Dev console helper: replay the golden level-up bloom without grinding XP.
+    (window as Window & { rogueLevelUpFx?: () => void }).rogueLevelUpFx = () => {
+      ui_.fxLevelUp();
+      console.info('[rogue] played level-up bloom FX');
+    };
     // Dev console helper: crank monster ability proc rates to witness the rare
     // 3%/1% abilities on demand. `rogueProcRate(20)` makes a 3% ability ~60%.
     // `rogueProcRate(1)` restores sheet rates. Persists via tunables.
@@ -358,6 +363,13 @@ document.addEventListener('DOMContentLoaded', () => {
     actions.devSpawnBoss = (name?: string, hpFraction = 1) => {
       audio.unlock();
       engine.debugSpawnBoss(name, hpFraction);
+    };
+    // Level-up FX tester (Dev tab + window.rogueLevelUpFx): replay the bloom +
+    // chime without grinding XP. Unlock audio so the chime plays.
+    actions.devPreviewLevelUp = () => {
+      audio.unlock();
+      ui_.fxLevelUp();
+      audio.emit({ type: 'player.levelUp' });
     };
   }
   actions.copyEndRunSummary = () => {

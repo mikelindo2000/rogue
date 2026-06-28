@@ -35,6 +35,7 @@
   // be the no-op default. The wrapper resolves it live at click time.
   const devControls: DevControl[] = buildDevControls({
     spawnBoss: (name, hpFraction) => actions.devSpawnBoss(name, hpFraction),
+    previewLevelUp: () => actions.devPreviewLevelUp(),
   });
   let devNonce = $state(0);
   // `void devNonce` makes these getters re-run whenever a control mutates state.

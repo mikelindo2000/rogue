@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-28]
+
+### Added
+- **Level-Up Experience**:
+  - Added a golden "level-up bloom" — a warm vignette that flares in from the screen edges in three soft blinks when the player gains a level, the reward counterpart to the crimson boss-tension wash. Rendered as a DOM `stage-overlay` layer like the survival/boss washes, so it covers the whole board area (not just the map canvas).
+  - Regenerated the level-up chime (`player-levelup`) with a brighter ascending-arpeggio prompt, and added `scripts/gen-progression-sfx.mjs` to reproducibly generate the player vitals & progression cues.
+  - Added a dedicated Amulet-of-Ballard discovery stinger (`game.amuletFound` → `amulet-found`), generated via ElevenLabs.
+  - Added a `Play level-up FX` Dev-tab action (and a `window.rogueLevelUpFx` helper) to replay the bloom + chime without grinding XP.
+
+### Changed
+- Sound assets now **preload by default** after the audio context unlocks, so a newly added cue is ready on first play; only the bulk per-monster death cascade opts out (`preload: false`) to avoid eager-loading dozens of clips that may never play in a run.
+- Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
+
+### Fixed
+- The Amulet of Ballard pickup played the level-up chime as a stand-in; it now has its own discovery stinger, distinct from the escape-victory fanfare.
+- Removed debug wand seeding from `createPlayer()` (a rare Wand of Cold + epic Staff of Lightning that shipped at game start); the player again starts with no wands, fixing five wand tests.
+
 ## [2026-06-27]
 
 ### Added

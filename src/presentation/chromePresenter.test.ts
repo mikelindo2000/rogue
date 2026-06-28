@@ -408,6 +408,47 @@ describe('ChromePresenter', () => {
   });
 });
 
+describe('ChromePresenter — level-up bloom', () => {
+  const blooms = () => ui.visualEffects.filter(e => e.kind === 'levelup-bloom');
+
+  beforeEach(() => {
+    ui.visualEffects = [];
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('flashes one full-stage bloom that the timer then drops', () => {
+    const presenter = new ChromePresenter();
+    presenter.flashLevelUp();
+    expect(blooms()).toHaveLength(1);
+    expect(blooms()[0]?.target).toBe('stage-overlay');
+
+    vi.advanceTimersByTime(1000);
+    expect(blooms()).toHaveLength(0);
+  });
+
+  it('keeps exactly one bloom on rapid re-fire, with a bumped id', () => {
+    const presenter = new ChromePresenter();
+    presenter.flashLevelUp();
+    const firstId = blooms()[0]?.id;
+    presenter.flashLevelUp();
+    expect(blooms()).toHaveLength(1);
+    expect(blooms()[0]?.id).not.toBe(firstId);
+  });
+
+  it('clears the bloom and its timer on resetLog', () => {
+    const presenter = new ChromePresenter();
+    presenter.flashLevelUp();
+    presenter.resetLog();
+    expect(blooms()).toHaveLength(0);
+    // The pending timer must not resurrect or re-clear anything after reset.
+    expect(() => vi.advanceTimersByTime(1000)).not.toThrow();
+    expect(blooms()).toHaveLength(0);
+  });
+});
+
 /** Pull the render key of the (single) monster in a snapshot, for combat focus. */
 function monsterKeyOf(snapshot: ReturnType<typeof createMapSnapshot>): string {
   return snapshot.monsters[0].key;

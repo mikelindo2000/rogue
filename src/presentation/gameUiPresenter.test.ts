@@ -23,6 +23,7 @@ function createLegacyUiFake() {
     fxFloat: vi.fn(),
     fxMonsterDodge: vi.fn(),
     mapRumble: vi.fn(),
+    fxLevelUp: vi.fn(),
     beginFloorTransition: vi.fn(),
     setAiming: vi.fn(),
     showItemPickup: vi.fn(),

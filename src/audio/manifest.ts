@@ -31,7 +31,11 @@ export interface SoundAsset {
   maxVoices?: number;
   /** Reserved for priority-based voice stealing; not yet honored at runtime. */
   priority?: number;
-  /** Preload after unlock (core cues) vs lazy-load on first use (rare/boss). */
+  /** Preload the clip right after the audio context unlocks so it's ready on
+   *  first use (no first-play fetch hitch). **Defaults to TRUE** — a new sound
+   *  preloads unless it opts out. Set `preload: false` ONLY for rare/bulk cues
+   *  where eager-loading clips that may never play this run isn't worth it (the
+   *  per-monster death cascade is the one such family today). */
   preload?: boolean;
 }
 
@@ -44,14 +48,14 @@ const sfx = (file: string) => `sfx/${file}`;
 export const SOUND_ASSETS: Record<string, SoundAsset> = {
   // combat
   'combat-swing': { id: 'combat-swing', variants: [sfx('combat-swing-01.mp3')], channel: 'combat', volume: 0.5, cooldownMs: 60 },
-  'combat-hit': { id: 'combat-hit', variants: [sfx('combat-hit-01.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 70, maxVoices: 3, preload: true },
-  'player-hit': { id: 'player-hit', variants: [sfx('player-hit-01.mp3')], channel: 'combat', volume: 0.95, cooldownMs: 120, preload: true },
+  'combat-hit': { id: 'combat-hit', variants: [sfx('combat-hit-01.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 70, maxVoices: 3 },
+  'player-hit': { id: 'player-hit', variants: [sfx('player-hit-01.mp3')], channel: 'combat', volume: 0.95, cooldownMs: 120 },
   // heavy-hit rumble (accompanies the map screen-shake). Five variants so a run
   // of big blows doesn't sound like one looping sample.
-  'combat-rumble': { id: 'combat-rumble', variants: [sfx('combat-rumble-01.mp3'), sfx('combat-rumble-02.mp3'), sfx('combat-rumble-03.mp3'), sfx('combat-rumble-04.mp3'), sfx('combat-rumble-05.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 160, maxVoices: 2, preload: true },
-  'combat-miss': { id: 'combat-miss', variants: [sfx('combat-miss-01.mp3')], channel: 'combat', volume: 0.7, cooldownMs: 80, preload: true },
+  'combat-rumble': { id: 'combat-rumble', variants: [sfx('combat-rumble-01.mp3'), sfx('combat-rumble-02.mp3'), sfx('combat-rumble-03.mp3'), sfx('combat-rumble-04.mp3'), sfx('combat-rumble-05.mp3')], channel: 'combat', volume: 0.9, cooldownMs: 160, maxVoices: 2 },
+  'combat-miss': { id: 'combat-miss', variants: [sfx('combat-miss-01.mp3')], channel: 'combat', volume: 0.7, cooldownMs: 80 },
   // death — generic + per-archetype + boss
-  'death-default': { id: 'death-default', variants: [sfx('death-default-01.mp3')], channel: 'combat', volume: 0.9, preload: true },
+  'death-default': { id: 'death-default', variants: [sfx('death-default-01.mp3')], channel: 'combat', volume: 0.9 },
   'death-skirmisher': { id: 'death-skirmisher', variants: [sfx('death-skirmisher-01.mp3')], channel: 'combat', volume: 0.9 },
   'death-ambusher': { id: 'death-ambusher', variants: [sfx('death-ambusher-01.mp3')], channel: 'combat', volume: 0.9 },
   'death-brute': { id: 'death-brute', variants: [sfx('death-brute-01.mp3')], channel: 'combat', volume: 0.95 },
@@ -59,8 +63,9 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'death-trickster': { id: 'death-trickster', variants: [sfx('death-trickster-01.mp3')], channel: 'combat', volume: 0.9 },
   'death-bat': { id: 'death-bat', variants: [sfx('death-bat-01.mp3')], channel: 'combat', volume: 0.85 },
   'death-boss': { id: 'death-boss', variants: [sfx('death-boss-01.mp3')], channel: 'combat', volume: 1, priority: 10 },
-  // boss encounter stingers — layered over the 'boss' music bed. Lazy-loaded
-  // (rare cues), high priority so they survive voice-capping at peak chaos.
+  // boss encounter stingers — layered over the 'boss' music bed. Preloaded (the
+  // default): only a handful, and a hitch at the boss reveal would be the worst
+  // place for one. High priority so they survive voice-capping at peak chaos.
   // Generate with scripts/gen-boss-sfx.mjs.
   'boss-encounter': { id: 'boss-encounter', variants: [sfx('boss-encounter-01.mp3')], channel: 'combat', volume: 1, priority: 11 },
   'boss-phase': { id: 'boss-phase', variants: [sfx('boss-phase-01.mp3')], channel: 'combat', volume: 1, priority: 10 },
@@ -73,6 +78,7 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'player-lowhealth': { id: 'player-lowhealth', variants: [sfx('player-lowhealth-01.mp3')], channel: 'status', volume: 0.8, cooldownMs: 1000 },
   'player-criticalhealth': { id: 'player-criticalhealth', variants: [sfx('player-criticalhealth-01.mp3')], channel: 'status', volume: 0.9, cooldownMs: 1000, priority: 6 },
   'player-death': { id: 'player-death', variants: [sfx('player-death-01.mp3')], channel: 'status', volume: 1, priority: 10 },
+  'amulet-found': { id: 'amulet-found', variants: [sfx('amulet-found-01.mp3')], channel: 'status', volume: 1, priority: 11 },
   'victory-amulet': { id: 'victory-amulet', variants: [sfx('victory-amulet-01.mp3')], channel: 'status', volume: 1, priority: 12 },
   // hunger / survival
   'hunger-hungry': { id: 'hunger-hungry', variants: [sfx('hunger-hungry-01.mp3')], channel: 'status', volume: 0.7, cooldownMs: 1500 },
@@ -87,7 +93,7 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'equip-unequip': { id: 'equip-unequip', variants: [sfx('equip-unequip-01.mp3')], channel: 'equipment', volume: 0.75, cooldownMs: 120 },
   'equip-rejected': { id: 'equip-rejected', variants: [sfx('equip-rejected-01.mp3')], channel: 'equipment', volume: 0.7, cooldownMs: 150 },
   // items
-  'item-pickup': { id: 'item-pickup', variants: [sfx('item-pickup-01.mp3')], channel: 'item', volume: 0.7, cooldownMs: 60, preload: true },
+  'item-pickup': { id: 'item-pickup', variants: [sfx('item-pickup-01.mp3')], channel: 'item', volume: 0.7, cooldownMs: 60 },
   'item-gold': { id: 'item-gold', variants: [sfx('item-gold-01.mp3')], channel: 'item', volume: 0.75, cooldownMs: 60 },
   'consume-potion': { id: 'consume-potion', variants: [sfx('consume-potion-01.mp3')], channel: 'item', volume: 0.8 },
   'consume-food': { id: 'consume-food', variants: [sfx('consume-food-01.mp3')], channel: 'item', volume: 0.8 },
@@ -112,6 +118,10 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
         variants: [sfx(`${clip}-01.mp3`)],
         channel: 'combat',
         volume: isBoss ? 1 : 0.9,
+        // The per-monster cascade is the one bulk family we don't eager-load:
+        // most monsters never appear in a given run, so these lazy-load on the
+        // first death of that monster. Everything else preloads by default.
+        preload: false,
         ...(isBoss ? { priority: 10 } : {}),
       };
       return [clip, asset];
@@ -188,6 +198,7 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'player.lowHealth': return 'player-lowhealth';
     case 'player.criticalHealth': return 'player-criticalhealth';
     case 'player.death': return 'player-death';
+    case 'game.amuletFound': return 'amulet-found';
     case 'game.victory': return 'victory-amulet';
     case 'hunger.hungry': return 'hunger-hungry';
     case 'hunger.nearStarved': return 'hunger-nearstarved';

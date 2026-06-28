@@ -48,7 +48,7 @@ import {
   type ItemPickupOverlay,
   type LogLineView,
 } from '../ui/store.svelte';
-import { bossTensionEffect, visualEffectLayers, type VisualEffectInstance } from '../ui/visualEffects';
+import { bossTensionEffect, levelUpBloomEffect, visualEffectLayers, type VisualEffectInstance } from '../ui/visualEffects';
 import { bossEncounterView, type BossSighting } from '../boss';
 import { wandDetail, wandLabel, wandTooltipStats } from '../ui/wandView';
 import { cloneValue, type ItemView, type MapSnapshot, type MonsterView } from './mapSnapshot';
@@ -78,6 +78,11 @@ export interface EndRunChromeState {
 const PICKUP_MIN_MS = 3000;
 const PICKUP_MIN_TURNS = 5;
 
+/** How long the level-up bloom stays on the layer list — a touch longer than the
+ *  CSS animation (620ms, see .fx-levelup-bloom) so it fully fades before the
+ *  element is dropped. */
+const LEVELUP_BLOOM_MS = 720;
+
 /** A pending item pickup the presenter is projecting. The display fields are
  *  resolved on intake (showItemPickup); the lifetime stamps drive dismissal in
  *  syncOverlays. `corner` is re-picked each heartbeat so it can yield to the
@@ -106,6 +111,12 @@ export class ChromePresenter {
    *  neither call wipes the other's layer. */
   private statsEffects: VisualEffectInstance[] = [];
   private bossEffect: VisualEffectInstance | null = null;
+  /** Transient golden level-up bloom, held on the layer list for its animation's
+   *  lifetime then dropped. A counter ids each flash so back-to-back level-ups
+   *  restart the CSS animation. */
+  private levelUpEffect: VisualEffectInstance | null = null;
+  private levelUpToken = 0;
+  private levelUpTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly options: ChromePresenterOptions = {}) {}
 
@@ -212,11 +223,29 @@ export class ChromePresenter {
     this.options.setBossIntensity?.(view?.intensity ?? 0);
   }
 
-  /** Merge the two effect halves into the rendered layer list. */
+  /** Flash the golden level-up bloom over the whole stage. Held on the layer
+   *  list (so a mid-bloom stats/boss republish can't wipe it) and dropped by a
+   *  timer once the animation has played. */
+  public flashLevelUp(): void {
+    this.levelUpToken += 1;
+    this.levelUpEffect = levelUpBloomEffect(this.levelUpToken);
+    this.republishVisualEffects();
+    if (this.levelUpTimer) clearTimeout(this.levelUpTimer);
+    this.levelUpTimer = setTimeout(() => {
+      this.levelUpEffect = null;
+      this.levelUpTimer = null;
+      this.republishVisualEffects();
+    }, LEVELUP_BLOOM_MS);
+  }
+
+  /** Merge the effect halves — survival/floor stack, boss vignette, and the
+   *  transient level-up bloom — into the rendered layer list. Each is kept apart
+   *  so neither republish call wipes another's layer. */
   private republishVisualEffects(): void {
-    ui.visualEffects = this.bossEffect
-      ? [...this.statsEffects, this.bossEffect]
-      : this.statsEffects;
+    const layers = [...this.statsEffects];
+    if (this.bossEffect) layers.push(this.bossEffect);
+    if (this.levelUpEffect) layers.push(this.levelUpEffect);
+    ui.visualEffects = layers;
   }
 
   public setAiming(aiming: { wandName: string } | null): void {
@@ -292,6 +321,14 @@ export class ChromePresenter {
     ui.itemPickup = null;
     this.bossEffect = null;
     ui.bossEncounter = null;
+    if (this.levelUpTimer) {
+      clearTimeout(this.levelUpTimer);
+      this.levelUpTimer = null;
+    }
+    this.levelUpEffect = null;
+    // Drop the cleared transients (boss vignette, level-up bloom) from the
+    // rendered list now rather than waiting for the next publishStats.
+    this.republishVisualEffects();
   }
 
   public renderLogs(logs: readonly string[]): void {

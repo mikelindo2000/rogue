@@ -408,6 +408,9 @@ export interface UIActions {
   /** DEV-only: drop a boss beside the player to exercise the boss-fight FX.
    *  Wired in main.ts (behind import.meta.env.DEV); no-op otherwise. */
   devSpawnBoss(name?: string, hpFraction?: number): void;
+  /** DEV-only: replay the golden level-up bloom FX. Wired in main.ts (behind
+   *  import.meta.env.DEV); no-op otherwise. */
+  devPreviewLevelUp(): void;
   copyEndRunSummary(): void;
   clearRunHistory(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
@@ -449,6 +452,7 @@ export const actions: UIActions = {
   setFloorTransition: () => {},
   testSound: () => {},
   devSpawnBoss: () => {},
+  devPreviewLevelUp: () => {},
   copyEndRunSummary: () => {},
   clearRunHistory: () => {},
   selectInventoryItem: () => {},

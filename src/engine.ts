@@ -1318,6 +1318,7 @@ export class GameEngine {
         recordLevelGain(this.stats, this.player.level - levelBefore);
         this.presenter.updateDropdowns(this.player);
         this.sound.emit({ type: 'player.levelUp' });
+        this.publishPresentationEvent({ type: 'player.levelUp' });
       }
     }
 
@@ -1338,7 +1339,7 @@ export class GameEngine {
         this.hasAmulet = true;
         this.addLog("Amid the hoard gleams the Amulet of Ballard! You seize it.");
         this.addLog("Now ESCAPE — climb back to the surface (Floor 1) to win.");
-        this.sound.emit({ type: 'player.levelUp' });
+        this.sound.emit({ type: 'game.amuletFound' });
       }
     }
     recordMonsterKilled(this.stats, monster, { archetype: archetypeOf(monster), xpGained });
@@ -1401,6 +1402,7 @@ export class GameEngine {
             recordLevelGain(this.stats, this.player.level - levelBefore);
             this.presenter.updateDropdowns(this.player);
             this.sound.emit({ type: 'player.levelUp' });
+            this.publishPresentationEvent({ type: 'player.levelUp' });
           }
         } else {
           this.addLog(`At Level 20, chests no longer provide bonus Experience.`);

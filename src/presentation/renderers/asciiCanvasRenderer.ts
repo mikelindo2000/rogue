@@ -48,7 +48,14 @@ interface TileMetrics {
 
 /** A transient combat animation. Board-anchored effects carry their own tile
  *  coords (and, for deaths, their own glyph) so they outlive the entity that
- *  spawned them. All durations are in milliseconds. */
+ *  spawned them. All durations are in milliseconds.
+ *
+ *  Fx are ONLY for tile-anchored board FX (strikes, hits, floating numbers).
+ *  Full-screen washes/vignettes/blooms do NOT belong here — the canvas
+ *  shrink-wraps the board grid, so a canvas overlay is clipped to the tile rect
+ *  and won't reach the stage edges. Those are DOM layers in the visual-effects
+ *  registry (src/ui/visualEffects.ts → <EffectLayerHost> on `stage-overlay`),
+ *  which is what every other screen-wide effect uses. */
 interface Fx {
   kind: 'strike' | 'hit' | 'dmg' | 'death' | 'freeze' | 'phit' | 'dive' | 'whiff' | 'float';
   start: number;

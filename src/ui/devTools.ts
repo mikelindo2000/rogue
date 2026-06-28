@@ -57,6 +57,10 @@ export interface DevToolsContext {
    *  DebugPanel as actions.devSpawnBoss; absent in headless contexts so the
    *  control is simply omitted there. */
   spawnBoss?: (name?: string, hpFraction?: number) => void;
+  /** Replay the golden level-up bloom + chime. Passed in by DebugPanel as
+   *  actions.devPreviewLevelUp; absent in headless contexts so the control is
+   *  simply omitted there. */
+  previewLevelUp?: () => void;
 }
 
 /** The boosted multiplier the proc-rate toggle flips ON to. 15× turns a 3%
@@ -132,6 +136,19 @@ export function buildDevControls(ctx: DevToolsContext = {}): DevControl[] {
         run: () => spawnBoss('Dragon King', 0.15),
       },
     );
+  }
+
+  // Level-up FX tester (engine-independent — just the UI seam). Replays the
+  // golden rim bloom and the level-up chime without grinding XP.
+  if (ctx.previewLevelUp) {
+    const previewLevelUp = ctx.previewLevelUp;
+    controls.push({
+      kind: 'action',
+      id: 'preview-levelup',
+      label: 'Play level-up FX',
+      description: 'Flare the golden level-up bloom and play the level-up chime.',
+      run: () => previewLevelUp(),
+    });
   }
 
   // SEAM — engine-backed controls go here once a live engine is threaded into

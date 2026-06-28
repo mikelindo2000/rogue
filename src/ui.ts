@@ -96,6 +96,13 @@ export class GameUI {
     this.publishMapEvent({ type: 'combat.playerHit' });
   }
 
+  /** A golden bloom flares in from the screen edges on level up (cosmetic).
+   *  Routed to the chrome presenter's stage-overlay effect layer — full-stage
+   *  like the survival/boss washes, not clipped to the map canvas. */
+  public fxLevelUp(): void {
+    this.chrome.flashLevelUp();
+  }
+
   public fxDive(fromX: number, fromY: number, toX: number, toY: number, color: string): void {
     this.publishMapEvent({ type: 'combat.dive', fromX, fromY, toX, toY, color });
   }

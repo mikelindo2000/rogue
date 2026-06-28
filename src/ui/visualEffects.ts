@@ -4,7 +4,28 @@
    Components render the ordered list this produces; they do not decide whether
    the player is hungry, dying, or standing on a foggy floor. The survival layer
    is derived from survivalWarningView() in format.ts so thresholds live in one
-   place. */
+   place.
+
+   ── HOW FULL-SCREEN EFFECTS RENDER (read before adding one) ──────────────────
+   Every screen-wide gameplay effect — atmospheric washes, danger vignettes,
+   reward blooms, flashes — is a DOM layer in THIS registry, rendered by
+   <EffectLayerHost> over one of three targets (chrome / stage-backdrop /
+   stage-overlay). `stage-overlay` covers the WHOLE stage (the full board area the
+   player sees, art margins included), exactly like the survival wash and the
+   boss vignette. That is the player's mental model — "the screen flashed" — so
+   match it: a level-up bloom and a hunger wash must cover the same area.
+
+   Do NOT draw full-screen effects on the map canvas (asciiCanvasRenderer): the
+   canvas shrink-wraps the board grid, so a canvas overlay is clipped to the tile
+   rect and stops short of the stage edges — wrong, and inconsistent with the
+   other washes. The canvas is ONLY for tile-anchored combat FX (strikes, hits,
+   floating numbers, the rumble shake) that must align to specific board cells.
+
+   Steady-state effects (survival/floor/boss) are derived from game state and
+   rebuilt each publish. A ONE-SHOT effect (e.g. the level-up bloom) is a
+   transient: the presenter holds its instance on the layer list for the
+   animation's lifetime, then drops it — see ChromePresenter.flashLevelUp(). A
+   fresh id (token) per fire restarts the CSS animation on repeats. */
 
 import { survivalWarningView, type SurvivalWarningTone } from './format';
 import {
@@ -26,7 +47,8 @@ export type VisualEffectKind =
   | 'survival-both'
   | 'floor-green-fog'
   | 'floor-airy-light'
-  | 'boss-tension';
+  | 'boss-tension'
+  | 'levelup-bloom';
 
 export interface VisualEffectInstance {
   /** Stable key for Svelte's keyed each; unique within the active list. */
@@ -60,6 +82,7 @@ const LAYER = {
   floorFog: 10,
   bossTension: 15,
   survival: 20,
+  levelUp: 25,
 } as const;
 
 /** Maps the survival warning tone to its effect kind/class. `none` has no
@@ -202,6 +225,25 @@ export function bossTensionEffect(intensity: number): VisualEffectInstance | nul
     intensity: i,
     className: classFor('boss-tension'),
     vars: { '--fx-intensity': i },
+  };
+}
+
+/**
+ * The golden level-up bloom — a warm vignette that flares in from the screen
+ * edges once and fades, the reward counterpart to the crimson boss-tension
+ * wash. A one-shot transient: the presenter holds it on the layer list for the
+ * animation's lifetime, then drops it. `token` makes each level-up a fresh id so
+ * Svelte's keyed each restarts the CSS animation on back-to-back level-ups.
+ */
+export function levelUpBloomEffect(token: number): VisualEffectInstance {
+  return {
+    id: `levelup-bloom-${token}`,
+    kind: 'levelup-bloom',
+    target: 'stage-overlay',
+    layer: LAYER.levelUp,
+    intensity: 1,
+    className: classFor('levelup-bloom'),
+    vars: { '--fx-intensity': 1 },
   };
 }
 

@@ -34,6 +34,9 @@ export type SoundEvent = (
   | { type: 'player.lowHealth' }
   | { type: 'player.criticalHealth' }
   | { type: 'player.death' }
+  // the Amulet of Ballard is seized from the final boss hoard — a triumphant
+  // discovery stinger, distinct from game.victory (which fires on the escape).
+  | { type: 'game.amuletFound' }
   | { type: 'game.victory' }
   // hunger / survival
   | { type: 'hunger.hungry' }
@@ -87,6 +90,7 @@ export const SAMPLE_SOUND_EVENTS = {
   'player.lowHealth': { type: 'player.lowHealth' },
   'player.criticalHealth': { type: 'player.criticalHealth' },
   'player.death': { type: 'player.death' },
+  'game.amuletFound': { type: 'game.amuletFound' },
   'game.victory': { type: 'game.victory' },
   'hunger.hungry': { type: 'hunger.hungry' },
   'hunger.nearStarved': { type: 'hunger.nearStarved' },

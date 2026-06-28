@@ -183,9 +183,15 @@ regular monsters and ~1.4–1.7s for bosses (Dragon King, Marcus the Brave), at
 | --- | --- | --- | --- | --- |
 | `player-lowhealth-01.mp3` | `player.lowHealth` | 0.8 | 0.5 | A low warning heartbeat thud with a faint uneasy tone, danger |
 | `player-criticalhealth-01.mp3` | `player.criticalHealth` | 0.9 | 0.5 | An urgent fast double heartbeat with a tense rising warning sting, near death |
-| `player-levelup-01.mp3` | `player.levelUp` | 1.1 | 0.5 | A warm rising chime of empowerment and triumph, magical level up, not too bright |
+| `player-levelup-01.mp3` | `player.levelUp` | 1.6 | 0.45 | Bright magical level-up chime, ascending three-note arpeggio on glassy bells, a soft golden shimmer tail, warm and rewarding, retro fantasy RPG UI, no music bed |
+| `amulet-found-01.mp3` | `game.amuletFound` | 1.6 | 0.55 | A legendary amulet seized from a dragon hoard, a bright magical discovery shimmer rising over a deep resonant powerful swell, awe and triumph with a faint ominous weight |
 | `player-death-01.mp3` | `player.death` | 1.5 | 0.55 | A somber low descending tone of defeat, the hero falls, game over, fading |
 | `victory-amulet-01.mp3` | `game.victory` | 1.6 | 0.58 | Triumphant magical amulet flare, warm golden chime rising into a short heroic resolve, stone stair echo and daylight shimmer |
+
+`game.amuletFound` fires when the Amulet of Ballard is seized from the final boss
+hoard; `game.victory` fires later on the escape to the surface — two distinct
+beats, two distinct cues (don't collapse them). Regenerate this family (idempotent,
+skips existing unless `--force`) with `scripts/gen-progression-sfx.mjs`.
 
 ### Hunger / survival
 
