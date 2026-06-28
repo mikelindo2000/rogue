@@ -109,6 +109,10 @@ function requestIsLive(token: RequestToken): boolean {
   }
 }
 
+function shouldAutoSchedule(priority: AssetReadinessPriority): boolean {
+  return priority !== 'rare';
+}
+
 function loadImage(img: HTMLImageElement, url: string): Promise<void> {
   if (typeof img.decode === 'function') {
     img.src = url;
@@ -154,12 +158,16 @@ export class AssetReadinessService {
       if (entry.state === 'ready') {
         this.touchCache(entry);
       } else if (entry.state === 'failed' || entry.state === 'evicted') {
-        entry.state = 'queued';
-        entry.error = undefined;
-        entry.queuedAt = this.sequence++;
+        if (shouldAutoSchedule(request.priority)) {
+          entry.state = 'queued';
+          entry.error = undefined;
+          entry.queuedAt = this.sequence++;
+        }
       } else if (entry.state === 'idle') {
-        entry.state = 'queued';
-        entry.queuedAt = this.sequence++;
+        if (shouldAutoSchedule(request.priority)) {
+          entry.state = 'queued';
+          entry.queuedAt = this.sequence++;
+        }
       }
 
       this.schedule();
@@ -303,7 +311,7 @@ export class AssetReadinessService {
     while (this.activeImages < this.maxConcurrentImages()) {
       const next = this.nextRunnable();
       if (!next) return;
-      if (next.priority === 'idle' || next.priority === 'rare') {
+      if (next.priority === 'idle') {
         this.scheduleIdle(next);
         return;
       }
@@ -313,7 +321,7 @@ export class AssetReadinessService {
 
   private nextRunnable(): ImageEntry | undefined {
     return [...this.entries.values()]
-      .filter(entry => entry.state === 'queued' && !entry.loading && !entry.idleHandle && !entry.timeoutHandle)
+      .filter(entry => entry.state === 'queued' && entry.priority !== 'rare' && !entry.loading && !entry.idleHandle && !entry.timeoutHandle)
       .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.queuedAt - b.queuedAt)[0];
   }
 

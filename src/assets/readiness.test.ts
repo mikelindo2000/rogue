@@ -204,4 +204,28 @@ describe('AssetReadinessService image queue', () => {
     idleCallbacks[0]({ didTimeout: false, timeRemaining: () => 10 });
     expect(fake.instances).toHaveLength(1);
   });
+
+  it('keeps rare-tier work lazy until promoted', () => {
+    const fake = controllableDecodeImage();
+    const idleCallbacks: IdleRequestCallback[] = [];
+    const service = new AssetReadinessService({
+      ImageCtor: fake.ImageCtor,
+      requestIdleCallback: callback => {
+        idleCallbacks.push(callback);
+        return idleCallbacks.length;
+      },
+    });
+
+    const rare = service.requestImage(baseRequest('/backgrounds/rare.png', { priority: 'rare' }));
+
+    expect(rare.snapshot()).toMatchObject({ state: 'idle', priority: 'rare' });
+    expect(idleCallbacks).toHaveLength(0);
+    expect(fake.instances).toHaveLength(0);
+
+    const promoted = service.requestImage(baseRequest('/backgrounds/rare.png', { priority: 'soon' }));
+
+    expect(promoted.snapshot()).toMatchObject({ state: 'loading', priority: 'soon' });
+    expect(idleCallbacks).toHaveLength(0);
+    expect(fake.instances).toHaveLength(1);
+  });
 });

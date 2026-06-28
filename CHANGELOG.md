@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Fixed review findings in the effect-kinds layer.
+- Kept rare-tier asset readiness requests lazy instead of scheduling them through the idle loader.
 - Applied the initial reduced-motion preference before mounting the ASCII map renderer.
 - Preserved the ASCII map renderer receiver when dispatching player-run and death-transition extras.
 
