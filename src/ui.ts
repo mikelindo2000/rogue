@@ -150,6 +150,14 @@ export class GameUI {
     this.chrome.setAiming(...args);
   }
 
+  public showItemPickup(...args: Parameters<ChromePresenter['showItemPickup']>): void {
+    this.chrome.showItemPickup(...args);
+  }
+
+  public clearItemPickup(): void {
+    this.chrome.clearItemPickup();
+  }
+
   public publishEndRunState(...args: Parameters<ChromePresenter['publishEndRunState']>): void {
     this.chrome.publishEndRunState(...args);
   }

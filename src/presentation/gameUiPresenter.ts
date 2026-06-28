@@ -34,6 +34,8 @@ export type GameUiPresenterTarget = Pick<
   | 'mapRumble'
   | 'beginFloorTransition'
   | 'setAiming'
+  | 'showItemPickup'
+  | 'clearItemPickup'
   | 'publishEndRunState'
   | 'resetEndRunState'
 >;
@@ -206,6 +208,14 @@ export class GameUiPresenterAdapter implements GamePresenter {
 
   public setAiming(...args: Parameters<GameUI['setAiming']>): void {
     this.ui.setAiming(...args);
+  }
+
+  public showItemPickup(...args: Parameters<GameUI['showItemPickup']>): void {
+    this.ui.showItemPickup(...args);
+  }
+
+  public clearItemPickup(): void {
+    this.ui.clearItemPickup();
   }
 
   public publishEndRunState(...args: Parameters<GameUI['publishEndRunState']>): void {

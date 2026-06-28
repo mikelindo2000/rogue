@@ -25,6 +25,8 @@ function createLegacyUiFake() {
     mapRumble: vi.fn(),
     beginFloorTransition: vi.fn(),
     setAiming: vi.fn(),
+    showItemPickup: vi.fn(),
+    clearItemPickup: vi.fn(),
     publishEndRunState: vi.fn(),
     resetEndRunState: vi.fn(),
   } satisfies GameUiPresenterTarget;

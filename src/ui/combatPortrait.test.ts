@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { portraitSizePx, pickPortraitCorner, portraitsEqual } from './combatPortrait';
-import type { CombatPortrait } from './store.svelte';
+import { portraitSizePx, pickPortraitCorner, portraitsEqual, itemPickupsEqual } from './combatPortrait';
+import type { CombatPortrait, ItemPickupOverlay } from './store.svelte';
 import { TILE } from '../tiles';
 
 /** Build a cols×rows grid of VOID with `explored` all true, so only tiles we
@@ -25,7 +25,8 @@ function pick(
   explored: boolean[][],
   playerX: number,
   playerY: number,
-  blockedTiles = new Set<number>()
+  blockedTiles = new Set<number>(),
+  excludeCorner?: ReturnType<typeof pickPortraitCorner>
 ) {
   const sizePx = portraitSizePx(cols, rows, TILE_SIZE);
   return pickPortraitCorner({
@@ -38,6 +39,7 @@ function pick(
     rows,
     tileSize: TILE_SIZE,
     sizePx,
+    excludeCorner: excludeCorner ?? undefined,
   });
 }
 
@@ -99,6 +101,27 @@ describe('pickPortraitCorner', () => {
     expect(corner).not.toBeNull();
   });
 
+  it('drops an excluded corner so two overlays never share it', () => {
+    const { map, explored } = blankBoard(46, 29);
+    // Player centered: all four corners are clear and equidistant, so the chosen
+    // corner is the farthest one. Excluding it must yield a different corner.
+    const chosen = pick(46, 29, map, explored, 23, 14)!;
+    const relocated = pick(46, 29, map, explored, 23, 14, new Set<number>(), chosen);
+    expect(relocated).not.toBe(chosen);
+    expect(relocated).not.toBeNull();
+  });
+
+  it('returns null when the only clear corner is excluded', () => {
+    const { map, explored } = blankBoard(46, 29);
+    // Block every corner but the bottom-right, then exclude that survivor.
+    paintRoom(map, 0, 0, 10, 10); // tl
+    paintRoom(map, 35, 0, 45, 10); // tr
+    paintRoom(map, 0, 18, 10, 28); // bl
+    const survivor = pick(46, 29, map, explored, 23, 14)!;
+    expect(survivor).toBe('br');
+    expect(pick(46, 29, map, explored, 23, 14, new Set<number>(), survivor)).toBeNull();
+  });
+
   it('does not block on unexplored (remembered-dark) tiles', () => {
     const { map } = blankBoard(46, 29);
     // Paint a room in every corner, but mark the board entirely UNexplored:
@@ -141,5 +164,37 @@ describe('portraitsEqual', () => {
   it('is false when exactly one side is null', () => {
     expect(portraitsEqual(base, null)).toBe(false);
     expect(portraitsEqual(null, base)).toBe(false);
+  });
+});
+
+describe('itemPickupsEqual', () => {
+  const base: ItemPickupOverlay = {
+    token: 3,
+    kind: 'gear',
+    name: 'Jeweled Sword',
+    artUrl: '/inventory/jeweled-sword.png',
+    rarityColor: 'var(--rarity-rare)',
+    statLabel: 'ATK 8',
+    corner: 'tr',
+    sizePx: 130,
+  };
+
+  it('is true for identical snapshots, the same reference, and null/null', () => {
+    expect(itemPickupsEqual(base, { ...base })).toBe(true);
+    expect(itemPickupsEqual(base, base)).toBe(true);
+    expect(itemPickupsEqual(null, null)).toBe(true);
+  });
+
+  it('is false when any field (incl. token) differs', () => {
+    expect(itemPickupsEqual(base, { ...base, token: 4 })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, corner: 'bl' })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, name: 'Rusty Sword' })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, statLabel: undefined })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, sizePx: 131 })).toBe(false);
+  });
+
+  it('is false when exactly one side is null', () => {
+    expect(itemPickupsEqual(base, null)).toBe(false);
+    expect(itemPickupsEqual(null, base)).toBe(false);
   });
 });

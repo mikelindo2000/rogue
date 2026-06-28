@@ -6,6 +6,7 @@ import type { BrowserRecords, RunRecordComparison } from '../persistence/runHist
 import type { RunSummaryV1 } from '../runStats';
 import { SCROLLS, scrollDisplayName } from '../scrolls';
 import { STAIR_TILES } from '../tiles';
+import { isWeaponCategory } from '../weapons';
 import {
   ARMOR_SLOTS,
   type InventoryRef,
@@ -17,7 +18,12 @@ import {
   type StatusEffects,
   type TrapEffects,
 } from '../types';
-import { portraitSizePx, pickPortraitCorner, portraitsEqual } from '../ui/combatPortrait';
+import {
+  portraitSizePx,
+  pickPortraitCorner,
+  portraitsEqual,
+  itemPickupsEqual,
+} from '../ui/combatPortrait';
 import { gearHealthView } from '../ui/equipmentStats';
 import { buildEquipmentView } from '../ui/equipmentView';
 import { floorName, hungerView, rarityVar, survivalWarningView, titleCase } from '../ui/format';
@@ -38,6 +44,7 @@ import {
   type CombatPortrait,
   type InventoryActionView,
   type InventoryCell,
+  type ItemPickupOverlay,
   type LogLineView,
 } from '../ui/store.svelte';
 import { visualEffectLayers } from '../ui/visualEffects';
@@ -60,10 +67,35 @@ export interface EndRunChromeState {
   readonly copyStatus?: string;
 }
 
+/** Item-pickup card lifetime: it lingers at least `PICKUP_MIN_MS` and at least
+ *  `PICKUP_MIN_TURNS` player actions before the syncOverlays heartbeat retires
+ *  it. Both gates must clear, so a flurry of fast actions can't blink it away and
+ *  an idle player isn't stuck staring at a stale card. */
+const PICKUP_MIN_MS = 3000;
+const PICKUP_MIN_TURNS = 5;
+
+/** A pending item pickup the presenter is projecting. The display fields are
+ *  resolved on intake (showItemPickup); the lifetime stamps drive dismissal in
+ *  syncOverlays. `corner` is re-picked each heartbeat so it can yield to the
+ *  combat portrait. */
+interface PendingItemPickup {
+  token: number;
+  kind: ItemPickupOverlay['kind'];
+  name: string;
+  artUrl: string;
+  rarityColor: string;
+  statLabel?: string;
+  pickedAtMs: number;
+  pickedTurn: number;
+}
+
 export class ChromePresenter {
   private logSeq = 0;
   private combatFocusMonsterKey: string | null = null;
   private lastPortrait: CombatPortrait | null = null;
+  private pickupToken = 0;
+  private pendingPickup: PendingItemPickup | null = null;
+  private lastPickup: ItemPickupOverlay | null = null;
 
   constructor(private readonly options: ChromePresenterOptions = {}) {}
 
@@ -148,6 +180,34 @@ export class ChromePresenter {
     ui.aiming = aiming;
   }
 
+  /** Record an item the player just collected so the next syncOverlays heartbeat
+   *  projects a pickup card. Gold has no inventory art / card, so it is skipped.
+   *  Display fields reuse the same builders as the inventory panel; the lifetime
+   *  is stamped here and evaluated (event-driven) in syncOverlays — there is no
+   *  render loop. The current turn is read from ui.turn, which publishStats has
+   *  already set this action (updateUI runs before the pickup). */
+  public showItemPickup(item: Item): void {
+    if (item.type === 'gold') return;
+
+    const projected = projectItemPickup(item);
+    this.pendingPickup = {
+      ...projected,
+      token: ++this.pickupToken,
+      pickedAtMs: performance.now(),
+      pickedTurn: ui.turn,
+    };
+  }
+
+  /** Drop any pending pickup card immediately — used on a floor transition so a
+   *  card collected on the previous floor doesn't linger onto the next one
+   *  (spec rule (d)). Death is already covered by the gameOver/gameWon gate in
+   *  syncOverlays. */
+  public clearItemPickup(): void {
+    this.pendingPickup = null;
+    this.lastPickup = null;
+    ui.itemPickup = null;
+  }
+
   public publishEndRunState(state: EndRunChromeState): void {
     if ('summary' in state) ui.endRunSummary = state.summary ?? null;
     if ('records' in state) ui.endRunRecords = state.records ?? null;
@@ -184,6 +244,9 @@ export class ChromePresenter {
     this.combatFocusMonsterKey = null;
     this.lastPortrait = null;
     ui.combatPortrait = null;
+    this.pendingPickup = null;
+    this.lastPickup = null;
+    ui.itemPickup = null;
   }
 
   public renderLogs(logs: readonly string[]): void {
@@ -274,16 +337,101 @@ export class ChromePresenter {
         }
       : null;
 
-    const portrait = (gameOver || gameWon)
+    const ended = gameOver || gameWon;
+
+    // Compute the combat portrait first (unchanged behaviour), but keep the live
+    // item card off its corner so the monster can't slide onto the card.
+    const portrait = ended
       ? null
-      : this.computeCombatPortrait(map, explored, visible, player, monsters, items, cols, rows, focusMonster);
+      : this.computeCombatPortrait(
+          map, explored, visible, player, monsters, items, cols, rows, focusMonster,
+          this.lastPickup?.corner,
+        );
     if (!portraitsEqual(portrait, this.lastPortrait)) {
       this.lastPortrait = portrait;
       ui.combatPortrait = portrait;
     }
 
+    // Then evaluate the item-pickup overlay's lifetime and (if it survives) its
+    // corner, excluding the portrait's corner so the two never overlap.
+    const pickup = ended ? null : this.computeItemPickup(map, explored, visible, player, monsters, items, cols, rows, portrait?.corner);
+    if (!itemPickupsEqual(pickup, this.lastPickup)) {
+      this.lastPickup = pickup;
+      ui.itemPickup = pickup;
+    }
+
     ui.gameOver = gameOver;
     ui.gameWon = gameWon;
+  }
+
+  /** Resolve the pending item pickup into a card for this heartbeat, or null when
+   *  it should be retired. Dismissal rules (event-driven; no render loop):
+   *   (a) a newer pickup has already replaced the pending one (token swap is
+   *       handled implicitly — we always project the latest pending);
+   *   (b) it has lingered long enough — both PICKUP_MIN_TURNS actions AND
+   *       PICKUP_MIN_MS elapsed — so it retires;
+   *   (c) no clear corner fits alongside the combat portrait, so it yields;
+   *   (d) floor change / death clears it (handled by the `ended` gate in
+   *       syncOverlays and by resetLog on a new run / floor reset). */
+  private computeItemPickup(
+    map: string[][],
+    explored: boolean[][],
+    visible: boolean[][],
+    player: Player,
+    monsters: Monster[],
+    items: Item[],
+    cols: number,
+    rows: number,
+    portraitCorner?: CombatPortrait['corner'],
+  ): ItemPickupOverlay | null {
+    const pending = this.pendingPickup;
+    if (!pending) return null;
+
+    // (b) Retire once it has lingered long enough by both gates.
+    const turnsSince = ui.turn - pending.pickedTurn;
+    const elapsedMs = performance.now() - pending.pickedAtMs;
+    if (turnsSince >= PICKUP_MIN_TURNS && elapsedMs >= PICKUP_MIN_MS) {
+      this.pendingPickup = null;
+      return null;
+    }
+
+    const tileSize = this.measureTileSize(cols, rows);
+    const sizePx = portraitSizePx(cols, rows, tileSize);
+
+    const blockedTiles = new Set<number>();
+    for (const m of monsters) {
+      if (visible[m.y]?.[m.x]) blockedTiles.add(m.y * cols + m.x);
+    }
+    for (const it of items) {
+      if (explored[it.y]?.[it.x]) blockedTiles.add(it.y * cols + it.x);
+    }
+
+    // (c) Yield when no clear corner fits alongside the combat portrait. The card
+    // stays pending (not cleared) so it can reappear once a corner frees up.
+    const corner = pickPortraitCorner({
+      map,
+      explored,
+      blockedTiles,
+      playerX: player.x,
+      playerY: player.y,
+      cols,
+      rows,
+      tileSize,
+      sizePx,
+      excludeCorner: portraitCorner,
+    });
+    if (!corner) return null;
+
+    return {
+      token: pending.token,
+      kind: pending.kind,
+      name: pending.name,
+      artUrl: pending.artUrl,
+      rarityColor: pending.rarityColor,
+      statLabel: pending.statLabel,
+      corner,
+      sizePx,
+    };
   }
 
   private computeCombatPortrait(
@@ -296,6 +444,7 @@ export class ChromePresenter {
     cols: number,
     rows: number,
     focusMonster: Monster | null,
+    excludeCorner?: CombatPortrait['corner'],
   ): CombatPortrait | null {
     const adjacent = monsters.filter(
       m =>
@@ -339,6 +488,7 @@ export class ChromePresenter {
       rows,
       tileSize,
       sizePx,
+      excludeCorner,
     });
     if (!corner) return null;
 
@@ -577,6 +727,60 @@ export class ChromePresenter {
       disabled: !result.ok,
       reason: result.ok ? undefined : result.reason,
     }, drop];
+  }
+}
+
+/** Project a freshly-picked item into the pickup card's display fields, reusing
+ *  the same art/rarity/stat builders the inventory panel uses. Gold is filtered
+ *  out before this is reached (showItemPickup). */
+function projectItemPickup(item: Exclude<Item, { type: 'gold' }>): Omit<PendingItemPickup, 'token' | 'pickedAtMs' | 'pickedTurn'> {
+  switch (item.type) {
+    case 'food':
+      return {
+        kind: 'food',
+        name: 'Rations',
+        artUrl: foodArtUrl(),
+        rarityColor: rarityVar('common'),
+      };
+    case 'potion': {
+      const type = item.data.potionType;
+      return {
+        kind: 'potion',
+        name: potionLabel(type),
+        artUrl: potionArtUrl(type),
+        rarityColor: potionVisual(type).uiColor,
+      };
+    }
+    case 'scroll': {
+      const type = item.data.scrollType;
+      return {
+        kind: 'scroll',
+        name: scrollDisplayName(type),
+        artUrl: scrollArtUrl(type),
+        rarityColor: scrollVisual(type).uiColor,
+        statLabel: SCROLLS[type].harmful ? 'Risky' : undefined,
+      };
+    }
+    case 'wand': {
+      const wand = item.data;
+      return {
+        kind: 'wand',
+        name: wand.name,
+        artUrl: wandArtUrl(wand),
+        rarityColor: rarityVar(wand.rarity),
+      };
+    }
+    case 'gear': {
+      const gear = item.data;
+      const weapon = isWeaponCategory(gear.category);
+      return {
+        kind: 'gear',
+        name: gear.name,
+        artUrl: gearArtUrl(gear),
+        rarityColor: rarityVar(gear.rarity),
+        statLabel: shortGearStatText(gear, weapon ? 'attack' : 'defense'),
+      };
+    }
   }
 }
 

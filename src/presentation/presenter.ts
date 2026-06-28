@@ -1,5 +1,5 @@
 import type { DiscoveryState } from '../discovery';
-import type { StatusEffects, Player, TrapEffects } from '../types';
+import type { Item, StatusEffects, Player, TrapEffects } from '../types';
 import type { MapSnapshot } from './mapSnapshot';
 import type { PresentationEvent } from './presentationEvents';
 
@@ -84,6 +84,11 @@ export interface GamePresenter {
     hasAmulet: boolean,
   ): void;
   updateDropdowns(player: Player): void;
+  /** Show a framed card for an item the player just collected (gold is skipped).
+   *  Lifetime is event-driven via the syncOverlays heartbeat — no render loop. */
+  showItemPickup(item: Item): void;
+  /** Drop any pending item-pickup card immediately (e.g. on a floor transition). */
+  clearItemPickup(): void;
   resetLog(): void;
   renderLogs(logs: readonly string[]): void;
   syncDiscovery(state: DiscoveryState): void;

@@ -2,6 +2,7 @@
   import { ui } from '../store.svelte';
   import MonsterTooltip from './MonsterTooltip.svelte';
   import MonsterPortrait from './MonsterPortrait.svelte';
+  import ItemPickupCard from './ItemPickupCard.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
   import DebugLogOverlay from './DebugLogOverlay.svelte';
@@ -98,6 +99,12 @@
          corner whose oval footprint is clear of drawn rooms. -->
     {#if ui.combatPortrait}
       <MonsterPortrait portrait={ui.combatPortrait} />
+    {/if}
+
+    <!-- Framed card of the item just collected. Mirrors the combat portrait: the
+         chrome projection picks a clear corner distinct from the portrait's. -->
+    {#if ui.itemPickup}
+      <ItemPickupCard pickup={ui.itemPickup} />
     {/if}
   </div>
 

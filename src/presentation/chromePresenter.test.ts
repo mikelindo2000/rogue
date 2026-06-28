@@ -1,12 +1,54 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyDiscovery, markSeen } from '../discovery';
 import { createPlayer } from '../player';
 import { TILE } from '../tiles';
-import type { Monster, StatusEffects, TrapEffects } from '../types';
+import type { FloorGear, Item, Monster, StatusEffects, TrapEffects } from '../types';
 import type { RunSummaryV1 } from '../runStats';
 import { ui } from '../ui/store.svelte';
 import { createMapSnapshot } from './mapSnapshot';
 import { ChromePresenter } from './chromePresenter';
+
+/** A blank board snapshot the syncOverlays heartbeat runs over: a wide VOID
+ *  floor with the player centered, so all four corners are clear "empty" tiles
+ *  (the pickup/portrait corner test treats explored-VOID as not drawn map). The
+ *  player has a single FLOOR tile under them just so the board isn't entirely
+ *  void. Monsters/items can be layered in via overrides. */
+const COLS = 20;
+const ROWS = 20;
+function blankSnapshot(overrides: Partial<Parameters<typeof createMapSnapshot>[0]> = {}) {
+  const player = createPlayer();
+  player.x = 10;
+  player.y = 10;
+  const map: string[][] = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => TILE.VOID));
+  map[player.y][player.x] = TILE.FLOOR;
+  const explored = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => true));
+  const visible = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => true));
+  return createMapSnapshot({
+    map,
+    explored,
+    visible,
+    player,
+    monsters: [],
+    items: [],
+    traps: [],
+    cols: COLS,
+    rows: ROWS,
+    floor: 1,
+    gameOver: false,
+    gameWon: false,
+    monsterDetectionActive: false,
+    ...overrides,
+  });
+}
+
+const gearItem = (overrides: Partial<FloorGear> = {}): Extract<Item, { type: 'gear' }> => ({
+  x: 1,
+  y: 1,
+  symbol: ')',
+  color: '#fff',
+  type: 'gear',
+  data: { name: 'Jeweled Sword', category: '1h_sword', dmg: 8, rarity: 'rare', ...overrides },
+});
 
 const STATUS: StatusEffects = {
   vigorTurns: 0,
@@ -43,6 +85,7 @@ describe('ChromePresenter', () => {
     ui.stairsNearby = false;
     ui.nearbyMonster = null;
     ui.combatPortrait = null;
+    ui.itemPickup = null;
     ui.aiming = null;
     ui.gameOver = false;
     ui.gameWon = false;
@@ -54,6 +97,10 @@ describe('ChromePresenter', () => {
     ui.endRunPresentationReady = true;
     ui.endRunTransitionActive = false;
     ui.endRunCopyStatus = '';
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('projects top-bar, vitals, food, effects, and disorientation state', () => {
@@ -257,7 +304,114 @@ describe('ChromePresenter', () => {
     expect(ui.endRunCopyStatus).toBe('');
     expect(ui.endRunRecords).toBe(records);
   });
+
+  describe('item pickup overlay', () => {
+    it('skips gold (no card)', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      presenter.showItemPickup({ x: 1, y: 1, symbol: '$', color: '#ff0', type: 'gold', amount: 5 });
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).toBeNull();
+    });
+
+    it('projects a gear pickup (art, rarity color, stat label, corner)', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      presenter.showItemPickup(gearItem());
+      presenter.publishMap(blankSnapshot());
+
+      expect(ui.itemPickup).toMatchObject({
+        kind: 'gear',
+        name: 'Jeweled Sword',
+        artUrl: '/inventory/jeweled-sword.png',
+        rarityColor: 'var(--rarity-rare)',
+        statLabel: 'ATK 8',
+      });
+      expect(ui.itemPickup?.corner).toBeTruthy();
+      expect(ui.itemPickup?.sizePx).toBeGreaterThan(0);
+    });
+
+    it('projects a potion pickup', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      presenter.showItemPickup({
+        x: 1, y: 1, symbol: '!', color: '#0ff', type: 'potion', data: { potionType: 'healing' },
+      });
+      presenter.publishMap(blankSnapshot());
+
+      expect(ui.itemPickup).toMatchObject({
+        kind: 'potion',
+        name: 'Potion of Healing',
+        artUrl: '/inventory/potion-of-healing.png',
+      });
+    });
+
+    it('bumps the token when a newer pickup replaces the pending one', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      presenter.showItemPickup(gearItem({ name: 'Rusty Sword', dmg: 2 }));
+      presenter.publishMap(blankSnapshot());
+      const first = ui.itemPickup?.token;
+
+      presenter.showItemPickup(gearItem({ name: 'Jeweled Sword', dmg: 8 }));
+      presenter.publishMap(blankSnapshot());
+
+      expect(ui.itemPickup?.name).toBe('Jeweled Sword');
+      expect(ui.itemPickup?.token).toBeGreaterThan(first!);
+    });
+
+    it('dismisses once both the turn and elapsed-ms gates clear', () => {
+      const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+
+      ui.turn = 10;
+      presenter.showItemPickup(gearItem());
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).not.toBeNull();
+
+      // Enough turns, but not enough time → still showing.
+      ui.turn = 20;
+      now.mockReturnValue(1000);
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).not.toBeNull();
+
+      // Both gates cleared → dismissed.
+      now.mockReturnValue(4000);
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).toBeNull();
+    });
+
+    it('yields its corner to the combat portrait (never overlaps)', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      // A monster adjacent to the player forces a combat portrait; the pickup
+      // card must take a different corner.
+      const adjacent = monster({ x: 11, y: 10, name: 'Orc', hp: 5 });
+      const snapshot = blankSnapshot({ monsters: [adjacent] });
+
+      presenter.showItemPickup(gearItem());
+      presenter.publishMap(snapshot, monsterKeyOf(snapshot));
+
+      expect(ui.combatPortrait).not.toBeNull();
+      expect(ui.itemPickup).not.toBeNull();
+      expect(ui.itemPickup?.corner).not.toBe(ui.combatPortrait?.corner);
+    });
+
+    it('clears the card on a floor transition (does not linger onto the next floor)', () => {
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+      presenter.showItemPickup(gearItem());
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).not.toBeNull();
+
+      // The engine calls this at the floor-transition point (travelStairs /
+      // travelTrapdoor). The card must drop and stay gone on the next heartbeat.
+      presenter.clearItemPickup();
+      expect(ui.itemPickup).toBeNull();
+      presenter.publishMap(blankSnapshot());
+      expect(ui.itemPickup).toBeNull();
+    });
+  });
 });
+
+/** Pull the render key of the (single) monster in a snapshot, for combat focus. */
+function monsterKeyOf(snapshot: ReturnType<typeof createMapSnapshot>): string {
+  return snapshot.monsters[0].key;
+}
 
 function monster(overrides: Partial<Monster>): Monster {
   return {

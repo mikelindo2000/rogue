@@ -5,7 +5,7 @@
  * directly. GameUI owns focus selection (it needs live Monster identity) and
  * feeds plain grid data in here. */
 
-import type { CombatPortrait } from './store.svelte';
+import type { CombatPortrait, ItemPickupOverlay } from './store.svelte';
 import { TILE } from '../tiles';
 
 export type PortraitCorner = CombatPortrait['corner'];
@@ -27,6 +27,9 @@ export interface CornerPickInputs {
   rows: number;
   tileSize: number;
   sizePx: number;
+  /** When set, this corner is dropped from the candidate list so two overlays
+   *  (combat portrait + item card) never share a corner. */
+  excludeCorner?: PortraitCorner;
 }
 
 /** Pick a board corner whose oval footprint covers only empty tiles (unexplored
@@ -35,7 +38,7 @@ export interface CornerPickInputs {
  *  corner is blocked. A tile is "drawn map" when it is explored and not VOID —
  *  the same gate the paint loop uses. */
 export function pickPortraitCorner(input: CornerPickInputs): PortraitCorner | null {
-  const { map, explored, blockedTiles, playerX, playerY, cols, rows, tileSize, sizePx } = input;
+  const { map, explored, blockedTiles, playerX, playerY, cols, rows, tileSize, sizePx, excludeCorner } = input;
 
   // Footprint in tiles, plus a one-tile breathing margin. Clamped to the board
   // so the corner origins below can never go negative or out of bounds.
@@ -44,12 +47,14 @@ export function pickPortraitCorner(input: CornerPickInputs): PortraitCorner | nu
   const h = Math.min(span, rows);
 
   type Corner = { id: PortraitCorner; c0: number; r0: number; ax: number; ay: number };
-  const corners: Corner[] = [
-    { id: 'tl', c0: 0, r0: 0, ax: 0, ay: 0 },
-    { id: 'tr', c0: cols - w, r0: 0, ax: cols - 1, ay: 0 },
-    { id: 'bl', c0: 0, r0: rows - h, ax: 0, ay: rows - 1 },
-    { id: 'br', c0: cols - w, r0: rows - h, ax: cols - 1, ay: rows - 1 },
-  ];
+  const corners: Corner[] = (
+    [
+      { id: 'tl', c0: 0, r0: 0, ax: 0, ay: 0 },
+      { id: 'tr', c0: cols - w, r0: 0, ax: cols - 1, ay: 0 },
+      { id: 'bl', c0: 0, r0: rows - h, ax: 0, ay: rows - 1 },
+      { id: 'br', c0: cols - w, r0: rows - h, ax: cols - 1, ay: rows - 1 },
+    ] satisfies Corner[]
+  ).filter(corner => corner.id !== excludeCorner);
   // Farthest corner from the player first, so the portrait sits away from the
   // action when more than one corner is clear.
   corners.sort(
@@ -97,5 +102,27 @@ export function portraitsEqual(a: CombatPortrait | null, b: CombatPortrait | nul
     a.sizePx === b.sizePx &&
     a.hp === b.hp &&
     a.maxHp === b.maxHp
+  );
+}
+
+/** Structural equality for the item-pickup overlay change check, so the
+ *  syncOverlays heartbeat doesn't rewrite the store every projection. `token`
+ *  is the authoritative identity (a fresh pickup bumps it), with the projected
+ *  fields compared too in case only the corner shifts. */
+export function itemPickupsEqual(
+  a: ItemPickupOverlay | null,
+  b: ItemPickupOverlay | null
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.token === b.token &&
+    a.kind === b.kind &&
+    a.name === b.name &&
+    a.artUrl === b.artUrl &&
+    a.rarityColor === b.rarityColor &&
+    a.statLabel === b.statLabel &&
+    a.corner === b.corner &&
+    a.sizePx === b.sizePx
   );
 }

@@ -783,6 +783,8 @@ export class GameEngine {
     this.dungeonFloor++;
     recordStairs(this.stats, this.dungeonFloor, 1);
     this.addLog(`Dropped to Floor ${this.dungeonFloor}!`);
+    // A pickup card from the floor we're leaving must not linger onto the next.
+    this.presenter.clearItemPickup();
     this.loadFloorForTravel(1);
     this.presenter.updateDropdowns(this.player);
     this.updateUI();
@@ -1042,6 +1044,8 @@ export class GameEngine {
     // Log the transition before loading the floor, so any messages the
     // generator emits (e.g. the floor-20 boss announcement) read in order.
     this.addLog(`${delta > 0 ? 'Descended' : 'Ascended'} to Floor ${this.dungeonFloor}!`);
+    // A pickup card from the floor we're leaving must not linger onto the next.
+    this.presenter.clearItemPickup();
     this.loadFloorForTravel(delta);
     this.presenter.updateDropdowns(this.player);
     this.updateUI();
@@ -1439,6 +1443,10 @@ export class GameEngine {
         if (!isRun) {
           this.sound.emit({ type: 'item.pickup', kind });
         }
+        // Show the framed pickup card (gold is skipped inside showItemPickup).
+        // updateUI() above already published the current turn, so the overlay's
+        // lifetime stamps line up with ui.turn.
+        this.presenter.showItemPickup(item);
         return item;
       }
     }

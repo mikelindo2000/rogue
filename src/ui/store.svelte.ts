@@ -165,6 +165,23 @@ export interface CombatPortrait {
   sizePx: number; // oval diameter in CSS px
 }
 
+/** The framed card shown over the board when the player collects an item,
+ *  mirroring the combat portrait. Positioned in a board corner whose footprint is
+ *  clear of drawn map (and distinct from the combat portrait's corner), so it
+ *  never covers a room/corridor. Null when nothing was recently picked up (drives
+ *  fade-out). `token` is monotonic so a fresh pickup always swaps the card even
+ *  when the projected fields are identical. */
+export interface ItemPickupOverlay {
+  token: number; // monotonic; a newer pickup bumps it to force a swap
+  kind: 'gear' | 'wand' | 'potion' | 'scroll' | 'food';
+  name: string;
+  artUrl: string; // /inventory/${slug}.png
+  rarityColor: string; // CSS var, e.g. var(--rarity-rare); tints frame + name
+  statLabel?: string; // e.g. '+8 ATK' / '4 DEF'
+  corner: 'tl' | 'tr' | 'bl' | 'br';
+  sizePx: number; // card width in CSS px
+}
+
 export interface DebugMessage {
   id: string;
   text: string;
@@ -219,6 +236,8 @@ export interface UIState {
   nearbyMonster: NearbyMonster | null;
   /** The framed portrait of the monster currently being fought (null = idle). */
   combatPortrait: CombatPortrait | null;
+  /** The framed card of the item just collected (null = none recently). */
+  itemPickup: ItemPickupOverlay | null;
   /** Non-null while a wand is drawn and awaiting an aim direction. Drives the
    *  transient aiming prompt overlay. */
   aiming: { wandName: string } | null;
@@ -310,6 +329,7 @@ export const ui = $state<UIState>({
   stairsNearby: false,
   nearbyMonster: null,
   combatPortrait: null,
+  itemPickup: null,
   aiming: null,
   gameOver: false,
   gameWon: false,
