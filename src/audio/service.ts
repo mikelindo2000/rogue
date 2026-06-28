@@ -11,6 +11,7 @@
 import type { SoundEvent, SoundSink } from './events';
 import { AUDIO_BASE, SOUND_ASSETS, resolveCue, type SoundAsset } from './manifest';
 import { ensureAudioContext } from './context';
+import { withAssetDecodeDiagnostics } from '../assets/diagnostics';
 
 export interface AudioServiceConfig {
   muted: boolean;
@@ -338,7 +339,10 @@ export class AudioService implements SoundSink {
         const res = await fetch(AUDIO_BASE + file);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.arrayBuffer();
-        const buf = await ctx.decodeAudioData(data);
+        const buf = await withAssetDecodeDiagnostics(
+          { kind: 'audio', url: AUDIO_BASE + file, id: file, owner: 'audio-service', category: 'sfx' },
+          () => ctx.decodeAudioData(data),
+        );
         this.buffers.set(file, buf);
         return buf;
       } catch (err) {

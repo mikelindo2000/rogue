@@ -28,6 +28,7 @@ All notable changes to this project will be documented in this file.
   - Documented presentation ownership boundaries and tightened mapper, mode handoff, and renderer lifecycle test coverage.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
+  - Added development-only asset readiness diagnostics and baseline readiness budgets.
 
 ### Changed
 - **Developer Workflow**:
