@@ -25,6 +25,9 @@ All notable changes to this project will be documented in this file.
 - Added a small `GameEngine` command transaction helper and migrated food
   consumption through it so sleep/stun gates, turn spend, and UI publication are
   declared in one place for that command path.
+- Refreshed subsystem architecture docs and stale comments for the shipped
+  presentation split, sound system, active effects, debug controls, and current
+  inventory identity boundary.
 - Sound assets now **preload by default** after the audio context unlocks, so a newly added cue is ready on first play; only the bulk per-monster death cascade opts out (`preload: false`) to avoid eager-loading dozens of clips that may never play in a run.
 - Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
 

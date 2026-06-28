@@ -1,6 +1,8 @@
 # Sound Effects System — Plan
 
-Status: **proposed** (design only — implementation deferred pending review)
+Status: **implemented foundation** (runtime boundary, manifest, settings,
+debug tooling, and shipped local assets are in place; this document remains the
+architecture reference for future cues)
 Date: 2026-06-22
 
 ## Goal

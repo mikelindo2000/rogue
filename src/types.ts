@@ -260,10 +260,12 @@ export interface StatusEffects {
 
 /** The persistent player-effect kinds a monster ability can inflict — the spine
  *  the sheet's "Ability" columns translate into (see
- *  design/planning/monster_abilities_framework_plan.md). Only `dot` is wired
- *  today (Brown Bat poison); the rest are the schema the engine grows into one
- *  read site at a time. Distinct from StatusEffects (buffs) and TrapEffects
- *  (legacy debuff timers, which coexist additively). */
+ *  design/planning/monster_abilities_framework_plan.md). These are currently
+ *  wired through `applyEffect`/`tickPlayerEffects` plus effect-specific read
+ *  sites such as stun turn gating, fear movement, miss chance, magic silence,
+ *  attack/armor debuffs, weapon debuffs, and DoT damage. Distinct from
+ *  StatusEffects (buffs) and TrapEffects (legacy trap timers, which coexist
+ *  additively). */
 export type EffectKind =
   | 'dot'
   | 'stun'

@@ -151,22 +151,9 @@ export function buildDevControls(ctx: DevToolsContext = {}): DevControl[] {
     });
   }
 
-  // SEAM — engine-backed controls go here once a live engine is threaded into
-  // DebugPanel. Shape stays one entry; e.g. a "jump to level" action:
-  //
-  //   const engine = _ctx.engine as GameEngine | undefined;
-  //   if (engine) {
-  //     controls.push({
-  //       kind: 'action',
-  //       id: 'jump-to-level',
-  //       label: 'Descend a floor',
-  //       description: 'Generate and drop the player onto the next floor.',
-  //       run: () => engine.debugDescend(),
-  //     });
-  //   }
-  //
-  // TODO: thread the live GameEngine/ui into DebugPanel (it currently takes no
-  // props) and pass them here as { engine, ui } to unlock engine-backed controls.
+  // SEAM — engine/UI-backed controls are passed as explicit callbacks in `ctx`
+  // and appended here as registry entries. Keep new debug affordances on this
+  // seam instead of reaching for one-off Svelte buttons or window-only helpers.
 
   return controls;
 }
