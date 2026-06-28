@@ -1648,6 +1648,55 @@ describe('GameEngine inventory commands', () => {
     expect(engine.logs).toContain('You have no food to eat!');
   });
 
+  it('refreshes inventory and stats when eating through the command transaction helper', () => {
+    const sound = new RecordingSink();
+    const publishInventory = vi.fn();
+    const publishStats = vi.fn();
+    const engine = makeRunner(sound, makePresenter({ publishInventory, publishStats }));
+    engine.player.inventory.food = 1;
+    engine.player.hunger = 10;
+
+    const used = engine.consumeFood();
+
+    expect(used).toBe(true);
+    expect(engine.player.inventory.food).toBe(0);
+    expect(engine.logs).toContain('Ate rations. Hunger restored.');
+    expect(publishInventory).toHaveBeenCalledWith({ player: engine.player });
+    expect(publishStats).toHaveBeenCalled();
+    expect(sound.ofType('item.consume')).toEqual([expect.objectContaining({ kind: 'food' })]);
+  });
+
+  it('does not spend a turn or refresh inventory for a stale food command', () => {
+    const publishInventory = vi.fn();
+    const engine = makeRunner(undefined, makePresenter({ publishInventory }));
+    engine.player.inventory.food = 0;
+    const turnBefore = engine.turn;
+
+    const used = engine.consumeFood();
+
+    expect(used).toBe(false);
+    expect(engine.turn).toBe(turnBefore);
+    expect(publishInventory).not.toHaveBeenCalled();
+    expect(engine.logs).toContain('You have no food to eat!');
+  });
+
+  it('sleep and stun gates swallow eat commands before food mutates', () => {
+    const engine = makeRunner();
+    engine.player.inventory.food = 1;
+    engine.player.hunger = 10;
+    engine.trapEffects.sleepTurns = 1;
+
+    expect(engine.consumeFood()).toBe(false);
+    expect(engine.player.inventory.food).toBe(1);
+    expect(engine.player.hunger).toBe(9);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+
+    engine.player.activeEffects = [{ kind: 'stun', turns: 1, magnitude: 1, source: 'Cyclops' }];
+    expect(engine.consumeFood()).toBe(false);
+    expect(engine.player.inventory.food).toBe(1);
+    expect(engine.player.activeEffects.some(effect => effect.kind === 'stun')).toBe(false);
+  });
+
   it('can equip an inventory dagger into off-hand through explicit action', () => {
     const engine = new GameEngine(makePresenter());
     engine.player.inventory.weapons.push({ name: 'Steel Dagger', type: 'dagger', dmg: 3, rarity: 'common' });

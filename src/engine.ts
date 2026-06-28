@@ -79,6 +79,11 @@ import {
 const AMULET_REGENERATES_ASCENT = true;
 const STOLEN_LOOT_RECOVERY_CHANCE = 2 / 3;
 
+type CommandResult =
+  | { kind: 'no-turn' }
+  | { kind: 'spent-turn'; inventory?: boolean; stats?: boolean }
+  | { kind: 'invalid'; refreshInventory?: boolean; stats?: boolean };
+
 /** Convert a carried gear item into a floor-ready gear payload. `category` must
  *  survive the round-trip so re-pickup routes the item back to the right bucket
  *  (weapon type for weapons, slot name for armor, 'shield' for shields); the
@@ -191,6 +196,25 @@ export class GameEngine {
 
   private publishPresentationEvent(event: PresentationEvent): void {
     this.presenter.publishEvent(event);
+  }
+
+  private runCommand(command: () => CommandResult): boolean {
+    if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
+
+    const result = command();
+    if (result.kind === 'no-turn') return false;
+
+    if (result.kind === 'invalid') {
+      if (result.refreshInventory) this.presenter.publishInventory({ player: this.player });
+      if (result.stats) this.updateUI();
+      return false;
+    }
+
+    if (result.inventory) this.presenter.publishInventory({ player: this.player });
+    if (result.stats) this.updateUI();
+    this.processTurn();
+    return true;
   }
 
   constructor(presenter: GamePresenter, sound: SoundSink = noopSink) {
@@ -2342,9 +2366,12 @@ export class GameEngine {
   }
 
   public consumeFood(): boolean {
-    if (this.takeSleepTurn()) return false;
-    if (this.takeStunTurn()) return false;
-    if (this.player.inventory.food > 0) {
+    return this.runCommand(() => {
+      if (this.player.inventory.food <= 0) {
+        this.addLog("You have no food to eat!");
+        return { kind: 'invalid' };
+      }
+
       this.player.inventory.food--;
       if (this.player.undeadFoods > 0) {
         this.player.undeadFoods--;
@@ -2356,13 +2383,8 @@ export class GameEngine {
       }
       this.sound.emit({ type: 'item.consume', kind: 'food' });
       recordFoodEaten(this.stats);
-      this.updateUI();
-      this.processTurn();
-      return true;
-    } else {
-      this.addLog("You have no food to eat!");
-      return false;
-    }
+      return { kind: 'spent-turn', inventory: true, stats: true };
+    });
   }
 
   public equipGear(slot: EquipSlot, value: string) {
