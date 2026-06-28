@@ -1,6 +1,8 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import type { CombatPortrait } from '../store.svelte';
+  import { assetReadinessService, type AssetReadinessHandle } from '../../assets/readiness';
+  import { combatPortraitArtUrlForReadiness } from '../../assets/imageLoadPlans';
 
   let { portrait }: { portrait: CombatPortrait } = $props();
 
@@ -9,10 +11,25 @@
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const dur = reduce ? 0 : 280;
 
-  const artUrl = $derived(`/bestiary/${portrait.id}.png`);
+  const artUrl = $derived(combatPortraitArtUrlForReadiness(portrait) ?? '');
   const hpRatio = $derived(
     portrait.maxHp > 0 ? Math.max(0, Math.min(1, portrait.hp / portrait.maxHp)) : 0
   );
+
+  $effect(() => {
+    if (!artUrl) return;
+    const handle: AssetReadinessHandle = assetReadinessService.requestImage({
+      kind: 'image',
+      url: artUrl,
+      priority: 'critical-now',
+      reason: 'current combat target portrait',
+      owner: 'monster-portrait',
+      optional: true,
+      isStale: () => combatPortraitArtUrlForReadiness(portrait) !== artUrl,
+    });
+
+    return () => handle.cancel();
+  });
 </script>
 
 <!-- Anchored to a corner of the board canvas (this lives inside .map-viewport,

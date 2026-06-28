@@ -9,6 +9,7 @@
  */
 import { ensureAudioContext } from './context';
 import { AUDIO_BASE, MUSIC_TRACKS, type MusicContextId } from './manifest';
+import { withAssetDecodeDiagnostics } from '../assets/diagnostics';
 
 export interface MusicConfig {
   muted: boolean;
@@ -243,7 +244,10 @@ export class MusicService {
         const res = await fetch(AUDIO_BASE + file);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.arrayBuffer();
-        const buf = await ctx.decodeAudioData(data);
+        const buf = await withAssetDecodeDiagnostics(
+          { kind: 'audio', url: AUDIO_BASE + file, id: file, owner: 'music-service', category: 'music' },
+          () => ctx.decodeAudioData(data),
+        );
         this.buffers.set(file, buf);
         return buf;
       } catch (err) {

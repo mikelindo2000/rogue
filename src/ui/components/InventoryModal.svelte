@@ -8,6 +8,8 @@
   import DurabilityBar from './primitives/DurabilityBar.svelte';
   import UpgradeBadge from './primitives/UpgradeBadge.svelte';
   import InventoryComparePanel from './InventoryComparePanel.svelte';
+  import { assetReadinessService, type AssetReadinessHandle } from '../../assets/readiness';
+  import { uniqueImageUrls } from '../../assets/imageLoadPlans';
 
   // The loadout hub is a three-column, keyboard-first screen:
   //   spine (equip slots + pack categories) | candidates | detail/compare.
@@ -97,6 +99,13 @@
   // backdrop, the same treatment the previous modal used.
   const selectedArt = $derived(
     selected?.kind === 'cell' ? selected.cell.artUrl : selected?.kind === 'equipped' ? selected.view.artUrl : ''
+  );
+
+  const visibleArtUrls = $derived(
+    uniqueImageUrls([
+      selectedArt,
+      ...entries.map((entry) => entry.kind === 'cell' ? entry.cell.artUrl : entry.view.artUrl),
+    ])
   );
 
   function groupKeyForRef(ref: InventoryRef): string {
@@ -393,6 +402,26 @@
     const onKey = (e: KeyboardEvent) => handleKeyboard(e);
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
+  });
+
+  $effect(() => {
+    if (!ui.inventoryOpen) return;
+    const urls = visibleArtUrls;
+    const handles: AssetReadinessHandle[] = urls.map(url =>
+      assetReadinessService.requestImage({
+        kind: 'image',
+        url,
+        priority: 'critical-now',
+        reason: 'visible inventory modal art',
+        owner: 'inventory-modal',
+        optional: true,
+        isStale: () => !ui.inventoryOpen || !visibleArtUrls.includes(url),
+      }),
+    );
+
+    return () => {
+      for (const handle of handles) handle.cancel();
+    };
   });
 </script>
 

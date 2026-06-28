@@ -33,8 +33,15 @@ All notable changes to this project will be documented in this file.
   - Documented presentation ownership boundaries and tightened mapper, mode handoff, and renderer lifecycle test coverage.
 - **Assets**:
   - Refined the asset readiness pipeline plan.
+  - Added development-only asset readiness diagnostics and baseline readiness budgets.
+  - Added a browser-only `AssetReadinessService` image queue with dedupe, priority promotion, bounded decoded-image caching, and stale prediction handling.
+  - Warmed current and likely next floor stage backgrounds/chrome overlays through the asset readiness queue, with floor background swaps waiting up to 180 ms for decode before crossfading.
+  - Warmed carried inventory/equipment art after HUD updates and promoted visible inventory modal art plus active combat portraits through the asset readiness queue.
+  - Warmed only the selected opening end-run artwork as critical readiness, with a 220 ms fallback cap that preserves lazy monster-specific death variants.
 
 ### Changed
+- **Developer Workflow**:
+  - Added worktree bootstrap guardrails so new/dev worktree scripts validate the active `v3` project base and diagnose detached, root-commit, or wrong-base checkouts before serving.
 - **Dungeon View**:
   - Reverted the drop shadow effect on the map canvas.
 - **Audio**:
@@ -43,8 +50,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Fixed review findings in the effect-kinds layer.
+- Kept rare-tier asset readiness requests lazy instead of scheduling them through the idle loader.
 - Applied the initial reduced-motion preference before mounting the ASCII map renderer.
 - Preserved the ASCII map renderer receiver when dispatching player-run and death-transition extras.
+- Fixed CenterStage asset-readiness helper signatures so the Vite/Svelte build parser accepts them.
+- Allowed worktree dev servers to start from feature branches created before the latest `v3` tip, while still warning that a rebase may be needed before merge.
 
 ---
 
