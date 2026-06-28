@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [2026-06-27]
 
 ### Added
+- **Boss-Fight Intensity**:
+  - Added boss-encounter FX that escalate with the fight: a crimson "dread" tension vignette and a slow map-plane sway whose strength ramps from a baseline up to a peak as the boss is worn down (with an extra enrage bump in the final quarter).
+  - Added a boss health rail + name banner that slides in on engage, with `ENRAGED`/`FRENZIED` phase labels and a frame that pulses harder each phase.
+  - Generated boss sound stingers via ElevenLabs (encounter, phase-change roar, defeat boom, and a dread heartbeat throb), layered over the existing boss music bed; added `scripts/gen-boss-sfx.mjs`.
+  - Added a stateful `BossEncounterTracker` driving the cue lifecycle and phase jolts, with shared phase/intensity math in `src/boss.ts`.
+  - Added `Spawn boss` / `Spawn frenzied boss` Dev-tab actions (and a `window.rogueSpawnBoss` helper) to exercise the FX without descending to floor 20.
 - **Sound Debug Overlay & Dev Toggle**:
   - Introduced a floating, beautiful debug log overlay displaying the names of sound cues as they are played, themed to match the game's dark aesthetic.
   - Added a "Show sound debug overlay" toggle setting inside the Dev tab (third tab) of the dev panel (`Command-B`).
@@ -42,6 +48,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Developer Workflow**:
   - Added worktree bootstrap guardrails so new/dev worktree scripts validate the active `v3` project base and diagnose detached, root-commit, or wrong-base checkouts before serving.
+  - Renamed the dev "Balance panel" to the **Debug panel** (`Command-B`); the balance reports stay as its Per-monster/Full-run tabs alongside the Dev tab. Documented in `AGENTS.md` that manual test/debug affordances belong here.
+- **Boss HUD**:
+  - The default nearby-monster tooltip now yields to the boss banner during a boss fight, so the two no longer overlap — the banner carries the same boss name and current/max HP in the boss style.
 - **Dungeon View**:
   - Reverted the drop shadow effect on the map canvas.
 - **Audio**:
