@@ -1,7 +1,8 @@
 <script lang="ts">
   import { ui, actions } from '../store.svelte';
-  import { pickFallbackEndRunArt, pickOpeningEndRunArt } from '../endRunArt';
   import { buildEndRunView, type EndRunStat } from '../endRunView';
+  import { assetReadinessService, type AssetReadinessHandle } from '../../assets/readiness';
+  import { END_RUN_ART_READY_WAIT_MS, endRunArtReadinessPlan } from '../../assets/imageLoadPlans';
   import KeyCap from './primitives/KeyCap.svelte';
   import HowToPlay from './HowToPlay.svelte';
 
@@ -40,7 +41,7 @@
   let clearButton = $state<HTMLButtonElement | null>(null);
   let confirmClearButton = $state<HTMLButtonElement | null>(null);
   let creditRollKey = $state(0);
-  let selectedArtFile = $state<string | null>(null);
+  let selectedArtKey: string | null = null;
   let renderedArtUrl = $state<string | null>(null);
 
   const summary = $derived(ui.endRunSummary);
@@ -50,7 +51,8 @@
       : null
   );
   const isOpen = $derived(!!summary && (ui.gameOver || ui.gameWon) && ui.endRunPresentationReady);
-  const endArt = $derived(summary ? pickOpeningEndRunArt(summary) : null);
+  const artPlan = $derived(summary ? endRunArtReadinessPlan(summary) : null);
+  const endArt = $derived(artPlan?.selected ?? null);
   const activeIndex = $derived(TABS.findIndex(t => t.id === activeTab));
   const activeStats: EndRunStat[] = $derived(
     !view ? [] :
@@ -79,15 +81,38 @@
   });
 
   $effect(() => {
-    if (!endArt) {
-      selectedArtFile = null;
+    if (!summary || !artPlan) {
+      selectedArtKey = null;
       renderedArtUrl = null;
       return;
     }
-    if (selectedArtFile !== endArt.file) {
-      selectedArtFile = endArt.file;
-      renderedArtUrl = endArt.url;
-    }
+
+    const key = `${summary.runId}:${artPlan.selected.file}`;
+    if (selectedArtKey === key) return;
+
+    selectedArtKey = key;
+    renderedArtUrl = null;
+
+    const handle: AssetReadinessHandle = assetReadinessService.requestImage({
+      kind: 'image',
+      url: artPlan.selected.url,
+      priority: 'critical-now',
+      reason: 'opening end-run art',
+      owner: 'end-run-screen',
+      optional: true,
+      isStale: () => ui.endRunSummary?.runId !== summary.runId,
+    });
+    let canceled = false;
+
+    void handle.whenReady(END_RUN_ART_READY_WAIT_MS).then((ready) => {
+      if (canceled || selectedArtKey !== key) return;
+      renderedArtUrl = ready ? artPlan.selected.url : artPlan.fallback.url;
+    });
+
+    return () => {
+      canceled = true;
+      handle.cancel();
+    };
   });
 
   function selectTab(id: TabId) {
@@ -108,10 +133,9 @@
   }
 
   function handleArtError() {
-    if (!summary) return;
-    const fallback = pickFallbackEndRunArt(summary);
-    if (renderedArtUrl !== fallback.url) {
-      renderedArtUrl = fallback.url;
+    if (!artPlan) return;
+    if (renderedArtUrl !== artPlan.fallback.url) {
+      renderedArtUrl = artPlan.fallback.url;
     }
   }
 
@@ -192,7 +216,9 @@
           aria-label="Close ending image and show run statistics"
           onclick={closeArt}
         >
-          <img src={renderedArtUrl ?? endArt.url} alt="" onerror={handleArtError} />
+          {#if renderedArtUrl}
+            <img src={renderedArtUrl} alt="" onerror={handleArtError} />
+          {/if}
           <span class="art-shade"></span>
           <span class="art-copy">
             <span class="eyebrow">{view.outcomeLabel}</span>

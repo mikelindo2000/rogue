@@ -10,9 +10,12 @@ import { mount, unmount, flushSync, tick } from 'svelte';
 import InventoryModal from './InventoryModal.svelte';
 import { ui, actions, type InventoryCell, type EquipSlotView } from '../store.svelte';
 import type { InventoryAction, InventoryRef } from '../../types';
+import { assetReadinessService, type AssetReadinessRequest } from '../../assets/readiness';
 
 const SCROLL_REF: InventoryRef = { kind: 'scroll', scrollType: 'light' };
 const ARMOR_REF: InventoryRef = { kind: 'armor', slot: 'chest', index: 1 };
+const SCROLL_ART = '/inventory/scroll-of-light.png';
+const ARMOR_ART = '/inventory/platemail.png';
 
 function scrollCell(): InventoryCell {
   return {
@@ -64,6 +67,18 @@ function betterChestCell(): InventoryCell {
       { action: 'drop', label: 'Drop' },
     ],
   };
+}
+
+function artScrollCell(): InventoryCell {
+  return { ...scrollCell(), artUrl: SCROLL_ART };
+}
+
+function artChestSlot(): EquipSlotView {
+  return { ...chestSlot(), artUrl: '/inventory/tattered-rags.png' };
+}
+
+function artBetterChestCell(): InventoryCell {
+  return { ...betterChestCell(), artUrl: ARMOR_ART };
 }
 
 let host: ReturnType<typeof mount> | null = null;
@@ -493,5 +508,61 @@ describe('loadout hub — keyboard navigation and focus highlighting', () => {
 
     // Verifies it targeted Row 0 (Chest) on the second open instead of Row 1 (Head)
     expect(document.activeElement).toBe(newSpineRows[0]);
+  });
+});
+
+describe('loadout hub — art readiness', () => {
+  it('promotes visible modal art without moving keyboard focus', async () => {
+    const requestImage = vi.spyOn(assetReadinessService, 'requestImage').mockImplementation((request: AssetReadinessRequest) => ({
+      url: request.url,
+      cancel: vi.fn(),
+      snapshot: () => ({
+        kind: 'image',
+        url: request.url,
+        state: 'queued',
+        priority: request.priority,
+        reason: request.reason,
+        owner: request.owner,
+        optional: request.optional,
+      }),
+      whenReady: () => Promise.resolve(false),
+    }));
+
+    openHub({ items: [artScrollCell()] });
+    await tick();
+    await tick();
+    flushSync();
+
+    const row = candidateRow();
+    expect(document.activeElement).toBe(row);
+    expect(requestImage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'image',
+      url: SCROLL_ART,
+      priority: 'critical-now',
+      reason: 'visible inventory modal art',
+      owner: 'inventory-modal',
+      optional: true,
+    }));
+    expect(document.querySelector('.detail.has-art')).not.toBeNull();
+    expect(row.textContent).toContain('Scroll of Light');
+  });
+
+  it('keeps promotion scoped to the visible slot group instead of the full pack', async () => {
+    const requestImage = vi.spyOn(assetReadinessService, 'requestImage').mockImplementation((request: AssetReadinessRequest) => ({
+      url: request.url,
+      cancel: vi.fn(),
+      snapshot: () => ({ kind: 'image', url: request.url, state: 'queued', priority: request.priority }),
+      whenReady: () => Promise.resolve(false),
+    }));
+
+    openHub({ items: [artBetterChestCell(), artScrollCell()], equipment: [artChestSlot()] });
+    await tick();
+    await tick();
+    flushSync();
+
+    const requestedUrls = requestImage.mock.calls.map(([request]) => request.url);
+    expect(requestedUrls).toContain(ARMOR_ART);
+    expect(requestedUrls).toContain('/inventory/tattered-rags.png');
+    expect(requestedUrls).not.toContain(SCROLL_ART);
   });
 });

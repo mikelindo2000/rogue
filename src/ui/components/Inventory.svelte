@@ -2,6 +2,8 @@
   import { ui, actions, type InventoryCell } from '../store.svelte';
   import SectionLabel from './primitives/SectionLabel.svelte';
   import ItemSlot from './ItemSlot.svelte';
+  import { assetReadinessService, type AssetReadinessHandle } from '../../assets/readiness';
+  import { inventoryArtUrlsForReadiness } from '../../assets/imageLoadPlans';
 
   // Render every carried item, not just the first inventoryMax. The pack has no
   // real capacity cap (only food is limited), so we draw one cell per item and
@@ -16,6 +18,25 @@
     actions.selectInventoryItem(cell.ref);
     actions.setInventoryOpen(true);
   }
+
+  $effect(() => {
+    const urls = inventoryArtUrlsForReadiness(ui.inventoryItems, ui.equipment);
+    const handles: AssetReadinessHandle[] = urls.map(url =>
+      assetReadinessService.requestImage({
+        kind: 'image',
+        url,
+        priority: 'soon',
+        reason: 'carried inventory/equipment art',
+        owner: 'inventory-hud',
+        optional: true,
+        isStale: () => !inventoryArtUrlsForReadiness(ui.inventoryItems, ui.equipment).includes(url),
+      }),
+    );
+
+    return () => {
+      for (const handle of handles) handle.cancel();
+    };
+  });
 </script>
 
 <section class="inventory">
