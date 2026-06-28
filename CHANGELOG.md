@@ -49,6 +49,7 @@ All notable changes to this project will be documented in this file.
 - Applied the initial reduced-motion preference before mounting the ASCII map renderer.
 - Preserved the ASCII map renderer receiver when dispatching player-run and death-transition extras.
 - Fixed CenterStage asset-readiness helper signatures so the Vite/Svelte build parser accepts them.
+- Allowed worktree dev servers to start from feature branches created before the latest `v3` tip, while still warning that a rebase may be needed before merge.
 
 ---
 

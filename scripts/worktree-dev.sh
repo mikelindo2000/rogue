@@ -70,9 +70,16 @@ validate_project_base() {
     die "checkout is at a root commit, not the active project branch '$ACTIVE_BASE_BRANCH'"
   fi
 
-  if ! git merge-base --is-ancestor "$active_commit" "$head_commit"; then
+  local merge_base
+  merge_base="$(git merge-base "$active_commit" "$head_commit" 2>/dev/null || true)"
+  if [[ -z "$merge_base" || "$(is_root_commit "$merge_base"; echo $?)" == "0" ]]; then
     print_checkout_help
-    die "branch '$BRANCH' is not based on active project branch '$ACTIVE_BASE_BRANCH'"
+    die "branch '$BRANCH' does not share a non-root base with active project branch '$ACTIVE_BASE_BRANCH'"
+  fi
+
+  if ! git merge-base --is-ancestor "$active_commit" "$head_commit"; then
+    echo "warning: '$ACTIVE_BASE_BRANCH' has advanced since '$BRANCH' branched." >&2
+    echo "         Continue for local dev; rebase onto '$ACTIVE_BASE_BRANCH' before merge if needed." >&2
   fi
 }
 

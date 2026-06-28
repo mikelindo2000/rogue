@@ -34,10 +34,12 @@ root and the asset globs — keep them siblings.
 ## The three things that bite, and how the scripts handle them
 
 1. **Wrong base branch.** The active project branch is `v3`. Worktrees should be
-   created from `v3` or from a branch that already descends from `v3`. The helper
-   scripts validate that base before creating or serving a worktree, and they
-   stop with a recovery hint if the checkout is detached, at a root commit, or
-   from an older project branch.
+   created from `v3` or from a branch that already descends from a recent `v3`.
+   The helper scripts validate that base before creating or serving a worktree,
+   and they stop with a recovery hint if the checkout is detached, at a root
+   commit, or unrelated to the active project branch. If `v3` advances after
+   your feature branch was created, `scripts/worktree-dev.sh` warns but still
+   starts; rebase before merge when you need the newest `v3` changes.
 
 2. **Port collisions.** `vite.config.ts` pins port `3000` with `strictPort: true`,
    so a second dev server can't fall back to another port on its own — it just
@@ -55,8 +57,9 @@ root and the asset globs — keep them siblings.
 
 - **`scripts/worktree-dev.sh [port]`** — start the dev server for the current
   checkout (works in the main checkout too) after verifying it is on a branch
-  based on `v3`. Auto-picks a free port, or takes an explicit one. Installs deps
-  if missing. `HOST=0.0.0.0 scripts/worktree-dev.sh` exposes it on the network.
+  related to `v3`. Auto-picks a free port, or takes an explicit one. Installs
+  deps if missing. `HOST=0.0.0.0 scripts/worktree-dev.sh` exposes it on the
+  network.
 - **`scripts/worktree-new.sh <branch> [base]`** — create a new branch + sibling
   worktree (base defaults to `v3`) and print the next steps. Override the active
   base only for future branch migrations with `ROGUE_WORKTREE_BASE=<branch>`.
@@ -79,8 +82,8 @@ You can also pass the base explicitly:
 scripts/worktree-new.sh my-feature v3
 ```
 
-If a worktree opens detached, at the initial/root commit, or on a branch that is
-not descended from `v3`, do not start development there. Either create a fresh
+If a worktree opens detached, at the initial/root commit, or on a branch
+unrelated to `v3`, do not start development there. Either create a fresh
 worktree from `v3`, or move the branch onto `v3` if it contains work you need:
 
 ```bash
