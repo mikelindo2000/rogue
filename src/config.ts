@@ -17,6 +17,7 @@ export interface TunableConfig {
    *  rates). Crank it up to witness the rare 3%/1% abilities on demand; it does
    *  not change real play at the default of 1. */
   abilityProcMultiplier: number;
+  showSoundDebug: boolean;
 }
 
 export const DEFAULT_TUNABLES: TunableConfig = {
@@ -32,7 +33,8 @@ export const DEFAULT_TUNABLES: TunableConfig = {
   xpMultiplier: 1.0,
   hungerMax: 800,
   foodHungerRestore: 300,
-  abilityProcMultiplier: 1
+  abilityProcMultiplier: 1,
+  showSoundDebug: false
 };
 
 /**

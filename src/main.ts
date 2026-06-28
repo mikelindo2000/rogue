@@ -25,6 +25,7 @@ import { selectMusicContext } from './audio/director';
 document.addEventListener('DOMContentLoaded', () => {
   // Load configuration tunables first.
   loadConfig();
+  ui.showSoundDebug = getConfig().showSoundDebug ?? false;
 
   // Mount the Svelte chrome so the canvas (#gameCanvas) exists before the
   // engine binds to it.

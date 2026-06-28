@@ -2320,6 +2320,7 @@ describe('GameEngine delayed pickup sounds in run mode', () => {
     
     expect(runEmit).toBeDefined();
     expect(pickupEmit).toBeDefined();
+    if (!runEmit || !pickupEmit) throw new Error('Expected runEmit and pickupEmit');
     
     // steps should be runPath.length - 1
     const steps = runEmit[0].steps;

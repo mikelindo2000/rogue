@@ -15,6 +15,7 @@
 // the bottom of buildDevControls().
 
 import { getConfig, saveConfig } from '../config';
+import { ui } from './store.svelte';
 
 /** A stateful toggle: the panel reads `isActive()` to render its on/off state
  *  and calls `setActive()` on click. */
@@ -91,6 +92,17 @@ export function buildDevControls(_ctx: DevToolsContext = {}): DevControl[] {
         `3%/1% abilities fire on demand. Off = sheet rates (1×).`,
       isActive: () => getProcMultiplier() > 1,
       setActive: (on) => setProcMultiplier(on ? PROC_BOOST_MULTIPLIER : 1),
+    },
+    {
+      kind: 'toggle',
+      id: 'show-sounds',
+      label: 'Show sound debug overlay',
+      description: 'Render a floating overlay on the left-hand side showing each sound asset played.',
+      isActive: () => getConfig().showSoundDebug,
+      setActive: (on) => {
+        saveConfig({ ...getConfig(), showSoundDebug: on });
+        ui.showSoundDebug = on;
+      },
     },
   ];
 

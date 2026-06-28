@@ -4,6 +4,7 @@
   import MonsterPortrait from './MonsterPortrait.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
+  import DebugLogOverlay from './DebugLogOverlay.svelte';
   import { getDungeonStyle } from '../../theme';
   import { backgroundUrl, createFloorBackgroundPicker } from '../backgrounds';
 
@@ -123,6 +124,8 @@
       <span class="aim-hint">Choose a direction — WASD / Arrows · Esc to cancel</span>
     </div>
   {/if}
+
+  <DebugLogOverlay />
 
   <EndRunScreen />
 </div>

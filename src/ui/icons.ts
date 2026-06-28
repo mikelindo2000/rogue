@@ -25,7 +25,8 @@ export type CoreIconName =
   | 'pouch'
   | 'sliders' // settings
   | 'volume' // sound on
-  | 'mute'; // sound off
+  | 'mute' // sound off
+  | 'copy'; // copy to clipboard
 
 const CORE_ICONS: Record<CoreIconName, string> = {
   coin: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.8 10h3.4a1.6 1.6 0 010 3.2H10"/>',
@@ -46,6 +47,7 @@ const CORE_ICONS: Record<CoreIconName, string> = {
     '<path d="M4 7h9"/><circle cx="16" cy="7" r="2"/><path d="M18 7h2"/><path d="M4 12h2"/><circle cx="8" cy="12" r="2"/><path d="M10 12h10"/><path d="M4 17h11"/><circle cx="17" cy="17" r="2"/><path d="M19 17h1"/>',
   volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5a4 4 0 010 5"/><path d="M18.5 7a7 7 0 010 10"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
 };
 
 const bottle = '<path d="M9 3h6M10 3v5l-4 9a1.8 1.8 0 001.7 2.5h8.6A1.8 1.8 0 0018 17l-4-9V3"/><path d="M7.5 14h9"/>';

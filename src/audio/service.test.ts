@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AudioService, createAudioService } from './service';
 import { __resetAudioContextForTest } from './context';
+import { ui } from '../ui/store.svelte';
 
 // In the test environment there is no Web Audio implementation, so the service
 // is an inert no-op. These tests cover the parts that must work regardless:
@@ -346,3 +347,91 @@ describe('AudioService unlock timing', () => {
     vi.useRealTimers();
   });
 });
+
+describe('AudioService sound logging', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    __resetAudioContextForTest();
+  });
+
+  it('populates ui.debugMessages when ui.showSoundDebug is true', () => {
+    ui.showSoundDebug = true;
+    ui.debugMessages = [];
+
+    class FakeAudio {
+      cloneNode() {
+        return {
+          play: async () => {},
+          onended: null,
+        };
+      }
+    }
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 0;
+      destination = {};
+      createGain() {
+        return {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn((dest) => dest),
+        };
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    audio.emit({ type: 'item.pickup', kind: 'gold' });
+
+    expect(ui.debugMessages).toHaveLength(1);
+    expect(ui.debugMessages[0].text).toBe('item-gold'); // resolved cue for gold pickup is item-gold
+  });
+
+  it('does not populate ui.debugMessages when ui.showSoundDebug is false', () => {
+    ui.showSoundDebug = false;
+    ui.debugMessages = [];
+
+    class FakeAudio {
+      cloneNode() {
+        return {
+          play: async () => {},
+          onended: null,
+        };
+      }
+    }
+    class FakeAudioContext {
+      state: AudioContextState = 'running';
+      currentTime = 0;
+      destination = {};
+      createGain() {
+        return {
+          gain: {
+            value: 1,
+            cancelScheduledValues: vi.fn(),
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn((dest) => dest),
+        };
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio);
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+
+    const audio = createAudioService({ muted: false, volume: 1 });
+    audio.unlock();
+
+    audio.emit({ type: 'item.pickup', kind: 'gold' });
+
+    expect(ui.debugMessages).toHaveLength(0);
+  });
+});
+

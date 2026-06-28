@@ -165,6 +165,12 @@ export interface CombatPortrait {
   sizePx: number; // oval diameter in CSS px
 }
 
+export interface DebugMessage {
+  id: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface UIState {
   // top bar
   floor: number;
@@ -264,6 +270,8 @@ export interface UIState {
   endRunComparison: RunRecordComparison | null;
   endRunHistory: RunSummaryV1[];
   endRunCopyStatus: string;
+  showSoundDebug: boolean;
+  debugMessages: DebugMessage[];
 }
 
 export const ui = $state<UIState>({
@@ -331,6 +339,8 @@ export const ui = $state<UIState>({
   endRunComparison: null,
   endRunHistory: [],
   endRunCopyStatus: '',
+  showSoundDebug: false,
+  debugMessages: [],
 });
 
 /** Action hooks the chrome calls; main.ts points these at the live engine. */

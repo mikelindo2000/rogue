@@ -11,6 +11,7 @@
 import type { SoundEvent, SoundSink } from './events';
 import { AUDIO_BASE, SOUND_ASSETS, resolveCue, type SoundAsset } from './manifest';
 import { ensureAudioContext } from './context';
+import { ui } from '../ui/store.svelte';
 
 export interface AudioServiceConfig {
   muted: boolean;
@@ -222,6 +223,17 @@ export class AudioService implements SoundSink {
     const last = this.lastPlayed.get(asset.id);
     if (last !== undefined && now - last < cooldown) return;
     if (this.activeVoices >= GLOBAL_MAX_VOICES) return;
+
+    if (ui.showSoundDebug) {
+      ui.debugMessages = [
+        ...ui.debugMessages,
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          text: asset.id,
+          timestamp: Date.now(),
+        },
+      ].slice(-20);
+    }
 
     const file = asset.variants.length === 1
       ? asset.variants[0]
