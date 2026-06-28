@@ -57,7 +57,7 @@ export class GameUiPresenterAdapter implements GamePresenter {
   }
 
   public publishStats(snapshot: HudSnapshot): void {
-    this.updateStats(
+    this.ui.updateStats(
       snapshot.player,
       snapshot.dungeonFloor,
       snapshot.statusEffects,
@@ -69,7 +69,7 @@ export class GameUiPresenterAdapter implements GamePresenter {
   }
 
   public publishInventory(snapshot: InventorySnapshot): void {
-    this.updateDropdowns(snapshot.player);
+    this.ui.updateDropdowns(snapshot.player);
   }
 
   public publishMap(snapshot: MapSnapshot): void {
@@ -140,14 +140,6 @@ export class GameUiPresenterAdapter implements GamePresenter {
         this.clearCombatFocusMonster(event.monsterKey);
         break;
     }
-  }
-
-  public updateStats(...args: Parameters<GameUI['updateStats']>): void {
-    this.ui.updateStats(...args);
-  }
-
-  public updateDropdowns(...args: Parameters<GameUI['updateDropdowns']>): void {
-    this.ui.updateDropdowns(...args);
   }
 
   public resetLog(): void {

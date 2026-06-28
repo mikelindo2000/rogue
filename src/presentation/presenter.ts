@@ -74,16 +74,6 @@ export interface GamePresenter {
   publishDiscovery(snapshot: DiscoverySnapshot): void;
   publishEvent(event: PresentationEvent): void;
 
-  updateStats(
-    player: Player,
-    dungeonFloor: number,
-    statusEffects: StatusEffects,
-    totalDef: number,
-    turn: number,
-    trapEffects: TrapEffects,
-    hasAmulet: boolean,
-  ): void;
-  updateDropdowns(player: Player): void;
   /** Show a framed card for an item the player just collected (gold is skipped).
    *  Lifetime is event-driven via the syncOverlays heartbeat — no render loop. */
   showItemPickup(item: Item): void;

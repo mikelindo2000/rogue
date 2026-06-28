@@ -1,24 +1,34 @@
 # Game UI Split Plan
 
+Status: partially shipped. Phases 1, 2, most of 3, and the renderer/chrome
+extraction portions of phases 5 and 6 are implemented. The remaining work is
+cleanup and continued thinning of the compatibility facade, not the original
+engine-to-`GameUI` split.
+
 ## Current Situation
 
-`GameEngine` currently depends on the concrete `GameUI` class and sends live
-engine objects directly into it:
+`GameEngine` now depends on the `GamePresenter` interface rather than the
+concrete `GameUI` class. It publishes typed HUD, inventory, log, discovery, map,
+and presentation-event data:
 
-- `GameEngine` stores `private ui: GameUI` and calls presentation methods
-  throughout gameplay.
-- `GameEngine.draw()` passes `map`, `explored`, `visible`, `player`,
-  `monsters`, `items`, and `traps` directly to `GameUI.render()`.
-- `GameUI` owns the canvas, map sizing, animation loop, board rendering, combat
-  effects, map-plane effects, Svelte store projection, inventory view building,
-  logs, discovery sync, and board-derived overlays.
+- `GameEngine` stores `private presenter: GamePresenter` and calls
+  `publishStats`, `publishInventory`, `publishMap`, `publishLogs`,
+  `publishDiscovery`, and `publishEvent`.
+- `GameEngine.draw()` builds an immutable `MapSnapshot` instead of handing live
+  engine arrays directly to the renderer.
+- `GameUiPresenterAdapter` remains the browser adapter over the current
+  compatibility facade in `src/ui.ts`.
+- `ChromePresenter` owns Svelte store projection for HUD, inventory, logs,
+  discovery, end-run state, and board-derived overlays.
+- `MapViewController` and `AsciiCanvasRenderer` own the current canvas renderer,
+  animation loop participation, map-plane effects, floor transitions, and death
+  transitions.
 
-That works while there is exactly one browser presentation, but it makes the
-engine and the current map renderer harder to evolve independently. The current
-map already has a useful physical boundary in `CenterStage.svelte`:
-`.map-viewport > .map-transition > .map-plane > canvas#gameCanvas`. The missing
-boundary is the TypeScript contract between gameplay state, chrome state, and
-map rendering.
+The original split has therefore mostly shipped. The pressure point is now the
+coexistence of the new contracts with a shrinking compatibility facade: some
+browser-only methods still pass through `GameUiPresenterAdapter`/`GameUI`, and
+future work should continue moving those responsibilities behind typed
+snapshots, typed events, or focused projection helpers.
 
 ## Goals
 
@@ -275,7 +285,7 @@ contains Svelte-facing components and display helpers.
 
 ## Migration Plan
 
-### Phase 1: Define Contracts and Compatibility Adapter
+### Phase 1: Define Contracts and Compatibility Adapter — Shipped
 
 - Add `GamePresenter`, `MapSnapshot`, snapshot view types, and
   `PresentationEvent`.
@@ -287,7 +297,7 @@ contains Svelte-facing components and display helpers.
 
 This phase should produce no visual changes.
 
-### Phase 2: Introduce Snapshot Mapping
+### Phase 2: Introduce Snapshot Mapping — Shipped
 
 - Replace the long `GameUI.render(...)` call shape with `publishMap(snapshot)`.
 - Build `MapSnapshot` from engine state in one mapper function.
@@ -302,7 +312,7 @@ This phase should produce no visual changes.
 
 This phase locks down the engine-to-map data contract.
 
-### Phase 3: Convert Effect Calls to Events
+### Phase 3: Convert Effect Calls to Events — Mostly Shipped
 
 - Replace calls such as `ui.fxHit()`, `ui.fxDeath()`, `ui.mapRumble()`, and
   `ui.beginFloorTransition()` with `publishEvent(...)`.
@@ -315,7 +325,7 @@ This phase locks down the engine-to-map data contract.
 
 This phase decouples gameplay timing from a specific renderer API.
 
-### Phase 4: Add Presentation Mode and Scoped Snapshot Support
+### Phase 4: Add Presentation Mode and Scoped Snapshot Support — Partially Shipped
 
 - Add `PresentationMode` state to the browser presenter.
 - Keep `dungeon-map` as the only normal mode used by gameplay.
@@ -328,7 +338,7 @@ This phase decouples gameplay timing from a specific renderer API.
 This phase prepares special encounter framing without shipping a new encounter
 renderer.
 
-### Phase 5: Extract Current Canvas Renderer
+### Phase 5: Extract Current Canvas Renderer — Shipped
 
 - Move `Scene`, tile drawing, glyph drawing calls, combat animation state,
   movement glides, player run animation, map-plane controllers, floor
@@ -342,7 +352,7 @@ renderer.
 
 This phase is the main mechanical split.
 
-### Phase 6: Extract Chrome Presenter
+### Phase 6: Extract Chrome Presenter — Partially Shipped
 
 - Move `updateStats()`, `updateDropdowns()`, `renderLogs()`, `syncDiscovery()`,
   inventory view construction, and board-derived overlay projection
@@ -355,7 +365,7 @@ This phase is the main mechanical split.
 
 This phase turns `GameUI` from a god object into wiring.
 
-### Phase 7: Clean Up Test Seams and Ownership
+### Phase 7: Clean Up Test Seams and Ownership — Ongoing
 
 - Replace old partial-`GameUI` test doubles with typed `GamePresenter` fakes.
 - Add snapshot mapper tests for visibility, detected monsters, traps, telegraphs,

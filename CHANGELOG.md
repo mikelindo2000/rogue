@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [2026-06-28]
 
 ### Added
+- Added a planning audit for fast-moving subsystems, covering refactor
+  candidates around the presentation split, turn/action choreography,
+  ChromePresenter, AsciiCanvasRenderer, inventory identity, status timers,
+  audio runtime coupling, and documentation drift.
 - **Level-Up Experience**:
   - Added a golden "level-up bloom" — a warm vignette that flares in from the screen edges in three soft blinks when the player gains a level, the reward counterpart to the crimson boss-tension wash. Rendered as a DOM `stage-overlay` layer like the survival/boss washes, so it covers the whole board area (not just the map canvas).
   - Regenerated the level-up chime (`player-levelup`) with a brighter ascending-arpeggio prompt, and added `scripts/gen-progression-sfx.mjs` to reproducibly generate the player vitals & progression cues.
@@ -12,6 +16,18 @@ All notable changes to this project will be documented in this file.
   - Added a `Play level-up FX` Dev-tab action (and a `window.rogueLevelUpFx` helper) to replay the bloom + chime without grinding XP.
 
 ### Changed
+- Narrowed the `GamePresenter` stats/inventory API so the engine publishes
+  typed `publishStats` / `publishInventory` snapshots while the browser adapter
+  preserves the existing `GameUI` forwarding behavior.
+- Extracted pure Chrome inventory projection out of `ChromePresenter`, leaving
+  the presenter as the store-writing adapter while inventory view construction
+  is covered directly.
+- Added a small `GameEngine` command transaction helper and migrated food
+  consumption through it so sleep/stun gates, turn spend, and UI publication are
+  declared in one place for that command path.
+- Refreshed subsystem architecture docs and stale comments for the shipped
+  presentation split, sound system, active effects, debug controls, and current
+  inventory identity boundary.
 - Sound assets now **preload by default** after the audio context unlocks, so a newly added cue is ready on first play; only the bulk per-monster death cascade opts out (`preload: false`) to avoid eager-loading dozens of clips that may never play in a run.
 - Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
 

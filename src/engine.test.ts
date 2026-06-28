@@ -8,6 +8,7 @@ import { RecordingSink } from './audio/events';
 import { getTotalDef } from './player';
 import { createRecordingPresenter, createTestPresenter } from './testPresenter';
 import type { MapSnapshot } from './presentation/mapSnapshot';
+import type { GamePresenter } from './presentation/presenter';
 
 const makePresenter = createTestPresenter;
 
@@ -1579,13 +1580,25 @@ describe('GameEngine board size', () => {
 });
 
 describe('GameEngine inventory commands', () => {
-  it('publishes armor pickup to inventory UI immediately', () => {
-    let dropdownPlayer = null as unknown;
+  it('publishes armor pickup through the narrowed presenter API immediately', () => {
+    let inventoryPlayer = null as unknown;
     let statsCalls = 0;
-    const engine = makeRunner(undefined, makePresenter({
-      updateDropdowns: (player: unknown) => { dropdownPlayer = player; },
-      updateStats: () => { statsCalls++; },
-    }));
+    const noop = () => {};
+    const presenter: GamePresenter = {
+      setMode: noop,
+      publishMap: noop,
+      publishLogs: noop,
+      publishDiscovery: noop,
+      publishEvent: noop,
+      publishInventory: ({ player }) => { inventoryPlayer = player; },
+      publishStats: () => { statsCalls++; },
+      showItemPickup: noop,
+      clearItemPickup: noop,
+      resetLog: noop,
+      renderLogs: noop,
+      syncDiscovery: noop,
+    };
+    const engine = makeRunner(undefined, presenter);
     engine.items = [{
       type: 'gear',
       x: 2,
@@ -1599,7 +1612,7 @@ describe('GameEngine inventory commands', () => {
 
     expect(engine.player.inventory.chest.at(-1)?.name).toBe('Chainmail');
     expect(engine.items).toHaveLength(0);
-    expect(dropdownPlayer).toBe(engine.player);
+    expect(inventoryPlayer).toBe(engine.player);
     expect(statsCalls).toBe(1);
   });
 
@@ -1633,6 +1646,55 @@ describe('GameEngine inventory commands', () => {
 
     expect(used).toBe(false);
     expect(engine.logs).toContain('You have no food to eat!');
+  });
+
+  it('refreshes inventory and stats when eating through the command transaction helper', () => {
+    const sound = new RecordingSink();
+    const publishInventory = vi.fn();
+    const publishStats = vi.fn();
+    const engine = makeRunner(sound, makePresenter({ publishInventory, publishStats }));
+    engine.player.inventory.food = 1;
+    engine.player.hunger = 10;
+
+    const used = engine.consumeFood();
+
+    expect(used).toBe(true);
+    expect(engine.player.inventory.food).toBe(0);
+    expect(engine.logs).toContain('Ate rations. Hunger restored.');
+    expect(publishInventory).toHaveBeenCalledWith({ player: engine.player });
+    expect(publishStats).toHaveBeenCalled();
+    expect(sound.ofType('item.consume')).toEqual([expect.objectContaining({ kind: 'food' })]);
+  });
+
+  it('does not spend a turn or refresh inventory for a stale food command', () => {
+    const publishInventory = vi.fn();
+    const engine = makeRunner(undefined, makePresenter({ publishInventory }));
+    engine.player.inventory.food = 0;
+    const turnBefore = engine.turn;
+
+    const used = engine.consumeFood();
+
+    expect(used).toBe(false);
+    expect(engine.turn).toBe(turnBefore);
+    expect(publishInventory).not.toHaveBeenCalled();
+    expect(engine.logs).toContain('You have no food to eat!');
+  });
+
+  it('sleep and stun gates swallow eat commands before food mutates', () => {
+    const engine = makeRunner();
+    engine.player.inventory.food = 1;
+    engine.player.hunger = 10;
+    engine.trapEffects.sleepTurns = 1;
+
+    expect(engine.consumeFood()).toBe(false);
+    expect(engine.player.inventory.food).toBe(1);
+    expect(engine.player.hunger).toBe(9);
+    expect(engine.trapEffects.sleepTurns).toBe(0);
+
+    engine.player.activeEffects = [{ kind: 'stun', turns: 1, magnitude: 1, source: 'Cyclops' }];
+    expect(engine.consumeFood()).toBe(false);
+    expect(engine.player.inventory.food).toBe(1);
+    expect(engine.player.activeEffects.some(effect => effect.kind === 'stun')).toBe(false);
   });
 
   it('can equip an inventory dagger into off-hand through explicit action', () => {

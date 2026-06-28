@@ -9,8 +9,6 @@ export const createTestPresenter = (overrides: Partial<GamePresenter> = {}): Gam
   publishLogs: () => {},
   publishDiscovery: () => {},
   publishEvent: () => {},
-  updateStats: () => {},
-  updateDropdowns: () => {},
   showItemPickup: () => {},
   clearItemPickup: () => {},
   resetLog: () => {},

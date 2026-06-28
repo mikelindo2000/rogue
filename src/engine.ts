@@ -79,6 +79,11 @@ import {
 const AMULET_REGENERATES_ASCENT = true;
 const STOLEN_LOOT_RECOVERY_CHANCE = 2 / 3;
 
+type CommandResult =
+  | { kind: 'no-turn' }
+  | { kind: 'spent-turn'; inventory?: boolean; stats?: boolean }
+  | { kind: 'invalid'; refreshInventory?: boolean; stats?: boolean };
+
 /** Convert a carried gear item into a floor-ready gear payload. `category` must
  *  survive the round-trip so re-pickup routes the item back to the right bucket
  *  (weapon type for weapons, slot name for armor, 'shield' for shields); the
@@ -193,6 +198,25 @@ export class GameEngine {
     this.presenter.publishEvent(event);
   }
 
+  private runCommand(command: () => CommandResult): boolean {
+    if (this.takeSleepTurn()) return false;
+    if (this.takeStunTurn()) return false;
+
+    const result = command();
+    if (result.kind === 'no-turn') return false;
+
+    if (result.kind === 'invalid') {
+      if (result.refreshInventory) this.presenter.publishInventory({ player: this.player });
+      if (result.stats) this.updateUI();
+      return false;
+    }
+
+    if (result.inventory) this.presenter.publishInventory({ player: this.player });
+    if (result.stats) this.updateUI();
+    this.processTurn();
+    return true;
+  }
+
   constructor(presenter: GamePresenter, sound: SoundSink = noopSink) {
     this.presenter = presenter;
     this.sound = sound;
@@ -254,7 +278,7 @@ export class GameEngine {
     this.publishPresentationEvent({ type: 'presentation.modeChanged', mode: { type: 'dungeon-map' } });
 
     this.generateFloor();
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     this.presenter.resetLog();
     this.presenter.renderLogs(this.logs);
@@ -793,7 +817,7 @@ export class GameEngine {
     // A pickup card from the floor we're leaving must not linger onto the next.
     this.presenter.clearItemPickup();
     this.loadFloorForTravel(1);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     this.autosave();
   }
@@ -1054,7 +1078,7 @@ export class GameEngine {
     // A pickup card from the floor we're leaving must not linger onto the next.
     this.presenter.clearItemPickup();
     this.loadFloorForTravel(delta);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     // Repaint the live canvas to the NEW floor now. The stairs path returns
     // before processTurn (which normally draws), so without this the canvas keeps
@@ -1072,7 +1096,7 @@ export class GameEngine {
     this.sound.emit({ type: 'map.stairs', dir: 'up' });
     this.sound.emit({ type: 'game.victory' });
     this.recordWinTurn();
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     this.draw();
     this.autosave();
@@ -1316,7 +1340,7 @@ export class GameEngine {
       const leveled = gainXp(this.player, xpGained, (msg) => this.addLog(msg), this.statusEffects);
       if (leveled) {
         recordLevelGain(this.stats, this.player.level - levelBefore);
-        this.presenter.updateDropdowns(this.player);
+        this.presenter.publishInventory({ player: this.player });
         this.sound.emit({ type: 'player.levelUp' });
         this.publishPresentationEvent({ type: 'player.levelUp' });
       }
@@ -1400,7 +1424,7 @@ export class GameEngine {
           const leveled = gainXp(this.player, g, (msg) => this.addLog(msg), this.statusEffects);
           if (leveled) {
             recordLevelGain(this.stats, this.player.level - levelBefore);
-            this.presenter.updateDropdowns(this.player);
+            this.presenter.publishInventory({ player: this.player });
             this.sound.emit({ type: 'player.levelUp' });
             this.publishPresentationEvent({ type: 'player.levelUp' });
           }
@@ -1450,7 +1474,7 @@ export class GameEngine {
 
       if (pickedUp) {
         this.items.splice(idx, 1);
-        this.presenter.updateDropdowns(this.player);
+        this.presenter.publishInventory({ player: this.player });
         this.updateUI();
         const kind =
           item.type === 'gold' ? 'gold' :
@@ -1498,7 +1522,7 @@ export class GameEngine {
     this.sound.emit({ type: 'item.consume', kind: 'potion' });
     recordPotionDrunk(this.stats, pType);
     this.player.inventory.potions.splice(index, 1);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.processTurn();
   }
 
@@ -1506,7 +1530,7 @@ export class GameEngine {
     const idx = this.player.inventory.potions.findIndex(p => p === potionType.potionType);
     if (idx === -1) {
       this.addLog("You no longer have that potion.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       return false;
     }
     this.usePotion(idx);
@@ -1544,7 +1568,7 @@ export class GameEngine {
     scrolls.splice(index, 1);
     recordScrollTriggered(this.stats, `read:${type}`);
     this.sound.emit({ type: 'item.consume', kind: 'scroll', scrollType: type });
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.processTurn();
   }
 
@@ -1827,7 +1851,7 @@ export class GameEngine {
     const idx = this.player.inventory.scrolls.findIndex(s => s === ref.scrollType);
     if (idx === -1) {
       this.addLog("You no longer have that scroll.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       return false;
     }
     this.useScroll(idx);
@@ -1879,7 +1903,7 @@ export class GameEngine {
     const wand = this.player.inventory.wands[ref.index];
     if (!wand) {
       this.addLog("You no longer have that wand.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       return false;
     }
     if ((wand.cooldownRemaining ?? 0) > 0) {
@@ -1948,7 +1972,7 @@ export class GameEngine {
     wand.cooldownRemaining = wandCooldown(wand);
     this.player.hunger = Math.max(0, this.player.hunger - wandHungerCost(wand));
     this.sound.emit({ type: 'item.zap', wandType: wand.wandType });
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.processTurn();
     return true;
   }
@@ -2342,9 +2366,12 @@ export class GameEngine {
   }
 
   public consumeFood(): boolean {
-    if (this.takeSleepTurn()) return false;
-    if (this.takeStunTurn()) return false;
-    if (this.player.inventory.food > 0) {
+    return this.runCommand(() => {
+      if (this.player.inventory.food <= 0) {
+        this.addLog("You have no food to eat!");
+        return { kind: 'invalid' };
+      }
+
       this.player.inventory.food--;
       if (this.player.undeadFoods > 0) {
         this.player.undeadFoods--;
@@ -2356,13 +2383,8 @@ export class GameEngine {
       }
       this.sound.emit({ type: 'item.consume', kind: 'food' });
       recordFoodEaten(this.stats);
-      this.updateUI();
-      this.processTurn();
-      return true;
-    } else {
-      this.addLog("You have no food to eat!");
-      return false;
-    }
+      return { kind: 'spent-turn', inventory: true, stats: true };
+    });
   }
 
   public equipGear(slot: EquipSlot, value: string) {
@@ -2372,7 +2394,7 @@ export class GameEngine {
     const ok = handleEquipItem(this.player, slot, value, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, ok);
     if (ok) recordEquipmentChange(this.stats);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     this.autosave();
   }
@@ -2392,7 +2414,7 @@ export class GameEngine {
     if (this.takeStunTurn()) return false;
     if (ref.kind === 'food' || ref.kind === 'potion' || ref.kind === 'scroll') {
       this.addLog("That item cannot be equipped.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
@@ -2400,7 +2422,7 @@ export class GameEngine {
     const target = inventoryRefToEquipTarget(this.player, ref);
     if (!target) {
       this.addLog("That item cannot be equipped.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       this.sound.emit({ type: 'equipment.rejected' });
       return false;
     }
@@ -2409,7 +2431,7 @@ export class GameEngine {
     const equipped = equipValidated(this.player, target, (msg) => this.addLog(msg));
     this.emitEquipSounds(before, equipped);
     if (equipped) recordEquipmentChange(this.stats);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.updateUI();
     if (equipped) this.autosave();
     return equipped;
@@ -2428,7 +2450,7 @@ export class GameEngine {
       return this.useScrollType(ref);
     }
     this.addLog("That item cannot be used.");
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     return false;
   }
 
@@ -2444,7 +2466,7 @@ export class GameEngine {
       const equipped = equipValidated(this.player, { slot: 'offHand', value: `weapon:${ref.index}` }, (msg) => this.addLog(msg));
       this.emitEquipSounds(before, equipped);
       if (equipped) recordEquipmentChange(this.stats);
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       this.updateUI();
       if (equipped) this.autosave();
       return equipped;
@@ -2468,20 +2490,20 @@ export class GameEngine {
     const py = this.player.y;
     if (this.items.some(i => i.x === px && i.y === py)) {
       this.addLog("There is already something on the floor here.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       return false;
     }
 
     const dropped = this.removeAndBuildFloorItem(ref);
     if (!dropped) {
       this.addLog("You cannot drop that.");
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       return false;
     }
 
     this.items.push({ ...dropped.spawn, x: px, y: py } as Item);
     this.addLog(`Dropped ${dropped.name}.`);
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.processTurn();
     return true;
   }
@@ -2825,7 +2847,15 @@ export class GameEngine {
 
   public updateUI() {
     const totalDef = getTotalDef(this.player, this.statusEffects);
-    this.presenter.updateStats(this.player, this.dungeonFloor, this.statusEffects, totalDef, this.turn, this.trapEffects, this.hasAmulet);
+    this.presenter.publishStats({
+      player: this.player,
+      dungeonFloor: this.dungeonFloor,
+      statusEffects: this.statusEffects,
+      totalDef,
+      turn: this.turn,
+      trapEffects: this.trapEffects,
+      hasAmulet: this.hasAmulet,
+    });
   }
 
   public draw() {
@@ -2964,7 +2994,7 @@ export class GameEngine {
       this.finalRunSummary = null;
 
       this.updateFOV();
-      this.presenter.updateDropdowns(this.player);
+      this.presenter.publishInventory({ player: this.player });
       this.updateUI();
       this.presenter.resetLog();
       this.presenter.renderLogs(this.logs);
@@ -2995,7 +3025,7 @@ export class GameEngine {
     });
 
     this.updateUI();
-    this.presenter.updateDropdowns(this.player);
+    this.presenter.publishInventory({ player: this.player });
     this.draw();
     this.autosave();
   }
