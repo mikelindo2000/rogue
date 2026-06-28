@@ -140,12 +140,15 @@ countering weapon deals more than with a non-countering one) + `describeWeakness
 
 ## Decisions (resolved — balance-safe)
 
-1. **Loot composition stays balance-neutral.** A flat pool would push weapons from ~50% to ~65% of
-   drops (a loot-balance change). Instead, **refactor `generateGearItem` to preserve the current
-   weapon-vs-armor pick ratio**: pick group (weapon | armor) at today's probability (6 weapon / 6
-   armor ⇒ 50/50), then pick a category within the group. Adding weapon categories then changes
-   *which* weapon drops, never *how often a weapon vs. armor* drops. `MONSTER_DATABASE` untouched;
-   loot economy unchanged. (Keep `generateGearItemInCategory` for fixed-category drops as-is.)
+1. **Loot composition stays balance-neutral AND draw-count-stable.** A flat pool would push weapons
+   from ~50% to ~65% (a loot-balance change); a two-step group-then-category pick would preserve the
+   ratio but ADD an rng draw per loot roll, cascading seeded determinism for everything downstream.
+   Instead, keep `generateGearItem` to a **single `rng.pick`** over a **weighted category list** that
+   preserves today's weapon:armor ratio (≈50/50): repeat each category so weapon-categories total
+   ~50% (with N weapon + 6 armor categories, weight weapons ×6 and armor ×N). One draw ⇒ the RNG
+   draw *count* is unchanged, so only the *which-item-per-seed* loot assertions shift (update those);
+   full-run/downstream seeded determinism is preserved. `MONSTER_DATABASE` untouched; loot economy
+   (weapon vs armor frequency) unchanged. Keep `generateGearItemInCategory` (fixed-category drops) as-is.
 2. **No-number weaknesses get a modest default bonus** (so the counter *reads* as effective now),
    with the bespoke effect deferred. Default ≈ a small tier-appropriate value (e.g. +3 low floors,
    scaling with the monster's depth band); tune in playtest.
