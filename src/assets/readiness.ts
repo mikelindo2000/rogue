@@ -274,20 +274,29 @@ export class AssetReadinessService {
       url,
       cancel: () => {
         token.canceled = true;
-        this.cancelIfStale(url);
+        this.releaseToken(url, token);
       },
       snapshot: () => this.getSnapshot(url),
       whenReady: (timeoutMs?: number) => this.whenReady(url, timeoutMs),
     };
   }
 
-  private cancelIfStale(url: string): void {
+  private releaseToken(url: string, token: RequestToken): void {
     try {
       const entry = this.entries.get(url);
-      if (!entry || entry.state === 'ready' || entry.state === 'failed') return;
+      if (!entry) return;
+      entry.tokens.delete(token);
+      this.cancelIfStale(entry);
+    } catch {
+      /* readiness must never escape into gameplay */
+    }
+  }
+
+  private cancelIfStale(entry: ImageEntry): void {
+    try {
       if (this.liveTokens(entry).length > 0) return;
       this.cancelIdle(entry);
-      entry.state = 'evicted';
+      if (entry.state !== 'ready' && entry.state !== 'failed') entry.state = 'evicted';
       entry.loading = false;
       entry.waiters.forEach(resolve => resolve(false));
       entry.waiters.clear();

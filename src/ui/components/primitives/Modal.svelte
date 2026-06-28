@@ -96,33 +96,35 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if open}
-  <!-- svelte-ignore a11y_no_static_element_interactions -- backdrop is a mouse
-       dismiss affordance; Escape and the close button are the accessible paths -->
+<!-- svelte-ignore a11y_no_static_element_interactions -- backdrop is a mouse
+     dismiss affordance; Escape and the close button are the accessible paths.
+     Keep the subtree mounted while closed: repeated Svelte snippet teardown left
+     detached modal bodies retained by Chrome after open/close churn. -->
+<div
+  class="backdrop"
+  hidden={!open}
+  aria-hidden={open ? undefined : 'true'}
+  onpointerdown={(e) => {
+    if (e.target === e.currentTarget) close();
+  }}
+>
   <div
-    class="backdrop"
-    onpointerdown={(e) => {
-      if (e.target === e.currentTarget) close();
-    }}
+    class="window"
+    bind:this={windowEl}
+    tabindex="-1"
+    role={open ? 'dialog' : undefined}
+    aria-modal={open ? 'true' : undefined}
+    aria-label={open ? title : undefined}
   >
-    <div
-      class="window"
-      bind:this={windowEl}
-      tabindex="-1"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      {#if title}
-        <div class="head">
-          <h2>{title}</h2>
-          <button class="x" onclick={close} aria-label="Close">✕</button>
-        </div>
-      {/if}
-      <div class="content">{@render children()}</div>
-    </div>
+    {#if title}
+      <div class="head">
+        <h2>{title}</h2>
+        <button class="x" onclick={close} aria-label="Close">✕</button>
+      </div>
+    {/if}
+    <div class="content">{@render children()}</div>
   </div>
-{/if}
+</div>
 
 <style>
   .backdrop {

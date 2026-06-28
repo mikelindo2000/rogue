@@ -186,6 +186,29 @@ describe('AssetReadinessService image queue', () => {
     expect(handle.snapshot()).toMatchObject({ state: 'evicted' });
   });
 
+  it('releases canceled ready-image request tokens so stale closures do not accumulate', async () => {
+    const fake = controllableDecodeImage();
+    const service = new AssetReadinessService({ ImageCtor: fake.ImageCtor });
+
+    const first = service.requestImage(baseRequest('/inventory/reopen-art.png', {
+      priority: 'critical-now',
+      isStale: () => false,
+    }));
+    fake.decodes[0].resolve();
+    await expect(first.whenReady()).resolves.toBe(true);
+    first.cancel();
+
+    const staleAfterReopen = vi.fn(() => true);
+    const second = service.requestImage(baseRequest('/inventory/reopen-art.png', {
+      priority: 'critical-now',
+      isStale: staleAfterReopen,
+    }));
+    second.cancel();
+
+    expect(staleAfterReopen).not.toHaveBeenCalled();
+    expect(second.snapshot()).toMatchObject({ state: 'ready' });
+  });
+
   it('uses requestIdleCallback only for idle-tier work', () => {
     const fake = controllableDecodeImage();
     const idleCallbacks: IdleRequestCallback[] = [];

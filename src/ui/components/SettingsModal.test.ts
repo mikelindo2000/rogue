@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { flushSync, mount, unmount } from 'svelte';
+import { flushSync, mount, tick, unmount } from 'svelte';
 import SettingsModal from './SettingsModal.svelte';
 import { actions, ui } from '../store.svelte';
 import type { BoardSizeId } from '../../boards';
@@ -56,6 +56,25 @@ afterEach(() => {
 });
 
 describe('SettingsModal board size picker', () => {
+  it('keeps the modal subtree mounted while closed to avoid detached-node churn', async () => {
+    openSettings();
+    const firstSubtree = document.querySelector<HTMLElement>('.settings');
+    expect(firstSubtree).not.toBeNull();
+
+    actions.setSettingsOpen(false);
+    await tick();
+    flushSync();
+
+    expect(firstSubtree?.closest('[hidden]')).not.toBeNull();
+
+    actions.setSettingsOpen(true);
+    await tick();
+    flushSync();
+
+    expect(document.querySelector('.settings')).toBe(firstSubtree);
+    expect(firstSubtree?.closest('[hidden]')).toBeNull();
+  });
+
   it('chooses a board size through the display panel control', () => {
     openSettings();
     displayTab().click();
