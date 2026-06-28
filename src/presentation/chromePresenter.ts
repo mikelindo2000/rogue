@@ -26,6 +26,7 @@ import {
 } from '../ui/combatPortrait';
 import { gearHealthView } from '../ui/equipmentStats';
 import { buildEquipmentView } from '../ui/equipmentView';
+import { buildReadiedWandView } from '../ui/readiedWandView';
 import { floorName, hungerView, rarityVar, survivalWarningView, titleCase } from '../ui/format';
 import { bestIndex, compareGear } from '../ui/gearCompare';
 import { SLOT_ICON } from '../ui/icons';
@@ -165,6 +166,7 @@ export class ChromePresenter {
 
   public publishInventory(player: Player): void {
     ui.equipment = buildEquipmentView(player);
+    ui.readiedWand = buildReadiedWandView(player);
     const inv = this.buildInventory(player);
     ui.inventoryItems = inv.cells;
     ui.inventoryCount = inv.count;

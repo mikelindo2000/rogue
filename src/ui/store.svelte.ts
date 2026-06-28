@@ -8,6 +8,7 @@
 import type { EquipSlot, InventoryAction, InventoryRef } from '../types';
 import type { GearVerdict } from './gearCompare';
 import type { IconName } from './icons';
+import type { ReadiedWandView } from './readiedWandView';
 import type { HungerTone, SurvivalWarningTone } from './format';
 import type { VisualEffectInstance } from './visualEffects';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
@@ -224,6 +225,9 @@ export interface UIState {
   foodMax: number;
   // panels
   equipment: EquipSlotView[];
+  /** The wand a zap ('z') would draw, with its recharge state. Null when the
+   *  player carries no wands, which hides the readied-wand strip entirely. */
+  readiedWand: ReadiedWandView | null;
   inventoryItems: InventoryCell[];
   inventoryCount: number;
   /** Baseline slot count drawn in the HUD grid; the grid grows past this when
@@ -321,6 +325,7 @@ export const ui = $state<UIState>({
   food: 0,
   foodMax: 4,
   equipment: [],
+  readiedWand: null,
   inventoryItems: [],
   inventoryCount: 0,
   inventoryMax: 20,

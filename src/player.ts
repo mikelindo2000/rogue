@@ -31,7 +31,10 @@ export function createPlayer(): Player {
       boots: [{ name: "None", def: 0, maxDef: 0, rarity: "common" }],
       potions: [],
       scrolls: [],
-      wands: []
+      wands: [
+        { name: "Wand of Cold", wandType: "cold", tier: "wand", rarity: "rare", cooldownRemaining: 0, identified: true },
+        { name: "Staff of Lightning", wandType: "lightning", tier: "staff", rarity: "epic", cooldownRemaining: 2, identified: true },
+      ]
     },
     equipped: {
       mainHand: 0,

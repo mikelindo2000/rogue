@@ -3,6 +3,7 @@
   import CharacterCard from './components/CharacterCard.svelte';
   import Vitals from './components/Vitals.svelte';
   import Equipment from './components/Equipment.svelte';
+  import ReadiedWand from './components/ReadiedWand.svelte';
   import Consumables from './components/Consumables.svelte';
   import CenterStage from './components/CenterStage.svelte';
   import Inventory from './components/Inventory.svelte';
@@ -28,6 +29,7 @@
           <CharacterCard />
           <Vitals />
           <Equipment />
+          <ReadiedWand />
           <Consumables />
         </div>
       </aside>
