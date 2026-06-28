@@ -66,7 +66,7 @@ export const MONSTER_WEAKNESSES: Record<string, MonsterWeakness> = {
   'michael-the-minotaur': { bonusDamage: 8, label: 'Daggers', weaponTypes: ['dagger'] },
   'gary-the-golem': { bonusDamage: 8, label: 'Shadow Magic', magic: 'shadow' },
   'colossal-cyclops': { bonusDamage: 8, label: 'Daggers & 1H Swords', weaponTypes: ['dagger', '1h_sword'] },
-  'zachary-the-zombie': { bonusDamage: 8, label: 'Ranged weapons', weaponTypes: ['polearm', 'bow', 'blunderbuss'] },
+  'zachary-the-zombie': { bonusDamage: 8, label: 'Polearms & Ranged', weaponTypes: ['polearm', 'bow', 'blunderbuss'] },
   'agitated-apperation': { bonusDamage: 8, label: 'Frost Magic', magic: 'frost' },
   'dragon-king': { bonusDamage: 20, label: 'All weapons', allWeapons: true },
 };
