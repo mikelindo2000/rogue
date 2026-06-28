@@ -7,8 +7,15 @@
  * from the live game registries via src/assetManifest.ts, then compares that
  * against the files actually present under public/. Reports:
  *
- *   - missing  : expected by the game but absent on disk  (gaps to fill)
- *   - orphan   : present on disk but no registry entry     (stale / renamed)
+ *   - missing      : expected by the game but absent on disk      (gaps to fill)
+ *   - placeholder  : present but a flat-color stub, not real art  (gaps to fill)
+ *   - orphan       : present on disk but no registry entry        (stale / renamed)
+ *
+ * Placeholder detection is byte-size based: a 512x512 flat-color PNG compresses
+ * to ~2KB, while real painterly art is 150KB+. Anything present but smaller than
+ * PLACEHOLDER_MAX_BYTES is treated as an unfilled gap (counts toward the failure
+ * exit code, same as a missing file) so solid-color stubs can't masquerade as
+ * finished art.
  *
  * The manifest is loaded through Vite's SSR loader so it sees the real
  * TypeScript registries with zero duplication — add a monster/potion/floor to
@@ -17,13 +24,14 @@
  * Usage:
  *   node scripts/audit-assets.mjs                  # full report, exits 1 if gaps
  *   node scripts/audit-assets.mjs --missing        # only the missing files
+ *   node scripts/audit-assets.mjs --placeholders   # only placeholder stubs
  *   node scripts/audit-assets.mjs --orphans        # only orphan files
  *   node scripts/audit-assets.mjs --category=monsters
  *   node scripts/audit-assets.mjs --json           # machine-readable
  *
  * See design/implemented/asset_image_audit.md for the full workflow.
  */
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
@@ -33,7 +41,21 @@ const args = process.argv.slice(2);
 
 const asJson = args.includes('--json');
 const missingOnly = args.includes('--missing');
+const placeholdersOnly = args.includes('--placeholders');
 const orphansOnly = args.includes('--orphans');
+
+// A 512x512 flat-color placeholder PNG compresses to ~2KB; the smallest real
+// painted asset in the repo is ~170KB. 16KB leaves a 10x margin on both sides.
+const PLACEHOLDER_MAX_BYTES = 16 * 1024;
+
+/** True if a present file is a flat-color stub rather than real generated art. */
+function isPlaceholder(dir, file) {
+  try {
+    return statSync(join(repoRoot, 'public', dir, file)).size < PLACEHOLDER_MAX_BYTES;
+  } catch {
+    return false;
+  }
+}
 const catArg = args.find(a => a.startsWith('--category='));
 const onlyCategory = catArg ? catArg.slice('--category='.length) : null;
 
@@ -93,6 +115,8 @@ const report = groups.map(g => {
   const onDisk = listPngs(g.dir);
   const present = g.entries.filter(e => onDisk.has(e.file));
   const missing = g.entries.filter(e => !onDisk.has(e.file));
+  // Present-but-stub files are gaps too: real art still needs generating.
+  const placeholders = present.filter(e => isPlaceholder(g.dir, e.file));
   return {
     category: g.category,
     title: g.title,
@@ -103,6 +127,7 @@ const report = groups.map(g => {
     expected: g.entries.length,
     present: present.length,
     missing,
+    placeholders,
   };
 });
 
@@ -120,6 +145,10 @@ if (!onlyCategory) {
 
 const requiredMissing = report.flatMap(r => r.missing.filter(m => !m.optional));
 const optionalMissing = report.flatMap(r => r.missing.filter(m => m.optional));
+const requiredPlaceholders = report.flatMap(r => r.placeholders.filter(p => !p.optional));
+
+// Required art is "complete" only when present AND real (not a stub).
+const hasGaps = requiredMissing.length > 0 || requiredPlaceholders.length > 0;
 
 if (asJson) {
   console.log(
@@ -132,6 +161,7 @@ if (asJson) {
           present: report.reduce((n, r) => n + r.present, 0),
           missingRequired: requiredMissing.length,
           missingOptional: optionalMissing.length,
+          placeholdersRequired: requiredPlaceholders.length,
           orphans: [...orphansByDir.values()].reduce((n, a) => n + a.length, 0),
         },
       },
@@ -139,10 +169,30 @@ if (asJson) {
       2,
     ),
   );
-  process.exit(requiredMissing.length ? 1 : 0);
+  process.exit(hasGaps ? 1 : 0);
 }
 
 // --- Human-readable report ---
+
+const allPlaceholders = report.flatMap(r => r.placeholders);
+
+if (placeholdersOnly) {
+  if (allPlaceholders.length === 0) {
+    console.log(green('No placeholder stubs — every present asset is real art.'));
+  } else {
+    console.log(bold('Placeholder stubs (present but flat-color, not real art):\n'));
+    for (const r of report) {
+      if (!r.placeholders.length) continue;
+      console.log(`  ${bold(r.title)}  ${dim('-> public/' + r.dir + '/')}`);
+      for (const p of r.placeholders) {
+        const tag = p.optional ? dim(' (optional)') : '';
+        console.log(`    ${yellow('▱')} ${p.file}${tag}  ${dim(p.label)}`);
+      }
+      console.log(`    ${dim('generate with: ' + r.generator)}`);
+    }
+  }
+  process.exit(0);
+}
 
 if (orphansOnly) {
   if (orphansByDir.size === 0) {
@@ -161,10 +211,11 @@ if (orphansOnly) {
 if (!missingOnly) {
   console.log(bold('\n  ASSET INVENTORY\n'));
   for (const r of report) {
-    const ok = r.present === r.expected;
-    const status = ok
-      ? green('OK')
-      : red(`${r.expected - r.present} missing`);
+    const ok = r.present === r.expected && r.placeholders.length === 0;
+    const parts = [];
+    if (r.present < r.expected) parts.push(`${r.expected - r.present} missing`);
+    if (r.placeholders.length) parts.push(`${r.placeholders.length} placeholder`);
+    const status = ok ? green('OK') : red(parts.join(', '));
     console.log(
       `  ${bold(r.title.padEnd(28))} ${String(r.present).padStart(3)}/${String(r.expected).padEnd(3)} ${status}`,
     );
@@ -188,6 +239,20 @@ if (requiredMissing.length || optionalMissing.length) {
   console.log(green('\n  All required images present.\n'));
 }
 
+if (allPlaceholders.length) {
+  console.log(bold('\n  PLACEHOLDER STUBS (present but flat-color, not real art)\n'));
+  for (const r of report) {
+    if (!r.placeholders.length) continue;
+    console.log(`  ${bold(r.title)}  ${dim('-> public/' + r.dir + '/')}`);
+    for (const p of r.placeholders) {
+      const tag = p.optional ? dim(' (optional)') : '';
+      console.log(`    ${yellow('▱')} ${p.file}${tag}  ${dim(p.label)}`);
+    }
+    console.log(`    ${dim('generate with: ' + r.generator)}`);
+    console.log(`    ${dim('recipe: ' + r.designDoc)}\n`);
+  }
+}
+
 if (!onlyCategory && !missingOnly && orphansByDir.size) {
   console.log(bold('  ORPHANS  ') + dim('(on disk, not in any registry — run --orphans for detail)'));
   for (const [dir, orphans] of orphansByDir) {
@@ -202,10 +267,12 @@ if (!missingOnly) {
   console.log(
     bold('  TOTAL  ') +
       `${present}/${expected} present` +
-      (requiredMissing.length ? red(`  ${requiredMissing.length} required missing`) : green('  complete')) +
+      (requiredMissing.length ? red(`  ${requiredMissing.length} required missing`) : '') +
+      (requiredPlaceholders.length ? red(`  ${requiredPlaceholders.length} placeholder`) : '') +
+      (!hasGaps ? green('  complete') : '') +
       (optionalMissing.length ? dim(`  (${optionalMissing.length} optional missing)`) : '') +
       '\n',
   );
 }
 
-process.exit(requiredMissing.length ? 1 : 0);
+process.exit(hasGaps ? 1 : 0);

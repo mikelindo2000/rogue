@@ -123,6 +123,34 @@ wand/staff line. See `scripts/gen-scroll-art.sh`; re-running is idempotent
 | Scroll of Scare Monster | aged parchment scroll with a frightening theatrical mask rune casting long shadows, symbol only, no circular glyphs, no inscriptions or signatures (accent fearful gray) | 8535 |
 | Blank Paper | plain aged blank parchment scroll tied with cord, no markings, subdued and mundane (accent muted beige gray) | 8536 |
 
+## Gear weapon-class expansion line
+
+The Phase-0 weapon-class expansion (axes, polearms, bows, blunderbusses, shadow
+staff) added 16 `GEAR_POOL` items in `src/config.ts`. Generated at **8 steps**
+(matching the wand/scroll lines, sharper than the 2-step gear baseline) by
+`scripts/gen-gear-art.sh`, which is idempotent (same seed → same image). Seeds
+reserve the 8700+ block. Slugs are `slugify(item.name)`, guarded by
+`src/assetManifest.test.ts`.
+
+| Item | Subject | Seed |
+| --- | --- | --- |
+| Hand Axe | compact one-handed hand axe with a simple bearded iron head and worn wooden haft (accent steel gray) | 8700 |
+| Battle Axe | sturdy one-handed battle axe with a broad crescent iron blade and leather-wrapped haft (accent steel gray) | 8701 |
+| Reaver | menacing one-handed reaver axe with a jagged blackened blade and cruel hooked spike (accent blood red) | 8702 |
+| Greataxe | large two-handed greataxe with a massive double-bitted iron head on a long wooden haft (accent iron gray) | 8703 |
+| War Cleaver | brutal two-handed war cleaver with an enormous rectangular chopping blade on a long haft (accent steel gray) | 8704 |
+| Executioner | huge two-handed executioner greataxe with a wide grim blackened blade and engraved head (accent dark crimson) | 8705 |
+| Spear | long spear with a leaf-shaped polished steel point and slender wooden shaft (accent steel gray) | 8706 |
+| Halberd | two-handed halberd with an axe blade, top spike, and rear hook on a long wooden shaft (accent iron gray) | 8707 |
+| Glaive of Ruin | legendary glaive of ruin polearm with a long curved blade wreathed in dark violet energy on a tall shaft (accent violet) | 8708 |
+| Short Bow | simple curved wooden short bow with a taut bowstring (accent warm brown) | 8709 |
+| Long Bow | tall elegant wooden long bow with a taut bowstring (accent rich brown) | 8710 |
+| Storm Recurve | enchanted storm recurve bow crackling with arcs of blue lightning along its curved limbs (accent electric blue) | 8711 |
+| Hand Cannon | stout one-handed iron hand cannon with a short flared muzzle and wooden grip (accent gunmetal gray) | 8712 |
+| Blunderbuss | ornate flintlock blunderbuss firearm with a wide flared brass muzzle and carved walnut stock (accent brass and walnut) | 8713 |
+| Thunder Cannon | massive legendary thunder cannon firearm with a huge flared barrel wreathed in smoke and golden sparks (accent molten gold) | 8714 |
+| Shadow Staff | wooden wizard staff tipped with a swirling dark shadow crystal leaking violet-black smoke (accent shadow violet) | 8715 |
+
 ## Wand / Staff line
 
 Generated at **8 steps** (not the 2-step baseline) for sharper, richer art — see

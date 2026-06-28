@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildAssetManifest, allAssetEntries } from './assetManifest';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// A 512x512 flat-color placeholder PNG compresses to ~2KB; the smallest real
+// painted asset is ~170KB. Anything smaller than this is a stub, not real art.
+// Mirrors PLACEHOLDER_MAX_BYTES in scripts/audit-assets.mjs.
+const PLACEHOLDER_MAX_BYTES = 16 * 1024;
 
 /*
  * Guard: every art asset the game expects must exist on disk.
@@ -42,6 +47,14 @@ describe('asset manifest', () => {
         .filter(e => !existsSync(join(repoRoot, e.path)))
         .map(e => `${e.path} (${e.label})`);
       expect(missing, `missing ${group.category} art — generate via ${group.generator}`).toEqual([]);
+    });
+
+    it(`has real (non-placeholder) ${group.category} art on disk`, () => {
+      const stubs = required
+        .filter(e => existsSync(join(repoRoot, e.path)))
+        .filter(e => statSync(join(repoRoot, e.path)).size < PLACEHOLDER_MAX_BYTES)
+        .map(e => `${e.path} (${e.label})`);
+      expect(stubs, `flat-color placeholder ${group.category} art — regenerate via ${group.generator}`).toEqual([]);
     });
   }
 });
