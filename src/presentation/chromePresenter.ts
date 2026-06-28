@@ -48,7 +48,8 @@ import {
   type ItemPickupOverlay,
   type LogLineView,
 } from '../ui/store.svelte';
-import { visualEffectLayers } from '../ui/visualEffects';
+import { bossTensionEffect, visualEffectLayers, type VisualEffectInstance } from '../ui/visualEffects';
+import { bossEncounterView, type BossSighting } from '../boss';
 import { wandDetail, wandLabel, wandTooltipStats } from '../ui/wandView';
 import { cloneValue, type ItemView, type MapSnapshot, type MonsterView } from './mapSnapshot';
 import { formatStyledItemName } from './itemNameFormatter';
@@ -56,6 +57,8 @@ import { formatStyledItemName } from './itemNameFormatter';
 export interface ChromePresenterOptions {
   readonly measureTileSize?: (cols: number, rows: number) => number;
   readonly setDisorientation?: (intensity: number) => void;
+  /** Drives the map-plane boss-fight sway (composed with disorientation). */
+  readonly setBossIntensity?: (intensity: number) => void;
 }
 
 export interface EndRunChromeState {
@@ -97,6 +100,12 @@ export class ChromePresenter {
   private pickupToken = 0;
   private pendingPickup: PendingItemPickup | null = null;
   private lastPickup: ItemPickupOverlay | null = null;
+  /** Visual-effect halves merged into ui.visualEffects: the survival/floor stack
+   *  (rebuilt in publishStats) and the boss vignette (rebuilt in publishMap, the
+   *  only place the boss state — derived from the map — is known). Kept apart so
+   *  neither call wipes the other's layer. */
+  private statsEffects: VisualEffectInstance[] = [];
+  private bossEffect: VisualEffectInstance | null = null;
 
   constructor(private readonly options: ChromePresenterOptions = {}) {}
 
@@ -142,7 +151,7 @@ export class ChromePresenter {
     });
     ui.survivalWarningTone = survival.tone;
     ui.survivalWarningIntensity = survival.intensity;
-    ui.visualEffects = visualEffectLayers({
+    this.statsEffects = visualEffectLayers({
       floor: dungeonFloor,
       hp: ui.hp,
       maxHp: ui.maxHp,
@@ -150,6 +159,7 @@ export class ChromePresenter {
       hungerFatigued,
       hungerHungry,
     });
+    this.republishVisualEffects();
 
     ui.food = player.inventory.food;
     ui.foodMax = cfg.playerMaxFood;
@@ -176,6 +186,37 @@ export class ChromePresenter {
   public publishMap(snapshot: MapSnapshot, combatFocusMonsterKey: string | null = this.combatFocusMonsterKey): void {
     this.combatFocusMonsterKey = combatFocusMonsterKey;
     this.syncOverlaysFromSnapshot(snapshot);
+    this.syncBossEncounter(snapshot);
+  }
+
+  /** Derive the engaged boss from the map snapshot (the only seam carrying
+   *  per-monster HP + visibility), and project it to the boss bar, the crimson
+   *  tension vignette, and the map-plane sway. Cleared when no boss is on-screen
+   *  or the run has ended. */
+  private syncBossEncounter(snapshot: MapSnapshot): void {
+    const ended = snapshot.gameOver || snapshot.gameWon;
+    const sightings: BossSighting[] = ended
+      ? []
+      : snapshot.monsters
+          .filter(m => m.special === 'boss' && m.visible)
+          .map(m => ({
+            key: m.id ?? m.name,
+            name: m.name,
+            hp: m.hp,
+            maxHp: m.maxHp ?? m.hp,
+          }));
+    const view = bossEncounterView(sightings);
+    ui.bossEncounter = view;
+    this.bossEffect = bossTensionEffect(view?.intensity ?? 0);
+    this.republishVisualEffects();
+    this.options.setBossIntensity?.(view?.intensity ?? 0);
+  }
+
+  /** Merge the two effect halves into the rendered layer list. */
+  private republishVisualEffects(): void {
+    ui.visualEffects = this.bossEffect
+      ? [...this.statsEffects, this.bossEffect]
+      : this.statsEffects;
   }
 
   public setAiming(aiming: { wandName: string } | null): void {
@@ -249,6 +290,8 @@ export class ChromePresenter {
     this.pendingPickup = null;
     this.lastPickup = null;
     ui.itemPickup = null;
+    this.bossEffect = null;
+    ui.bossEncounter = null;
   }
 
   public renderLogs(logs: readonly string[]): void {

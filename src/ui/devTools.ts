@@ -53,6 +53,10 @@ export interface DevToolsContext {
   // narrows this where it's used. See the commented example below.
   engine?: unknown;
   ui?: unknown;
+  /** Drop a boss beside the player to exercise the boss-fight FX. Passed in by
+   *  BalancePanel as actions.devSpawnBoss; absent in headless contexts so the
+   *  control is simply omitted there. */
+  spawnBoss?: (name?: string, hpFraction?: number) => void;
 }
 
 /** The boosted multiplier the proc-rate toggle flips ON to. 15× turns a 3%
@@ -81,7 +85,7 @@ export function setProcMultiplier(mult: number): void {
  *
  * @param _ctx live engine/ui handles for engine-backed controls (unused today).
  */
-export function buildDevControls(_ctx: DevToolsContext = {}): DevControl[] {
+export function buildDevControls(ctx: DevToolsContext = {}): DevControl[] {
   const controls: DevControl[] = [
     {
       kind: 'toggle',
@@ -105,6 +109,30 @@ export function buildDevControls(_ctx: DevToolsContext = {}): DevControl[] {
       },
     },
   ];
+
+  // Boss-fight FX testers (engine-backed via the spawnBoss seam). Drop a boss
+  // beside the player to witness the encounter stinger, crimson vignette, boss
+  // bar, and map sway without descending to floor 20. The wounded variant spawns
+  // near death to preview the peak (frenzied) intensity directly.
+  if (ctx.spawnBoss) {
+    const spawnBoss = ctx.spawnBoss;
+    controls.push(
+      {
+        kind: 'action',
+        id: 'spawn-boss',
+        label: 'Spawn boss',
+        description: 'Drop the Dragon King beside the player at full HP to start a boss fight.',
+        run: () => spawnBoss('Dragon King', 1),
+      },
+      {
+        kind: 'action',
+        id: 'spawn-boss-frenzied',
+        label: 'Spawn frenzied boss',
+        description: 'Drop the Dragon King at 15% HP to preview the peak (frenzied) FX.',
+        run: () => spawnBoss('Dragon King', 0.15),
+      },
+    );
+  }
 
   // SEAM — engine-backed controls go here once a live engine is threaded into
   // BalancePanel. Shape stays one entry; e.g. a "jump to level" action:

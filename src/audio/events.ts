@@ -20,6 +20,15 @@ export type SoundEvent = (
   // monster death carries identity so the manifest can resolve a most-specific
   // clip via the cascade: monsterId -> archetype -> special -> generic.
   | { type: 'combat.death'; monsterId: string; archetype: string; special?: 'hero' | 'boss' }
+  // boss encounter lifecycle — stingers layered OVER the 'boss' music bed.
+  // `encounter` fires once when a boss is first sighted; `phaseChange` on each
+  // HP-threshold crossing (66% / 33%); `defeated` when the boss dies; `heartbeat`
+  // is a low tense pulse emitted on actions while a boss fight rages (cooldown in
+  // the manifest gates it to a slow throb). See src/audio/bossEncounter.ts.
+  | { type: 'boss.encounter' }
+  | { type: 'boss.phaseChange'; phase: number }
+  | { type: 'boss.defeated' }
+  | { type: 'boss.heartbeat' }
   // player vitals & progression
   | { type: 'player.levelUp' }
   | { type: 'player.lowHealth' }
@@ -70,6 +79,10 @@ export const SAMPLE_SOUND_EVENTS = {
   'combat.heavyHit': { type: 'combat.heavyHit', damage: 20 },
   'combat.miss': { type: 'combat.miss', actor: 'player' },
   'combat.death': { type: 'combat.death', monsterId: 'orc', archetype: 'brute' },
+  'boss.encounter': { type: 'boss.encounter' },
+  'boss.phaseChange': { type: 'boss.phaseChange', phase: 2 },
+  'boss.defeated': { type: 'boss.defeated' },
+  'boss.heartbeat': { type: 'boss.heartbeat' },
   'player.levelUp': { type: 'player.levelUp' },
   'player.lowHealth': { type: 'player.lowHealth' },
   'player.criticalHealth': { type: 'player.criticalHealth' },

@@ -20,6 +20,7 @@ type RendererExtras = {
   setPlayerSprite?: (sprite: PlayerSprite) => void;
   getPlayerSprite?: () => PlayerSprite;
   setDisorientation?: (intensity: number) => void;
+  setBossIntensity?: (intensity: number) => void;
   fxPlayerRun?: (path: readonly RunPathStep[], ghosts?: readonly RunGhostItem[]) => void;
 };
 
@@ -104,6 +105,11 @@ export class MapViewController {
 
   public setDisorientation(intensity: number): void {
     this.extras().setDisorientation?.(intensity);
+    this.requestFrame();
+  }
+
+  public setBossIntensity(intensity: number): void {
+    this.extras().setBossIntensity?.(intensity);
     this.requestFrame();
   }
 

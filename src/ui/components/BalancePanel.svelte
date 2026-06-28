@@ -26,11 +26,16 @@
   let view = $state<'monsters' | 'run' | 'dev'>('monsters');
   let includeBosses = $state(false);
 
-  // The dev controls are built once from the (currently config-only) context.
-  // A future engine-backed control would pass { engine, ui } here — see the seam
-  // in devTools.ts. The registry reads persisted state on demand, so we bump a
-  // nonce after each mutation to force the Svelte re-read of isActive()/values.
-  const devControls: DevControl[] = buildDevControls();
+  // The dev controls are built once from the context. Config-only controls need
+  // nothing; engine-backed ones receive callbacks via the actions seam (e.g.
+  // spawnBoss). The registry reads persisted state on demand, so we bump a nonce
+  // after each mutation to force the Svelte re-read of isActive()/values.
+  // Wrap rather than capture actions.devSpawnBoss directly: main.ts wires the
+  // real action after this component initializes, so a captured reference could
+  // be the no-op default. The wrapper resolves it live at click time.
+  const devControls: DevControl[] = buildDevControls({
+    spawnBoss: (name, hpFraction) => actions.devSpawnBoss(name, hpFraction),
+  });
   let devNonce = $state(0);
   // `void devNonce` makes these getters re-run whenever a control mutates state.
   const procMultiplier = $derived.by(() => (void devNonce, getProcMultiplier()));

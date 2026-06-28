@@ -23,6 +23,7 @@ import { isWeaponCategory, weaponSymbol } from './weapons';
 import { type SoundSink, noopSink } from './audio/events';
 import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equipment';
 import { VitalsSoundTracker } from './audio/vitals';
+import { BossEncounterTracker, type BossTurnInput } from './audio/bossEncounter';
 import { isWalkable, blocksSight, isWall, TILE, STAIR_TILES, isSecretDoor } from './tiles';
 import { RNG, makeRng, randomSeed } from './rng';
 import { damageEquippedGear, normalizeAllGearHealth, normalizeGearHealth, repairAllDefensiveGear } from './gearHealth';
@@ -172,6 +173,8 @@ export class GameEngine {
   private sound: SoundSink;
   /** Stateful crossing detection for HP/hunger warning cues. */
   private vitals: VitalsSoundTracker;
+  /** Stateful boss-encounter detection (engage/phase/heartbeat cues + jolts). */
+  private bossTracker = new BossEncounterTracker();
 
   /** Cross-run record of which monsters the player has met. Loaded once and
    *  persisted on change — it intentionally survives initGame/restart. */
@@ -246,6 +249,7 @@ export class GameEngine {
     this.secretsFoundThisRun = 0;
     this.trapdoorGeneratedThisRun = false;
     this.vitals.reset();
+    this.bossTracker.reset();
     this.logs = ["Welcome to the Dungeon! Move onto stairs (up or down) to travel between floors."];
     this.publishPresentationEvent({ type: 'presentation.modeChanged', mode: { type: 'dungeon-map' } });
 
@@ -266,6 +270,9 @@ export class GameEngine {
   }
 
   public generateFloor() {
+    // A floor change retires any boss engagement so leaving the boss floor never
+    // reads as a "defeat" (and re-entering re-engages cleanly).
+    this.bossTracker.reset();
     const levelData = generateLevel(this.dungeonFloor, this.player.level, this.COLS, this.ROWS, this.rng, {
       trapdoorAllowed: !this.trapdoorGeneratedThisRun,
       gridCols: this.board.gridCols,
@@ -1084,6 +1091,9 @@ export class GameEngine {
   }
 
   private loadFloorForTravel(delta: 1 | -1) {
+    // Retire boss engagement on travel (the `else` branch's generateFloor also
+    // resets, but a cached-floor revisit skips it — reset here covers both).
+    this.bossTracker.reset();
     const saved = this.floorStates.get(this.dungeonFloor);
     if (saved) {
       this.map = saved.map.map(row => [...row]);
@@ -1315,6 +1325,12 @@ export class GameEngine {
       this.addLog(`${monster.name} is defeated!`);
     }
     if (monster.special === 'boss') {
+      // Cinematic defeat stinger + a heavy jolt, layered over the death roar.
+      // Reset the tracker here so it fires exactly once even when the kill ends
+      // the run (the per-turn vanish check wouldn't run on the win path).
+      this.sound.emit({ type: 'boss.defeated' });
+      this.publishPresentationEvent({ type: 'map.rumble', strength: 0.9 });
+      this.bossTracker.reset();
       this.addLog(`THE ${monster.name.toUpperCase()} IS SLAIN!`);
       const requiredBosses = requiredBossNamesForFloor(this.dungeonFloor);
       const anyRequiredBossesLeft = this.monsters.some(m => m !== monster && requiredBosses.has(m.name));
@@ -2748,8 +2764,29 @@ export class GameEngine {
 
     this.updateUI();
     this.updateFOV();
+    this.trackBossEncounter();
     this.draw();
     this.autosave();
+  }
+
+  /** Feed the bosses present (with current visibility) to the encounter tracker
+   *  and emit its cues + phase jolt. Runs after updateFOV so on-screen detection
+   *  uses this turn's field of view. No-op when no boss is on the floor. */
+  private trackBossEncounter() {
+    if (this.gameOver) return;
+    const bosses: BossTurnInput[] = this.monsters
+      .filter(m => m.special === 'boss')
+      .map(m => ({
+        key: monsterId(m),
+        name: m.name,
+        hp: m.hp,
+        maxHp: m.maxHp ?? m.hp,
+        visible: this.visible[m.y]?.[m.x] ?? false,
+      }));
+    if (bosses.length === 0 && this.bossTracker.idle) return;
+    const { sounds, rumble } = this.bossTracker.update(bosses);
+    sounds.forEach(e => this.sound.emit(e));
+    if (rumble > 0) this.publishPresentationEvent({ type: 'map.rumble', strength: rumble });
   }
 
   /** Feed current vitals to the crossing tracker and emit any warning cues. */
@@ -2760,6 +2797,28 @@ export class GameEngine {
       hunger: this.player.hunger,
     });
     events.forEach(e => this.sound.emit(e));
+  }
+
+  /** DEV-only: drop a boss next to the player to exercise the boss-fight FX
+   *  (sound stingers, crimson vignette, boss bar, map sway) without descending to
+   *  floor 20. Wired to a window helper in main.ts behind import.meta.env.DEV. */
+  public debugSpawnBoss(name = 'Dragon King', hpFraction = 1): void {
+    const template = MONSTER_DATABASE.find(m => m.name === name);
+    if (!template) return;
+    const spots = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+    for (const [dx, dy] of spots) {
+      const x = this.player.x + dx;
+      const y = this.player.y + dy;
+      if (isWalkable(this.map[y]?.[x]) && !this.monsters.some(m => m.x === x && m.y === y)) {
+        const hp = Math.max(1, Math.round(template.hp * hpFraction));
+        this.monsters.push({ ...template, hp, maxHp: template.hp, special: 'boss', x, y, frozenTurns: 0 } as Monster);
+        break;
+      }
+    }
+    this.updateUI();
+    this.updateFOV();
+    this.trackBossEncounter();
+    this.draw();
   }
 
   public updateUI() {
@@ -2857,6 +2916,7 @@ export class GameEngine {
       // Adopt the run's board size BEFORE restoring grids so COLS/ROWS match the
       // saved map. Old saves (no boardSize) resolve to classic 46x29.
       this.setBoardSize(resolveBoardSize(save.boardSize).id);
+      this.bossTracker.reset();
       this.player = structuredClone(save.player);
       normalizeAllGearHealth(this.player);
       // Backfill the scrolls bucket for saves written before scrolls existed.

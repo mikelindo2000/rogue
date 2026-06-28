@@ -64,6 +64,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 export class MapStageController {
   private rumbles: Rumble[] = [];
   private disorientation = 0;
+  private bossIntensity = 0;
   private reduced: boolean;
   private wasIdentity = true;
   private readonly apply: (transform: string, filter?: string) => void;
@@ -105,10 +106,19 @@ export class MapStageController {
     if (this.reduced) this.settle();
   }
 
+  /** Set a persistent boss-fight tension in [0, 1]. Drives a slow, low-amplitude
+   *  sway of the map plane (and a faint saturate) that grows as the fight
+   *  escalates — distinct from the faster, blurrier disorientation warp. No-op
+   *  visually under reduced motion. */
+  setBossIntensity(intensity: number): void {
+    this.bossIntensity = clamp01(intensity);
+    if (this.reduced) this.settle();
+  }
+
   /** True while any effect is still alive (keeps GameUI's rAF loop spinning). */
   isAnimating(): boolean {
     const t = this.now();
-    return this.disorientation > 0 || this.rumbles.some(r => t - r.start < r.life);
+    return this.disorientation > 0 || this.bossIntensity > 0 || this.rumbles.some(r => t - r.start < r.life);
   }
 
   /** Compose all live effects into one transform and write it to the plane.
@@ -118,7 +128,7 @@ export class MapStageController {
     if (this.rumbles.length) {
       this.rumbles = this.rumbles.filter(r => t - r.start < r.life);
     }
-    if (this.rumbles.length === 0 && this.disorientation <= 0) {
+    if (this.rumbles.length === 0 && this.disorientation <= 0 && this.bossIntensity <= 0) {
       this.settle();
       return;
     }
@@ -148,6 +158,17 @@ export class MapStageController {
       rot += Math.sin(t * 0.0041) * 1.0 * s;
       filter = `blur(${round(1.35 * s)}px) saturate(${round(1 + 0.28 * s)}) contrast(${round(1 - 0.08 * s)})`;
     }
+    if (this.bossIntensity > 0 && !this.reduced) {
+      const b = this.bossIntensity;
+      // Slow, ominous sway — lower frequency and amplitude than disorientation,
+      // and no blur (the board must stay readable mid-fight). A faint saturate
+      // bump deepens the crimson without hurting legibility.
+      dx += Math.sin(t * 0.0021) * 2.2 * b;
+      dy += Math.cos(t * 0.0017) * 1.6 * b;
+      rot += Math.sin(t * 0.0015) * 0.5 * b;
+      const sat = round(1 + 0.18 * b);
+      filter = filter ? `${filter} saturate(${sat})` : `saturate(${sat})`;
+    }
 
     this.wasIdentity = false;
     this.apply(
@@ -160,6 +181,7 @@ export class MapStageController {
   settle(): void {
     this.rumbles.length = 0;
     this.disorientation = 0;
+    this.bossIntensity = 0;
     if (!this.wasIdentity) {
       this.wasIdentity = true;
       this.apply('', '');

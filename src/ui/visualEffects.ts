@@ -25,7 +25,8 @@ export type VisualEffectKind =
   | 'survival-health'
   | 'survival-both'
   | 'floor-green-fog'
-  | 'floor-airy-light';
+  | 'floor-airy-light'
+  | 'boss-tension';
 
 export interface VisualEffectInstance {
   /** Stable key for Svelte's keyed each; unique within the active list. */
@@ -57,6 +58,7 @@ export interface VisualEffectInput {
 const LAYER = {
   chromeTexture: 1,
   floorFog: 10,
+  bossTension: 15,
   survival: 20,
 } as const;
 
@@ -180,6 +182,27 @@ export function visualEffectLayers(input: VisualEffectInput): VisualEffectInstan
   }
 
   return effects;
+}
+
+/**
+ * The crimson boss-tension vignette — a dark-red edge wash that breathes from
+ * the screen edges, its pulse strength scaled by intensity. Computed apart from
+ * visualEffectLayers because the boss state is derived from the map snapshot
+ * (ChromePresenter.publishMap), not the HUD snapshot; the presenter merges this
+ * onto the layer list. Returns null when no boss is engaged.
+ */
+export function bossTensionEffect(intensity: number): VisualEffectInstance | null {
+  if (intensity <= 0) return null;
+  const i = intensity < 0 ? 0 : intensity > 1 ? 1 : intensity;
+  return {
+    id: 'boss-tension',
+    kind: 'boss-tension',
+    target: 'stage-overlay',
+    layer: LAYER.bossTension,
+    intensity: i,
+    className: classFor('boss-tension'),
+    vars: { '--fx-intensity': i },
+  };
 }
 
 /** Serialize an effect's CSS custom properties into a `style` string. Only

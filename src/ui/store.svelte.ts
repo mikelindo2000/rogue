@@ -11,6 +11,7 @@ import type { IconName } from './icons';
 import type { ReadiedWandView } from './readiedWandView';
 import type { HungerTone, SurvivalWarningTone } from './format';
 import type { VisualEffectInstance } from './visualEffects';
+import type { BossEncounterView } from '../boss';
 import { emptyDiscovery, type DiscoveryState } from '../discovery';
 import type { BoardSizeId } from '../boards';
 import { DEFAULT_PLAYER_SPRITE, type PlayerSprite } from '../render/avatar';
@@ -242,6 +243,9 @@ export interface UIState {
   combatPortrait: CombatPortrait | null;
   /** The framed card of the item just collected (null = none recently). */
   itemPickup: ItemPickupOverlay | null;
+  /** The engaged boss this turn (null = no boss fight). Drives the boss bar +
+   *  the crimson tension vignette + the map sway. See src/boss.ts. */
+  bossEncounter: BossEncounterView | null;
   /** Non-null while a wand is drawn and awaiting an aim direction. Drives the
    *  transient aiming prompt overlay. */
   aiming: { wandName: string } | null;
@@ -335,6 +339,7 @@ export const ui = $state<UIState>({
   nearbyMonster: null,
   combatPortrait: null,
   itemPickup: null,
+  bossEncounter: null,
   aiming: null,
   gameOver: false,
   gameWon: false,
@@ -400,6 +405,9 @@ export interface UIActions {
   /** Choose the active floor-change transition effect (persisted). */
   setFloorTransition(id: string): void;
   testSound(): void;
+  /** DEV-only: drop a boss beside the player to exercise the boss-fight FX.
+   *  Wired in main.ts (behind import.meta.env.DEV); no-op otherwise. */
+  devSpawnBoss(name?: string, hpFraction?: number): void;
   copyEndRunSummary(): void;
   clearRunHistory(): void;
   selectInventoryItem(ref: InventoryRef | null): void;
@@ -440,6 +448,7 @@ export const actions: UIActions = {
   setBoardSize: () => {},
   setFloorTransition: () => {},
   testSound: () => {},
+  devSpawnBoss: () => {},
   copyEndRunSummary: () => {},
   clearRunHistory: () => {},
   selectInventoryItem: () => {},

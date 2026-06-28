@@ -59,6 +59,15 @@ export const SOUND_ASSETS: Record<string, SoundAsset> = {
   'death-trickster': { id: 'death-trickster', variants: [sfx('death-trickster-01.mp3')], channel: 'combat', volume: 0.9 },
   'death-bat': { id: 'death-bat', variants: [sfx('death-bat-01.mp3')], channel: 'combat', volume: 0.85 },
   'death-boss': { id: 'death-boss', variants: [sfx('death-boss-01.mp3')], channel: 'combat', volume: 1, priority: 10 },
+  // boss encounter stingers — layered over the 'boss' music bed. Lazy-loaded
+  // (rare cues), high priority so they survive voice-capping at peak chaos.
+  // Generate with scripts/gen-boss-sfx.mjs.
+  'boss-encounter': { id: 'boss-encounter', variants: [sfx('boss-encounter-01.mp3')], channel: 'combat', volume: 1, priority: 11 },
+  'boss-phase': { id: 'boss-phase', variants: [sfx('boss-phase-01.mp3')], channel: 'combat', volume: 1, priority: 10 },
+  'boss-defeated': { id: 'boss-defeated', variants: [sfx('boss-defeated-01.mp3')], channel: 'combat', volume: 1, priority: 12 },
+  // The dread throb during a fight. maxVoices 1 + a long cooldown keep it a slow
+  // pulse no matter how fast the player acts.
+  'boss-heartbeat': { id: 'boss-heartbeat', variants: [sfx('boss-heartbeat-01.mp3')], channel: 'combat', volume: 0.5, cooldownMs: 1400, maxVoices: 1 },
   // player vitals & progression
   'player-levelup': { id: 'player-levelup', variants: [sfx('player-levelup-01.mp3')], channel: 'status', volume: 0.9, priority: 5 },
   'player-lowhealth': { id: 'player-lowhealth', variants: [sfx('player-lowhealth-01.mp3')], channel: 'status', volume: 0.8, cooldownMs: 1000 },
@@ -171,6 +180,10 @@ export function resolveClipId(event: SoundEvent): string | null {
     case 'combat.heavyHit': return 'combat-rumble';
     case 'combat.miss': return 'combat-miss';
     case 'combat.death': return resolveDeathClip(event);
+    case 'boss.encounter': return 'boss-encounter';
+    case 'boss.phaseChange': return 'boss-phase';
+    case 'boss.defeated': return 'boss-defeated';
+    case 'boss.heartbeat': return 'boss-heartbeat';
     case 'player.levelUp': return 'player-levelup';
     case 'player.lowHealth': return 'player-lowhealth';
     case 'player.criticalHealth': return 'player-criticalhealth';

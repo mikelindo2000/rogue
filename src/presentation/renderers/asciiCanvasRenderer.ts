@@ -315,6 +315,11 @@ export class AsciiCanvasRenderer implements MapRenderer {
     this.ensureLoop();
   }
 
+  public setBossIntensity(intensity: number): void {
+    this.mapStage?.setBossIntensity(intensity);
+    this.ensureLoop();
+  }
+
   /** Shake the map plane on a heavy blow (cosmetic; the engine decides what's
    *  heavy). `strength` is a 0..1 intensity. Pairs with the `combat.heavyHit`
    *  sound cue, but the two are independent — either can be disabled alone. */

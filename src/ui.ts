@@ -38,6 +38,7 @@ export class GameUI {
     this.chrome = new ChromePresenter({
       measureTileSize: (cols, rows) => this.computeTileSize(cols, rows),
       setDisorientation: intensity => this.mapView.setDisorientation(intensity),
+      setBossIntensity: intensity => this.mapView.setBossIntensity(intensity),
     });
   }
 

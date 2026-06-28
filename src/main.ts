@@ -66,6 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
       console.info(`[rogue] ability proc multiplier set to ${mult} (1 = sheet rates)`);
       return mult;
     };
+    // Dev console helper: drop a boss next to the player to witness the
+    // boss-fight FX (stinger + crimson vignette + boss bar + map sway) without
+    // grinding to floor 20. `rogueSpawnBoss('Marcus the Brave')` for the other.
+    (window as Window & { rogueSpawnBoss?: (name?: string, hpFraction?: number) => void }).rogueSpawnBoss = (name?: string, hpFraction = 1) => {
+      actions.devSpawnBoss(name, hpFraction);
+      console.info(`[rogue] spawned boss${name ? ` (${name})` : ''} at ${Math.round(hpFraction * 100)}% HP beside the player`);
+    };
   }
 
   // Both runtimes share one AudioContext; unlock them together on first gesture.
@@ -345,6 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
     audio.unlock();
     audio.test();
   };
+  if (import.meta.env.DEV) {
+    // Boss-fight FX tester (Dev tab + window.rogueSpawnBoss): drop a boss beside
+    // the player without grinding to floor 20. Unlock audio so the stinger plays.
+    actions.devSpawnBoss = (name?: string, hpFraction = 1) => {
+      audio.unlock();
+      engine.debugSpawnBoss(name, hpFraction);
+    };
+  }
   actions.copyEndRunSummary = () => {
     if (!ui.endRunSummary) return;
     const text = buildCopySummary(ui.endRunSummary, ui.endRunComparison);

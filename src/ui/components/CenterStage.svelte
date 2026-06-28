@@ -3,6 +3,7 @@
   import MonsterTooltip from './MonsterTooltip.svelte';
   import MonsterPortrait from './MonsterPortrait.svelte';
   import ItemPickupCard from './ItemPickupCard.svelte';
+  import BossBanner from './BossBanner.svelte';
   import EndRunScreen from './EndRunScreen.svelte';
   import EffectLayerHost from './EffectLayerHost.svelte';
   import DebugLogOverlay from './DebugLogOverlay.svelte';
@@ -109,8 +110,13 @@
   </div>
 
   <div class="vignette" aria-hidden="true"></div>
-  <!-- Danger washes / above-board atmosphere (survival warning lives here). -->
+  <!-- Danger washes / above-board atmosphere (survival warning + boss tension). -->
   <EffectLayerHost effects={ui.visualEffects} target="stage-overlay" />
+
+  <!-- Boss health rail + name banner, shown while a boss fight is engaged. -->
+  {#if ui.bossEncounter}
+    <BossBanner boss={ui.bossEncounter} />
+  {/if}
 
 
 

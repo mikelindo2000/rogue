@@ -98,6 +98,36 @@
   }
 }
 
+/* ── Boss tension vignette (crimson dread) ─────────────────────────────── */
+
+/* A dark-red vignette pressing in from the screen edges, breathing on a pulse
+   whose depth scales with --fx-intensity (set by the engaged boss's HP). The
+   center stays clear so the board reads; only the rim darkens and throbs. The
+   pulse quickens as the fight escalates via the intensity-scaled duration. */
+.fx-boss-tension {
+  --boss-edge: rgba(150, 12, 14, calc(0.5 * var(--fx-intensity)));
+  --boss-rim: rgba(80, 0, 0, calc(0.6 * var(--fx-intensity)));
+  --boss-pulse-min: calc(0.25 + 0.35 * var(--fx-intensity));
+  --boss-pulse-max: calc(0.55 + 0.45 * var(--fx-intensity));
+  background:
+    radial-gradient(125% 115% at 50% 48%, transparent 52%, var(--boss-edge) 100%),
+    linear-gradient(90deg, var(--boss-rim), transparent 14%, transparent 86%, var(--boss-rim)),
+    linear-gradient(0deg, var(--boss-rim), transparent 16%, transparent 84%, var(--boss-rim));
+  mix-blend-mode: multiply;
+  opacity: var(--boss-pulse-min);
+  animation: boss-tension-pulse calc(2600ms - 1100ms * var(--fx-intensity)) var(--ease, ease-in-out) infinite;
+}
+
+@keyframes boss-tension-pulse {
+  0%,
+  100% {
+    opacity: var(--boss-pulse-min);
+  }
+  50% {
+    opacity: var(--boss-pulse-max);
+  }
+}
+
 /* ── Green floor fog ───────────────────────────────────────────────────── */
 
 .fx-green-fog {
@@ -183,6 +213,10 @@
   .fx-survival-both {
     animation: none;
     opacity: var(--survival-pulse-min);
+  }
+  .fx-boss-tension {
+    animation: none;
+    opacity: var(--boss-pulse-max);
   }
   .fx-chrome-texture,
   .fx-green-fog,
