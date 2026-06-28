@@ -421,7 +421,7 @@ export const GEAR_POOL: Record<string, GearItem[]> = {
   polearm: [ {name:"Spear", dmg:8}, {name:"Halberd", dmg:12}, {name:"Glaive of Ruin", dmg:17} ],
   bow: [ {name:"Short Bow", dmg:5}, {name:"Long Bow", dmg:8}, {name:"Storm Recurve", dmg:11} ],
   blunderbuss: [ {name:"Hand Cannon", dmg:10}, {name:"Blunderbuss", dmg:15}, {name:"Thunder Cannon", dmg:21} ],
-  staff: [ {name:"Fire Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Shadow Staff", dmg:4, type:'staff', magic:'shadow', rarity:'common'} ]
+  staff: [ {name:"Fire Staff", dmg:4, type:'staff', magic:'fire', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', magic:'frost', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', magic:'arcane', rarity:'common'}, {name:"Shadow Staff", dmg:4, type:'staff', magic:'shadow', rarity:'common'} ]
 };
 
 /** The zappable wand/staff catalog, parallel to GEAR_POOL. Persistent items —

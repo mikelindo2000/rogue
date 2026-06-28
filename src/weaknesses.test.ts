@@ -7,6 +7,7 @@ import {
   type MonsterWeakness,
 } from './weaknesses';
 import type { GearItem } from './types';
+import { GEAR_POOL } from './config';
 
 describe('MONSTER_WEAKNESSES table (Phase-1 assignments)', () => {
   it('maps a weapon-class weakness verbatim from the sheet', () => {
@@ -82,6 +83,28 @@ describe('weaknessBonus (engine resolution)', () => {
     const fist: GearItem = { name: 'Fist', dmg: 1 };
     expect(weaknessBonus(allWeakness, fist)).toBe(0);
   });
+});
+
+describe('equippable staffs carry a magic school (read-site parity)', () => {
+  // Each staff in GEAR_POOL is equipped as-is into inventory.weapons and read
+  // directly by weaknessBonus, so it must carry the `magic` field its name
+  // implies — otherwise magic-school weaknesses silently never fire for it.
+  const cases: [string, string, string][] = [
+    ['Fire Staff', 'fire', 'apperation'],   // +12 Fire Magic
+    ['Frost Staff', 'frost', 'indus-worm'], // +5 Frost Magic
+    ['Arcane Staff', 'arcane', 'nymph'],    // +6 Arcane Magic
+    ['Shadow Staff', 'shadow', 'unicorn'],  // +6 Shadow Magic
+  ];
+
+  for (const [name, magic, monsterId] of cases) {
+    it(`${name} sets magic:'${magic}' and counters ${monsterId}`, () => {
+      const staff = GEAR_POOL['staff'].find((s) => s.name === name);
+      expect(staff).toBeDefined();
+      expect(staff!.magic).toBe(magic);
+      const weakness = MONSTER_WEAKNESSES[monsterId];
+      expect(weaknessBonus(weakness, staff)).toBe(weakness.bonusDamage);
+    });
+  }
 });
 
 describe('describeWeakness / monsterWeakness (bestiary)', () => {
