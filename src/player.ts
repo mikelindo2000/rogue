@@ -2,6 +2,7 @@ import { Player, StatusEffects, ARMOR_SLOTS, EquipSlot, EquipTarget, InventoryRe
 import { getConfig, getScaledXpRequirements, BALANCE } from './config';
 import { effectiveDefense, normalizeAllGearHealth } from './gearHealth';
 import { effectMagnitude } from './effects';
+import { isTwoHandedType } from './weapons';
 
 export function createPlayer(): Player {
   const tunables = getConfig();
@@ -108,7 +109,7 @@ export function handleEquipItem(
 
 function isTwoHanded(player: Player): boolean {
   const mainWep = player.inventory.weapons[player.equipped.mainHand];
-  return mainWep?.type?.startsWith('2h_') || mainWep?.type === 'staff';
+  return isTwoHandedType(mainWep?.type);
 }
 
 function normalizeOffHand(player: Player, addLog: (msg: string) => void) {

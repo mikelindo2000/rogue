@@ -41,7 +41,10 @@ describe('generateGearItem', () => {
   });
 
   it('weapons have a numeric dmg, armor/shields have numeric def === maxDef, and names get a +bonus suffix', () => {
-    const weaponCategories = new Set(['dagger', 'staff', '1h_sword', '2h_sword', '1h_mace', '2h_mace']);
+    const weaponCategories = new Set([
+      'dagger', 'staff', '1h_sword', '2h_sword', '1h_mace', '2h_mace',
+      '1h_axe', '2h_axe', 'polearm', 'bow', 'blunderbuss',
+    ]);
 
     for (let seed = 1; seed <= 200; seed++) {
       const gear = generateGearItem(5, 'common', makeRng(seed));
@@ -122,5 +125,39 @@ describe('generateGearItem', () => {
       const b = generateGearItem(8, 'rare', makeRng(seed));
       expect(a).toEqual(b);
     }
+  });
+
+  it('can roll every weapon category, including the new ones', () => {
+    const newWeaponCats = ['1h_axe', '2h_axe', 'polearm', 'bow', 'blunderbuss'];
+    const seen = new Set<string>();
+    // Floor 8 so all tiers are eligible; many seeds to cover the weighted pool.
+    for (let seed = 1; seed <= 4000 && newWeaponCats.some((c) => !seen.has(c)); seed++) {
+      const gear = generateGearItem(8, 'common', makeRng(seed));
+      if (gear) seen.add(gear.category);
+    }
+    for (const cat of newWeaponCats) {
+      expect(seen.has(cat), `loot never rolled category ${cat}`).toBe(true);
+    }
+  });
+
+  it('preserves the ≈50/50 weapon:armor loot ratio despite the new weapon classes', () => {
+    // The weighted single-pick must keep weapons and armor roughly balanced; a
+    // naive flat pick over all categories would push weapons to ~65%.
+    const weaponCats = new Set([
+      'dagger', 'staff', '1h_sword', '2h_sword', '1h_mace', '2h_mace',
+      '1h_axe', '2h_axe', 'polearm', 'bow', 'blunderbuss',
+    ]);
+    let weapons = 0;
+    let total = 0;
+    const N = 20000;
+    for (let seed = 1; seed <= N; seed++) {
+      const gear = generateGearItem(8, 'common', makeRng(seed));
+      if (!gear) continue;
+      total++;
+      if (weaponCats.has(gear.category)) weapons++;
+    }
+    const ratio = weapons / total;
+    expect(ratio).toBeGreaterThan(0.45);
+    expect(ratio).toBeLessThan(0.55);
   });
 });

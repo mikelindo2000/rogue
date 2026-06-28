@@ -11,6 +11,7 @@ import {
   type EquipmentStatKind,
 } from './equipmentStats';
 import { effectiveDefense, gearHealthTone } from '../gearHealth';
+import { isTwoHandedType } from '../weapons';
 
 export function weaponTypeLabel(type?: string): string {
   if (!type) return 'Unknown';
@@ -185,12 +186,11 @@ function offHandClearedRow(current: GearItem, currentKind: EquipmentStatKind): I
 }
 
 function isTwoHandedWeapon(item: GearItem): boolean {
-  return item.type?.startsWith('2h_') || item.type === 'staff';
+  return isTwoHandedType(item.type);
 }
 
 function weaponHandsLabel(type: WeaponType | undefined): string {
-  if (type?.startsWith('2h_') || type === 'staff') return 'Two-handed';
-  return 'One-handed';
+  return isTwoHandedType(type) ? 'Two-handed' : 'One-handed';
 }
 
 export { shortGearStatText };

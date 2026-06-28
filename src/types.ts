@@ -55,8 +55,19 @@ export type GearSlot = ArmorSlot | 'shield';
 /** Slots the equip UI can target. */
 export type EquipSlot = 'mainHand' | 'offHand' | ArmorSlot;
 
-export type WeaponType = 'dagger' | '1h_sword' | '2h_sword' | '1h_mace' | '2h_mace' | 'staff';
-export type StaffMagic = 'fire' | 'frost' | 'arcane';
+export type WeaponType =
+  | 'dagger'
+  | '1h_sword'
+  | '2h_sword'
+  | '1h_mace'
+  | '2h_mace'
+  | '1h_axe'
+  | '2h_axe'
+  | 'polearm'
+  | 'bow'
+  | 'blunderbuss'
+  | 'staff';
+export type StaffMagic = 'fire' | 'frost' | 'arcane' | 'shadow';
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type PotionType = 'healing' | 'strength' | 'invisibility' | 'armor';
 /** Named, carried scrolls (read on demand) at original-Rogue catalog parity.

@@ -4,6 +4,7 @@ import { encountersForFloor, type EncounterDefinition } from './encounters';
 import { rollLootRarity, generateGearItem } from './items';
 import { pickWandForFloor } from './wands';
 import { pickScrollForFloor } from './scrolls';
+import { weaponSymbol } from './weapons';
 import { POTION_TYPES, potionVisual, scrollVisual, wandVisual } from './itemVisuals';
 import { TILE, isWalkable, STAIR_TILES } from './tiles';
 import { RNG } from './rng';
@@ -658,9 +659,7 @@ function makeGearSpawn(floor: number, rng: RNG): ItemSpawn | null {
   const rarity = rollLootRarity(floor, rng);
   const gear = generateGearItem(floor, rarity, rng);
   if (!gear) return null;
-  const cat = gear.category;
-  const isWeapon = cat.includes('sword') || cat.includes('mace') || cat === 'dagger' || cat === 'staff';
-  return { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear };
+  return { type: 'gear', symbol: weaponSymbol(gear.category), color: gear.color || '#ffffff', data: gear };
 }
 
 function makeMazeCacheSpawn(floor: number, rng: RNG): ItemSpawn {

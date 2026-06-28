@@ -17,6 +17,7 @@ import { processMonsterAI } from './monster';
 import { tickPlayerEffects, hasEffect, effectMagnitude } from './effects';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
 import { computeStrike, isHeavyHit, rumbleStrength } from './combat';
+import { isWeaponCategory, weaponSymbol } from './weapons';
 import { type SoundSink, noopSink } from './audio/events';
 import { snapshotEquipped, diffEquipped, type EquipSnapshot } from './audio/equipment';
 import { VitalsSoundTracker } from './audio/vitals';
@@ -1380,7 +1381,7 @@ export class GameEngine {
         const c = item.data.category;
         const styledName = formatStyledItemName(item.data.name, item.data.rarity || 'common');
 
-        if (c.includes('sword') || c.includes('mace') || c === 'dagger' || c === 'staff') {
+        if (isWeaponCategory(c)) {
           item.data.type = c as GearItem['type'];
           this.player.inventory.weapons.push(item.data);
           recordGearPickedUp(this.stats, item.data);
@@ -2200,8 +2201,7 @@ export class GameEngine {
       const suffix = gear.name.match(/ \+\d+$/)?.[0] ?? '';
       gear.name = `${name}${suffix}`;
     }
-    const isWeapon = category.includes('sword') || category.includes('mace') || category === 'dagger' || category === 'staff';
-    return { type: 'gear', symbol: isWeapon ? ')' : '[', color: gear.color || '#ffffff', data: gear };
+    return { type: 'gear', symbol: weaponSymbol(category), color: gear.color || '#ffffff', data: gear };
   }
 
   /** The base hoard a gold-carrier sits on, by archetype (on top of any gold it

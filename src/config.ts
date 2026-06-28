@@ -411,7 +411,17 @@ export const GEAR_POOL: Record<string, GearItem[]> = {
   '2h_sword': [ {name:"Claymore", dmg:10}, {name:"Zweihander", dmg:16}, {name:"Dragon Slayer", dmg:22} ],
   '1h_mace': [ {name:"Club", dmg:6}, {name:"Morningstar", dmg:9}, {name:"Meteor Hammer", dmg:13} ],
   '2h_mace': [ {name:"Warhammer", dmg:12}, {name:"Earth Breaker", dmg:18}, {name:"Titan Maul", dmg:25} ],
-  staff: [ {name:"Fire Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', rarity:'common'} ]
+  // New weapon classes (June 2026, Phase 0 weapon-class expansion). Each pool is
+  // 3 tiers, tier-matched to the existing dmg curve so loot stays balance-neutral:
+  // 1h_axe≈1h_sword, 2h_axe≈2h_sword, polearm≈between 1h/2h, bow≈dagger/1h,
+  // blunderbuss≈2h burst. bow/blunderbuss are ranged in flavor only — mechanically
+  // melee (equip + weapon.dmg); ranged firing is a deferred follow-up.
+  '1h_axe': [ {name:"Hand Axe", dmg:6}, {name:"Battle Axe", dmg:10}, {name:"Reaver", dmg:14} ],
+  '2h_axe': [ {name:"Greataxe", dmg:11}, {name:"War Cleaver", dmg:17}, {name:"Executioner", dmg:24} ],
+  polearm: [ {name:"Spear", dmg:8}, {name:"Halberd", dmg:12}, {name:"Glaive of Ruin", dmg:17} ],
+  bow: [ {name:"Short Bow", dmg:5}, {name:"Long Bow", dmg:8}, {name:"Storm Recurve", dmg:11} ],
+  blunderbuss: [ {name:"Hand Cannon", dmg:10}, {name:"Blunderbuss", dmg:15}, {name:"Thunder Cannon", dmg:21} ],
+  staff: [ {name:"Fire Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Frost Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Arcane Staff", dmg:4, type:'staff', rarity:'common'}, {name:"Shadow Staff", dmg:4, type:'staff', magic:'shadow', rarity:'common'} ]
 };
 
 /** The zappable wand/staff catalog, parallel to GEAR_POOL. Persistent items —

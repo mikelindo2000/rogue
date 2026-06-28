@@ -2,6 +2,30 @@ import { GEAR_POOL, RARITY_CONFIG, BALANCE, getConfig } from './config';
 import { FloorGear, Rarity } from './types';
 import { RNG } from './rng';
 import { normalizeGearHealth } from './gearHealth';
+import { isWeaponCategory } from './weapons';
+
+/**
+ * A weighted list of every GEAR_POOL category that preserves today's ≈50/50
+ * weapon:armor split despite the weapon-class expansion. A flat
+ * `rng.pick(Object.keys(GEAR_POOL))` would push weapons from ~50% to ~65% once 5
+ * weapon categories were added; a two-step group-then-category pick would fix the
+ * ratio but add an rng draw per loot roll, cascading seeded determinism. Instead
+ * we keep a SINGLE `rng.pick` over this list, repeating each weapon category
+ * (`armorCount`)× and each armor category (`weaponCount`)× so the two groups carry
+ * equal total weight. One draw ⇒ the rng draw COUNT per loot roll is unchanged
+ * (downstream seeded determinism preserved); only WHICH item a given seed yields
+ * shifts. Built once at module load. */
+const WEIGHTED_GEAR_CATEGORIES: string[] = (() => {
+  const all = Object.keys(GEAR_POOL);
+  const weapons = all.filter(isWeaponCategory);
+  const armor = all.filter((c) => !isWeaponCategory(c));
+  const weighted: string[] = [];
+  // Repeat each weapon `armor.length`× and each armor `weapons.length`× so each
+  // group totals weapons.length * armor.length ⇒ a 50/50 weapon:armor split.
+  for (const w of weapons) for (let i = 0; i < armor.length; i++) weighted.push(w);
+  for (const a of armor) for (let i = 0; i < weapons.length; i++) weighted.push(a);
+  return weighted;
+})();
 
 export function rollLootRarity(floor: number, rng: RNG): Rarity {
   const tunables = getConfig();
@@ -21,8 +45,9 @@ export function rollLootRarity(floor: number, rng: RNG): Rarity {
 }
 
 export function generateGearItem(floor: number, rarity: Rarity, rng: RNG): FloorGear | null {
-  const categories = Object.keys(GEAR_POOL);
-  const cat = rng.pick(categories);
+  // Single rng.pick over a WEIGHTED category list (preserves the ≈50/50
+  // weapon:armor ratio and the per-roll draw count). See WEIGHTED_GEAR_CATEGORIES.
+  const cat = rng.pick(WEIGHTED_GEAR_CATEGORIES);
   return buildGearInCategory(cat, floor, rarity, rng);
 }
 

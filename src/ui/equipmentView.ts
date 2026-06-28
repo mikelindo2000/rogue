@@ -13,6 +13,7 @@ import {
   type EquipmentStatKind,
 } from './equipmentStats';
 import { bestIndex, compareGear } from './gearCompare';
+import { isTwoHandedType } from '../weapons';
 
 function availableLabel(count: number): string {
   return count === 1 ? '1 item available to equip' : `${count} items available to equip`;
@@ -79,7 +80,7 @@ export function buildEquipmentView(player: Player): EquipSlotView[] {
     options: mainOptions,
   });
 
-  const is2H = main?.type?.startsWith('2h_') || main?.type === 'staff';
+  const is2H = isTwoHandedType(main?.type);
   const off = player.equipped.offHand;
   let offName = 'None';
   let offRarity: string | undefined = 'common';
