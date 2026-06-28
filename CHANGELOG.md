@@ -30,6 +30,8 @@ All notable changes to this project will be documented in this file.
   - Refined the asset readiness pipeline plan.
 
 ### Changed
+- **Developer Workflow**:
+  - Added worktree bootstrap guardrails so new/dev worktree scripts validate the active `v3` project base and diagnose detached, root-commit, or wrong-base checkouts before serving.
 - **Dungeon View**:
   - Reverted the drop shadow effect on the map canvas.
 - **Audio**:

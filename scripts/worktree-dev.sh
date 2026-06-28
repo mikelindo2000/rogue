@@ -15,7 +15,68 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+ACTIVE_BASE_BRANCH="${ROGUE_WORKTREE_BASE:-v3}"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+ref_commit() {
+  git rev-parse --verify --quiet "$1^{commit}"
+}
+
+is_root_commit() {
+  local commit="$1"
+  local roots
+  roots="$(git rev-list --max-parents=0 "$commit")"
+  [[ "$roots" == *"$commit"* ]]
+}
+
+print_checkout_help() {
+  cat >&2 <<EOF
+
+Expected Rogue worktree flow:
+  scripts/worktree-new.sh <branch> $ACTIVE_BASE_BRANCH
+  cd ../rogue-worktrees/<branch>
+  scripts/worktree-dev.sh
+
+This repo's active project branch is '$ACTIVE_BASE_BRANCH'. If this worktree
+opened on the wrong commit, create a new worktree from '$ACTIVE_BASE_BRANCH' or
+move this branch onto the right base:
+  git fetch origin $ACTIVE_BASE_BRANCH
+  git rebase $ACTIVE_BASE_BRANCH
+EOF
+}
+
+validate_project_base() {
+  local active_commit
+  local head_commit
+
+  active_commit="$(ref_commit "$ACTIVE_BASE_BRANCH")" || {
+    print_checkout_help
+    die "active project branch '$ACTIVE_BASE_BRANCH' was not found locally"
+  }
+  head_commit="$(ref_commit HEAD)" || die "not inside a valid git checkout"
+
+  if [[ "$BRANCH" == "HEAD" ]]; then
+    print_checkout_help
+    die "checkout is detached; switch to a branch based on '$ACTIVE_BASE_BRANCH' before starting dev"
+  fi
+
+  if is_root_commit "$head_commit"; then
+    print_checkout_help
+    die "checkout is at a root commit, not the active project branch '$ACTIVE_BASE_BRANCH'"
+  fi
+
+  if ! git merge-base --is-ancestor "$active_commit" "$head_commit"; then
+    print_checkout_help
+    die "branch '$BRANCH' is not based on active project branch '$ACTIVE_BASE_BRANCH'"
+  fi
+}
+
+validate_project_base
 
 # Free-port check: succeeds (returns 0) when nothing is listening on $1. Uses
 # lsof so it catches IPv6-only listeners too — Vite binds localhost as [::1], which
