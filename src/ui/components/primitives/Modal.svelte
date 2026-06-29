@@ -139,6 +139,9 @@
     backdrop-filter: blur(8px);
     animation: fade var(--dur) var(--ease);
   }
+  .backdrop[hidden] {
+    display: none;
+  }
   .window {
     display: flex;
     flex-direction: column;
