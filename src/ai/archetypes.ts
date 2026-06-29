@@ -293,9 +293,11 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
   ],
   // Colossal Cyclops — Laser Focus (A1, 3%): one extra full attack (category K
   // extra-attack). Same extraHits mechanism with minHits=maxHits=1 and no per-hit
-  // bonus. Keyed per-id so the base Cyclops (shared 'brute' archetype) is unaffected.
+  // bonus. Chase (A2, 1%) drives the player to the next staircase and drops 15%
+  // gold. Keyed per-id so the base Cyclops (shared 'brute' archetype) is unaffected.
   'colossal-cyclops': [
     { id: 'extraHits', label: 'Laser Focus', chance: 0.03, minHits: 1, maxHits: 1, perHitBonus: 0, cooldown: 0, trigger: 'onHit' },
+    { id: 'teleportPlayer', label: 'Chase', chance: 0.01, teleportTarget: 'stairsDown', goldDropPct: 0.15, cooldown: 0, trigger: 'onHit' },
   ],
   // Xelhua — Stomp (A1, 3%): "player loses footing and falls to the ground for
   // one turn" — a 1-turn stun. Pure data on top of the 'default' archetype; the
@@ -395,6 +397,11 @@ export const MONSTER_ABILITIES: Record<string, AbilitySpec[]> = {
     { id: 'silenceMagic', label: 'Putrid Bite', chance: 0.03, duration: 3, cooldown: 0, trigger: 'onHit' },
     { id: 'bonusDamage', label: 'Bury Alive', chance: 0.01, bonusDamage: 75, cooldown: 0, trigger: 'onHit' },
   ],
+  // Rabid Ostrich — Reverse Kick (A1, 3%): kicks the player to the previous
+  // dungeon level/map. The engine callback handles the floor transition.
+  'rabid-ostrich': [{ id: 'teleportPlayer', label: 'Reverse Kick', chance: 0.03, teleportTarget: 'previousFloor', cooldown: 0, trigger: 'onHit' }],
+  // Unicorn — Rainbow Lash (A1, 3%): calls a level-6 monster to assist.
+  'unicorn': [{ id: 'summon', label: 'Rainbow Lash', chance: 0.03, summonFloor: 6, cooldown: 0, trigger: 'onHit' }],
 
   // --- Pure bonusDamage abilities (flat extra hit on proc; the sheet's many
   // "+N damage" specials). Big magnitudes (50/75) are sheet-verbatim and rare —

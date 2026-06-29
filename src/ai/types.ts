@@ -73,6 +73,7 @@ export type AbilityId =
   | 'freeze'
   | 'drainStrength'
   | 'summon'
+  | 'teleportPlayer'
   | 'leechHeal'
   | 'poison'
   | 'stun'
@@ -122,6 +123,12 @@ export interface AbilitySpec {
   /** extraHits (category K): flat damage added to each extra hit (e.g. +5 per
    *  bite for Furious Fangs). */
   perHitBonus?: number;
+  /** summon: the depth/minFloor pool to pull an assisting monster from. */
+  summonFloor?: number;
+  /** teleportPlayer: where the player is moved by the instant world mutation. */
+  teleportTarget?: 'safeTile' | 'previousFloor' | 'stairsDown';
+  /** teleportPlayer/steal hybrids: fraction of carried gold dropped on proc. */
+  goldDropPct?: number;
   /** Turns before it can fire again. */
   cooldown: number;
   trigger: 'onHit' | 'onEngage';

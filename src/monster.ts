@@ -19,6 +19,11 @@ export interface AIFx {
 
 const NO_FX: AIFx = { dive() {}, whiff() {}, float() {} };
 
+export interface AbilityWorldActions {
+  summonMonster?(source: Monster, ability: AbilitySpec): boolean;
+  teleportPlayer?(source: Monster, ability: AbilitySpec): { moved: boolean; endMonsterTurn?: boolean; logs?: string[] };
+}
+
 /** Build the on-proc visual: a floating ability-name label over the player (the
  *  one afflicted), mirroring the bat-dodge float. */
 function procFloat(fx: AIFx, m: Monster, player: Player): (ab: AbilitySpec) => void {
@@ -49,9 +54,23 @@ export function processMonsterAI(
   dark?: boolean[][],
   floor = 1,
   onBlink?: (m: Monster) => void,
-  onPlayerDamaged?: (m: Monster, damage: number) => void
+  onPlayerDamaged?: (m: Monster, damage: number) => void,
+  worldActions?: AbilityWorldActions
 ) {
-  for (const m of monsters) {
+  let endMonsterTurn = false;
+  const abilityWorld: AbilityWorldActions | undefined = worldActions
+    ? {
+        summonMonster: worldActions.summonMonster,
+        teleportPlayer: (source, ability) => {
+          const result = worldActions.teleportPlayer?.(source, ability) ?? { moved: false };
+          if (result.endMonsterTurn) endMonsterTurn = true;
+          return result;
+        },
+      }
+    : undefined;
+
+  for (const m of [...monsters]) {
+    if (endMonsterTurn) break;
     if (m.frozenTurns > 0) {
       m.frozenTurns--;
       continue;
@@ -79,7 +98,7 @@ export function processMonsterAI(
     // action this turn.
     if (rt.pendingAttack) {
       if (turn >= rt.pendingAttack.resolveTurn) {
-        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx, floor, onPlayerDamaged);
+        resolvePendingAttack(m, rt, behavior, player, totalDef, addLog, rng, turn, fx, floor, onPlayerDamaged, abilityWorld);
         if (rt.pendingBlink) {
           rt.pendingBlink = false;
           onBlink?.(m);
@@ -106,7 +125,7 @@ export function processMonsterAI(
       dark,
     });
 
-    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx);
+    applyAction(action, m, behavior, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx, abilityWorld);
     // An on-hit ability (leprechaun steal) may have requested a blink-away: the
     // monster hits, then vanishes to a random floor tile this same turn.
     if (rt.pendingBlink) {
@@ -136,7 +155,8 @@ function resolvePendingAttack(
   turn: number,
   fx: AIFx,
   floor: number,
-  onPlayerDamaged?: (m: Monster, damage: number) => void
+  onPlayerDamaged?: (m: Monster, damage: number) => void,
+  worldActions?: AbilityWorldActions
 ) {
   const pend = rt.pendingAttack!;
   rt.pendingAttack = undefined;
@@ -154,7 +174,7 @@ function resolvePendingAttack(
     player.hp -= dmg;
     onPlayerDamaged?.(m, dmg);
     addLog(`${m.name}'s swoop hits for ${dmg}!`);
-    applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
+    applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player), worldActions).forEach(addLog);
     applyExtraHits(behavior, m, player, totalDef, scaledAtk, rng, fx, onPlayerDamaged).forEach(addLog);
   } else {
     fx.whiff(pend.targetX, pend.targetY);
@@ -175,7 +195,8 @@ function applyAction(
   turn: number,
   floor: number,
   onPlayerDamaged?: (m: Monster, damage: number) => void,
-  fx: AIFx = NO_FX
+  fx: AIFx = NO_FX,
+  worldActions?: AbilityWorldActions
 ) {
   switch (action.type) {
     case 'wait':
@@ -185,7 +206,7 @@ function applyAction(
       m.y += action.dy;
       return;
     case 'attack':
-      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx);
+      applyAttack(m, behavior, action.attackId, player, totalDef, addLog, rng, turn, floor, onPlayerDamaged, fx, worldActions);
       return;
     case 'windup': {
       // Commit to a telegraphed strike: record the target tile + resolve turn.
@@ -215,7 +236,8 @@ function applyAttack(
   turn: number,
   floor: number,
   onPlayerDamaged?: (m: Monster, damage: number) => void,
-  fx: AIFx = NO_FX
+  fx: AIFx = NO_FX,
+  worldActions?: AbilityWorldActions
 ) {
   const rt = ensureRuntime(m);
   const attack: AttackSpec = behavior.attacks.find((a) => a.id === attackId) ?? behavior.attacks[0];
@@ -242,7 +264,7 @@ function applyAttack(
 
   // On-hit abilities (steal, leech, self-buff, …) fire as side effects of landing a
   // blow. selfBuff sets atkBuffTurns here (affecting LATER hits, not this one).
-  applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player)).forEach(addLog);
+  applyOnHitAbilities(behavior, m, player, rng, floor, procFloat(fx, m, player), worldActions).forEach(addLog);
 
   // Category K extra-attack abilities (Furious Fangs, Laser Focus) resolve HERE
   // because they deal real computeMonsterDamage hits and need totalDef in scope —
@@ -306,7 +328,8 @@ export function applyOnHitAbilities(
   player: Player,
   rng: RNG,
   floor = 1,
-  onProc?: (ab: AbilitySpec) => void
+  onProc?: (ab: AbilitySpec) => void,
+  worldActions?: AbilityWorldActions
 ): string[] {
   const rt = ensureRuntime(m);
   const logs: string[] = [];
@@ -320,7 +343,7 @@ export function applyOnHitAbilities(
     // seeded stream for category-K monsters (Kalius / Colossal Cyclops).
     if (ab.id === 'extraHits') continue;
     if (ab.trigger !== 'onHit' || !rng.chance(Math.min(1, ab.chance * procMult))) continue;
-    const applied = fireAbility(ab, m, player, logs, rng, floor);
+    const applied = fireAbility(ab, m, player, logs, rng, floor, worldActions);
     // Flat extra damage rides on top of any status effect (and is the whole
     // payload of a pure 'bonusDamage' ability). The engine's post-attack hp<=0
     // check ends the run if this is lethal, like the base melee hit.
@@ -344,7 +367,7 @@ export function applyOnHitAbilities(
  * GOLDCALC steal) draw randomness — only the stealGold path consumes them, so
  * other abilities keep their existing RNG footprint and seeded parity.
  */
-function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[], rng: RNG, floor: number): boolean {
+function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[], rng: RNG, floor: number, worldActions?: AbilityWorldActions): boolean {
   switch (ab.id) {
     case 'stealGold': {
       // Canonical Rogue GOLDCALC = rnd(50 + 10·depth) + 2. A failed save vs. magic
@@ -545,6 +568,23 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
       logs.push(`${m.name} grows a second head!`);
       return true;
     }
+    case 'summon': {
+      const spawned = worldActions?.summonMonster?.(m, ab) ?? false;
+      if (spawned) {
+        logs.push(`${m.name}'s ${ab.label ?? 'summon'} calls another monster!`);
+        return true;
+      }
+      return false;
+    }
+    case 'teleportPlayer': {
+      const result = worldActions?.teleportPlayer?.(m, ab) ?? { moved: false };
+      if (result.moved) {
+        const details = result.logs?.length ? ` ${result.logs.join(' ')}` : '';
+        logs.push(`${m.name}'s ${ab.label ?? 'blow'} sends you reeling!${details}`);
+        return true;
+      }
+      return false;
+    }
     // 'extraHits' is resolved in applyAttack (it needs totalDef + computeMonsterDamage),
     // NOT here on the fireAbility path. Treated as a no-op if it ever reaches this
     // switch, so it never draws from `rng`.
@@ -554,7 +594,7 @@ function fireAbility(ab: AbilitySpec, m: Monster, player: Player, logs: string[]
     // applied by applyOnHitAbilities from `ab.bonusDamage`. Nothing to do here.
     case 'bonusDamage':
       return false;
-    // freeze / drainStrength / summon are schema-only for now — safely ignored
+    // freeze / drainStrength are schema-only for now — safely ignored
     // until the engine grows hooks for them.
     default:
       return false;

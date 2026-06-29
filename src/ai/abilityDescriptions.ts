@@ -70,6 +70,8 @@ function generatedName(spec: AbilitySpec): string {
       return 'Snatch';
     case 'summon':
       return 'Summon';
+    case 'teleportPlayer':
+      return 'Displace';
     default:
       return cap(spec.id);
   }
@@ -127,7 +129,15 @@ function statusClause(spec: AbilitySpec): string {
     case 'stealItem':
       return 'steals an item and vanishes';
     case 'summon':
-      return 'calls another monster to its aid';
+      return spec.summonFloor ? `calls a level-${spec.summonFloor} monster to its aid` : 'calls another monster to its aid';
+    case 'teleportPlayer': {
+      const target =
+        spec.teleportTarget === 'previousFloor' ? 'knocks you to the previous floor' :
+        spec.teleportTarget === 'stairsDown' ? 'drives you to the next staircase' :
+        'teleports you across the dungeon';
+      const gold = spec.goldDropPct && spec.goldDropPct > 0 ? ` and drops ${Math.round(spec.goldDropPct * 100)}% of your gold` : '';
+      return `${target}${gold}`;
+    }
     default:
       // Unknown id — describe what we can from the spec (effectText supplies the
       // final fallback / appends any bonus-damage rider).

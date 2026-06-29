@@ -14,6 +14,10 @@ All notable changes to this project will be documented in this file.
   - Regenerated the level-up chime (`player-levelup`) with a brighter ascending-arpeggio prompt, and added `scripts/gen-progression-sfx.mjs` to reproducibly generate the player vitals & progression cues.
   - Added a dedicated Amulet-of-Ballard discovery stinger (`game.amuletFound` → `amulet-found`), generated via ElevenLabs.
   - Added a `Play level-up FX` Dev-tab action (and a `window.rogueLevelUpFx` helper) to replay the bloom + chime without grinding XP.
+- Implemented the one-off monster ability mutations for Unicorn Rainbow Lash
+  (summon a level-6-pool monster), Rabid Ostrich Reverse Kick (kick the player
+  to the previous floor), and Colossal Cyclops Chase (drive the player to the
+  down stairs while dropping 15% gold).
 
 ### Changed
 - Narrowed the `GamePresenter` stats/inventory API so the engine publishes

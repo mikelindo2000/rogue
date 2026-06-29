@@ -1321,6 +1321,104 @@ describe('GameEngine hidden traps', () => {
     expect(engine.map[engine.player.y][engine.player.x]).toBe(TILE.STAIRS_UP);
     expect(engine.turn).toBe(0);
   });
+
+  it('Rabid Ostrich Reverse Kick sends the player to the previous floor', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 10;
+    engine.player.hp = 500;
+    carveRow(engine, 2, 2, 4);
+    engine.monsters = [{
+      x: 3,
+      y: 2,
+      symbol: 'R',
+      name: 'Rabid Ostrich',
+      hp: 77,
+      maxHp: 77,
+      atk: 44,
+      color: '#d3d3d3',
+      minFloor: 10,
+      frozenTurns: 0,
+    }];
+    const prevMap = makeEmptyMap(engine);
+    prevMap[2][2] = TILE.FLOOR;
+    prevMap[2][3] = TILE.STAIRS_DOWN;
+    (engine as any).floorStates.set(9, {
+      map: prevMap,
+      explored: new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false)),
+      dark: new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(false)),
+      monsters: [],
+      items: [],
+      traps: [],
+    });
+    setChanceRoll(engine, 0);
+
+    engine.processTurn();
+
+    expect(engine.dungeonFloor).toBe(9);
+    expect(engine.map[engine.player.y][engine.player.x]).toBe(TILE.STAIRS_DOWN);
+    expect(engine.logs.join('\n')).toContain('Reverse Kick');
+  });
+
+  it('Unicorn Rainbow Lash summons a level-6-pool monster without giving it an immediate turn', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 12;
+    engine.player.hp = 500;
+    for (let y = 1; y <= 3; y++) carveRow(engine, y, 1, 4);
+    engine.monsters = [{
+      x: 3,
+      y: 2,
+      symbol: 'U',
+      name: 'Unicorn',
+      hp: 102,
+      maxHp: 102,
+      atk: 54,
+      color: '#ffffff',
+      minFloor: 12,
+      frozenTurns: 0,
+    }];
+    setChanceRoll(engine, 0);
+
+    engine.processTurn();
+
+    expect(engine.monsters).toHaveLength(2);
+    const summoned = engine.monsters.find((m) => m.name !== 'Unicorn')!;
+    expect(summoned.minFloor).toBeLessThanOrEqual(6);
+    expect(summoned.ai?.state).toBe('hunting');
+    expect(engine.logs.join('\n')).toContain('Rainbow Lash');
+  });
+
+  it('Colossal Cyclops Chase moves the player to the down stairs and drops 15% gold', () => {
+    const engine = makeRunner();
+    engine.dungeonFloor = 17;
+    engine.player.hp = 5000;
+    engine.player.gold = 100;
+    carveRow(engine, 2, 2, 6);
+    engine.map[2][6] = TILE.STAIRS_DOWN;
+    engine.monsters = [{
+      x: 3,
+      y: 2,
+      symbol: 'C↑',
+      name: 'Colossal Cyclops',
+      hp: 225,
+      maxHp: 225,
+      atk: 94,
+      color: '#ffdab9',
+      minFloor: 17,
+      special: 'hero',
+      frozenTurns: 0,
+    }];
+    setChanceRoll(engine, 0);
+
+    engine.processTurn(); // windup
+    engine.processTurn(); // hit + Chase proc
+
+    expect(engine.player.x).toBe(6);
+    expect(engine.player.y).toBe(2);
+    expect(engine.player.gold).toBe(85);
+    expect(engine.items).toContainEqual(expect.objectContaining({ type: 'gold', amount: 15, x: 2, y: 2 }));
+    expect(engine.logs.join('\n')).toContain('Chase');
+    expect(engine.logs.join('\n')).toContain('You drop 15 gold!');
+  });
 });
 
 describe('GameEngine run movement', () => {

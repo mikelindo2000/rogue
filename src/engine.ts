@@ -18,6 +18,7 @@ import { requiredBossNamesForFloor } from './encounters';
 import { processMonsterAI } from './monster';
 import { tickPlayerEffects, hasEffect, effectMagnitude } from './effects';
 import { archetypeOf, effectiveBehavior } from './ai/archetypes';
+import type { AbilitySpec } from './ai/types';
 import { computeStrike, isHeavyHit, rumbleStrength } from './combat';
 import { isWeaponCategory, weaponSymbol } from './weapons';
 import { type SoundSink, noopSink } from './audio/events';
@@ -1795,9 +1796,65 @@ export class GameEngine {
     return held;
   }
 
+  private teleportPlayerForMonsterAbility(ability: AbilitySpec): { moved: boolean; endMonsterTurn?: boolean; logs?: string[] } {
+    const logs: string[] = [];
+    if (ability.goldDropPct && ability.goldDropPct > 0) {
+      const dropped = this.dropPlayerGoldAtCurrentTile(ability.goldDropPct);
+      if (dropped > 0) logs.push(`You drop ${dropped} gold!`);
+    }
+
+    switch (ability.teleportTarget ?? 'safeTile') {
+      case 'previousFloor':
+        if (this.dungeonFloor <= 1) return { moved: false };
+        this.publishPresentationEvent({ type: 'map.floorTransition', dir: 'up' });
+        this.saveCurrentFloor();
+        this.dungeonFloor--;
+        this.statusEffects.monsterDetectionTurns = 0;
+        this.foodDetectionHighlights = new WeakSet();
+        recordStairs(this.stats, this.dungeonFloor, -1);
+        this.addLog(`Knocked back to Floor ${this.dungeonFloor}!`);
+        this.presenter.clearItemPickup();
+        this.loadFloorForTravel(-1);
+        this.presenter.publishInventory({ player: this.player });
+        this.updateUI();
+        this.draw();
+        this.autosave();
+        return { moved: true, endMonsterTurn: true, logs };
+      case 'stairsDown': {
+        const stairs = this.findTile(TILE.STAIRS_DOWN);
+        if (!stairs) return { moved: false, logs };
+        this.player.x = stairs.x;
+        this.player.y = stairs.y;
+        this.updateFOV();
+        return { moved: true, logs };
+      }
+      case 'safeTile': {
+        const before = `${this.player.x},${this.player.y}`;
+        this.teleportPlayerSafely();
+        return { moved: before !== `${this.player.x},${this.player.y}`, logs };
+      }
+    }
+  }
+
+  private dropPlayerGoldAtCurrentTile(pct: number): number {
+    if (this.player.gold <= 0 || pct <= 0) return 0;
+    const amount = Math.min(this.player.gold, Math.max(1, Math.floor(this.player.gold * pct)));
+    this.player.gold -= amount;
+    this.items.push({
+      type: 'gold',
+      amount,
+      symbol: '$',
+      color: '#ffff55',
+      x: this.player.x,
+      y: this.player.y,
+    });
+    this.presenter.publishInventory({ player: this.player });
+    return amount;
+  }
+
   /** Create Monster: spawn a floor-appropriate, non-special monster on a free
    *  tile adjacent to the player. Returns false if no adjacent tile is open. */
-  private spawnMonsterAdjacent(): boolean {
+  private spawnMonsterAdjacent(sourceFloor = this.dungeonFloor): boolean {
     const spots: Array<{ x: number; y: number }> = [];
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -1811,7 +1868,7 @@ export class GameEngine {
       }
     }
     if (spots.length === 0) return false;
-    const candidates = MONSTER_DATABASE.filter(t => t.minFloor <= this.dungeonFloor && !t.special);
+    const candidates = MONSTER_DATABASE.filter(t => t.minFloor <= sourceFloor && !t.special);
     if (candidates.length === 0) return false;
     const tmpl = this.rng.pick(candidates);
     const spot = this.rng.pick(spots);
@@ -2756,6 +2813,10 @@ export class GameEngine {
         const id = monsterId(m);
         lastDamagingMonsterId = id;
         if (!killingMonsterId && this.player.hp <= 0) killingMonsterId = id;
+      },
+      {
+        summonMonster: (_m, ability) => this.spawnMonsterAdjacent(ability.summonFloor),
+        teleportPlayer: (_m, ability) => this.teleportPlayerForMonsterAbility(ability),
       }
     );
     if (this.player.hp < hpBeforeMonsters) {
