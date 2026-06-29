@@ -190,6 +190,8 @@ describe('itemPickupsEqual', () => {
     expect(itemPickupsEqual(base, { ...base, corner: 'bl' })).toBe(false);
     expect(itemPickupsEqual(base, { ...base, name: 'Rusty Sword' })).toBe(false);
     expect(itemPickupsEqual(base, { ...base, statLabel: undefined })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, comparisonLabel: '+3 ATK vs equipped' })).toBe(false);
+    expect(itemPickupsEqual(base, { ...base, comparisonTone: 'better' })).toBe(false);
     expect(itemPickupsEqual(base, { ...base, sizePx: 131 })).toBe(false);
   });
 

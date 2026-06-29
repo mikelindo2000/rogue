@@ -8,8 +8,11 @@ import { STAIR_TILES } from '../tiles';
 import { isWeaponCategory } from '../weapons';
 import {
   type Item,
+  type FloorGear,
+  type GearItem,
   type Monster,
   type Player,
+  ARMOR_SLOTS,
   type StatusEffects,
   type TrapEffects,
 } from '../types';
@@ -21,7 +24,9 @@ import {
 } from '../ui/combatPortrait';
 import { floorName, hungerView, rarityVar, survivalWarningView } from '../ui/format';
 import { foodArtUrl, gearArtUrl, potionArtUrl, scrollArtUrl, wandArtUrl } from '../ui/inventoryArt';
+import { type EquipmentStatKind } from '../ui/equipmentStats';
 import { shortGearStatText } from '../ui/inventoryStats';
+import { compareGear } from '../ui/gearCompare';
 import { appendLogLine } from '../ui/logHistory';
 import { enrichLogMessageHtml } from '../ui/logMessage';
 import { potionLabel } from '../ui/potionView';
@@ -77,6 +82,8 @@ interface PendingItemPickup {
   artUrl: string;
   rarityColor: string;
   statLabel?: string;
+  comparisonLabel?: string;
+  comparisonTone?: ItemPickupOverlay['comparisonTone'];
   pickedAtMs: number;
   pickedTurn: number;
 }
@@ -241,10 +248,10 @@ export class ChromePresenter {
    *  is stamped here and evaluated (event-driven) in syncOverlays — there is no
    *  render loop. The current turn is read from ui.turn, which publishStats has
    *  already set this action (updateUI runs before the pickup). */
-  public showItemPickup(item: Item): void {
+  public showItemPickup(item: Item, player?: Player): void {
     if (item.type === 'gold') return;
 
-    const projected = projectItemPickup(item);
+    const projected = projectItemPickup(item, player);
     this.pendingPickup = {
       ...projected,
       token: ++this.pickupToken,
@@ -494,6 +501,8 @@ export class ChromePresenter {
       artUrl: pending.artUrl,
       rarityColor: pending.rarityColor,
       statLabel: pending.statLabel,
+      comparisonLabel: pending.comparisonLabel,
+      comparisonTone: pending.comparisonTone,
       corner,
       sizePx,
     };
@@ -577,7 +586,7 @@ export class ChromePresenter {
 /** Project a freshly-picked item into the pickup card's display fields, reusing
  *  the same art/rarity/stat builders the inventory panel uses. Gold is filtered
  *  out before this is reached (showItemPickup). */
-function projectItemPickup(item: Exclude<Item, { type: 'gold' }>): Omit<PendingItemPickup, 'token' | 'pickedAtMs' | 'pickedTurn'> {
+function projectItemPickup(item: Exclude<Item, { type: 'gold' }>, player?: Player): Omit<PendingItemPickup, 'token' | 'pickedAtMs' | 'pickedTurn'> {
   switch (item.type) {
     case 'food':
       return {
@@ -617,15 +626,61 @@ function projectItemPickup(item: Exclude<Item, { type: 'gold' }>): Omit<PendingI
     case 'gear': {
       const gear = item.data;
       const weapon = isWeaponCategory(gear.category);
+      const comparison = pickupGearComparison(gear, player);
       return {
         kind: 'gear',
         name: gear.name,
         artUrl: gearArtUrl(gear),
         rarityColor: rarityVar(gear.rarity),
         statLabel: shortGearStatText(gear, weapon ? 'attack' : 'defense'),
+        comparisonLabel: comparison?.label,
+        comparisonTone: comparison?.tone,
       };
     }
   }
+}
+
+function pickupGearComparison(
+  gear: FloorGear,
+  player?: Player,
+): { label: string; tone: ItemPickupOverlay['comparisonTone'] } | undefined {
+  if (!player) return undefined;
+
+  const kind = isWeaponCategory(gear.category) ? 'attack' : 'defense';
+  const current = currentGearForPickup(gear.category, kind, player);
+  if (current === undefined && gear.category !== 'shield' && !ARMOR_SLOTS.includes(gear.category as typeof ARMOR_SLOTS[number]) && !isWeaponCategory(gear.category)) {
+    return undefined;
+  }
+
+  const comparison = compareGear(current, gear, kind);
+  const unit = kind === 'attack' ? 'ATK' : 'DEF';
+  return {
+    label: `${signedDelta(comparison.statDelta)} ${unit} vs equipped`,
+    tone: comparison.statDelta > 0 ? 'better' : comparison.statDelta < 0 ? 'worse' : 'same',
+  };
+}
+
+function currentGearForPickup(
+  category: string | undefined,
+  kind: EquipmentStatKind,
+  player: Player,
+): GearItem | undefined {
+  if (kind === 'attack') {
+    return player.inventory.weapons[player.equipped.mainHand];
+  }
+  if (category === 'shield') {
+    if (!player.equipped.offHand.startsWith('shield:')) return undefined;
+    return player.inventory.shield[Number(player.equipped.offHand.split(':')[1])];
+  }
+  if (ARMOR_SLOTS.includes(category as typeof ARMOR_SLOTS[number])) {
+    const slot = category as typeof ARMOR_SLOTS[number];
+    return player.inventory[slot][player.equipped[slot]];
+  }
+  return undefined;
+}
+
+function signedDelta(delta: number): string {
+  return delta > 0 ? `+${delta}` : String(delta);
 }
 
 function monsterViewToChromeMonster(view: MonsterView): Monster {

@@ -29,6 +29,9 @@
       {#if pickup.statLabel}
         <div class="stat">{pickup.statLabel}</div>
       {/if}
+      {#if pickup.comparisonLabel}
+        <div class="comparison {pickup.comparisonTone ?? 'same'}">{pickup.comparisonLabel}</div>
+      {/if}
     </div>
   </div>
 </div>
@@ -102,4 +105,12 @@
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
     white-space: nowrap;
   }
+  .comparison {
+    font: 700 var(--fs-2xs, 10px) var(--font-ui);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+  }
+  .comparison.better { color: var(--good); }
+  .comparison.same { color: var(--text-muted); }
+  .comparison.worse { color: var(--danger); }
 </style>

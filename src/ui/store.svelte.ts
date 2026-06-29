@@ -180,6 +180,8 @@ export interface ItemPickupOverlay {
   artUrl: string; // /inventory/${slug}.png
   rarityColor: string; // CSS var, e.g. var(--rarity-rare); tints frame + name
   statLabel?: string; // e.g. '+8 ATK' / '4 DEF'
+  comparisonLabel?: string; // e.g. '+3 ATK vs equipped'
+  comparisonTone?: 'better' | 'same' | 'worse';
   corner: 'tl' | 'tr' | 'bl' | 'br';
   sizePx: number; // card width in CSS px
 }

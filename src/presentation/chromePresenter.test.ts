@@ -303,6 +303,36 @@ describe('ChromePresenter', () => {
       expect(ui.itemPickup?.sizePx).toBeGreaterThan(0);
     });
 
+    it('projects a weapon pickup delta against the equipped weapon', () => {
+      const player = createPlayer();
+      player.inventory.weapons[0] = { name: 'Balanced Sword', type: '1h_sword', dmg: 5, rarity: 'common' };
+      player.equipped.mainHand = 0;
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+
+      presenter.showItemPickup(gearItem({ name: 'Jeweled Sword', category: '1h_sword', dmg: 8 }), player);
+      presenter.publishMap(blankSnapshot());
+
+      expect(ui.itemPickup).toMatchObject({
+        statLabel: 'ATK 8',
+        comparisonLabel: '+3 ATK vs equipped',
+        comparisonTone: 'better',
+      });
+    });
+
+    it('projects armor pickup delta against the matching equipped slot', () => {
+      const player = createPlayer();
+      const presenter = new ChromePresenter({ measureTileSize: () => 20 });
+
+      presenter.showItemPickup(gearItem({ name: 'Chainmail', category: 'chest', def: 4, maxDef: 4, dmg: undefined }), player);
+      presenter.publishMap(blankSnapshot());
+
+      expect(ui.itemPickup).toMatchObject({
+        statLabel: 'DEF 4',
+        comparisonLabel: '+3 DEF vs equipped',
+        comparisonTone: 'better',
+      });
+    });
+
     it('projects a potion pickup', () => {
       const presenter = new ChromePresenter({ measureTileSize: () => 20 });
       presenter.showItemPickup({

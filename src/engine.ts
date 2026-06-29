@@ -1488,7 +1488,7 @@ export class GameEngine {
         // Show the framed pickup card (gold is skipped inside showItemPickup).
         // updateUI() above already published the current turn, so the overlay's
         // lifetime stamps line up with ui.turn.
-        this.presenter.showItemPickup(item);
+        this.presenter.showItemPickup(item, this.player);
         return item;
       }
     }

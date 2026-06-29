@@ -122,6 +122,8 @@ export function itemPickupsEqual(
     a.artUrl === b.artUrl &&
     a.rarityColor === b.rarityColor &&
     a.statLabel === b.statLabel &&
+    a.comparisonLabel === b.comparisonLabel &&
+    a.comparisonTone === b.comparisonTone &&
     a.corner === b.corner &&
     a.sizePx === b.sizePx
   );

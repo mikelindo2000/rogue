@@ -76,7 +76,7 @@ export interface GamePresenter {
 
   /** Show a framed card for an item the player just collected (gold is skipped).
    *  Lifetime is event-driven via the syncOverlays heartbeat — no render loop. */
-  showItemPickup(item: Item): void;
+  showItemPickup(item: Item, player?: Player): void;
   /** Drop any pending item-pickup card immediately (e.g. on a floor transition). */
   clearItemPickup(): void;
   resetLog(): void;
