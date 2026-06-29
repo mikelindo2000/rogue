@@ -13,6 +13,12 @@ function createContextStub(): CanvasContextStub {
     get(obj, prop: string) {
       if (prop in obj) return obj[prop as keyof typeof obj];
       if (prop === 'measureText') return (text: string) => ({ width: text.length * 10 });
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+        return (..._args: unknown[]) => {
+          calls.push(prop);
+          return { addColorStop: () => calls.push('addColorStop') };
+        };
+      }
       return (..._args: unknown[]) => {
         calls.push(prop);
       };
@@ -200,6 +206,32 @@ describe('AsciiCanvasRenderer', () => {
     renderer.resize({ width: 300, height: 220 } as DOMRectReadOnly);
     renderer.setSnapshot(snapshot({ monsterDetectionActive: true }));
 
+    expect(renderer.tick(140)).toBe(true);
+  });
+
+  it('draws and animates a yellow glow behind food detection highlights', () => {
+    const { canvas } = createHost();
+    const renderer = new AsciiCanvasRenderer({ now: () => 100 });
+
+    renderer.mount(canvas);
+    renderer.resize({ width: 300, height: 220 } as DOMRectReadOnly);
+    renderer.setSnapshot(snapshot({
+      items: [{
+        key: 'food-a',
+        x: 1,
+        y: 2,
+        type: 'food',
+        glyph: '%',
+        color: '#ff9900',
+        explored: true,
+        visible: false,
+        foodDetectionHighlighted: true,
+        inScope: true,
+      }],
+    }));
+
+    expect(context.calls).toContain('createRadialGradient');
+    expect(context.calls).toContain('addColorStop');
     expect(renderer.tick(140)).toBe(true);
   });
 

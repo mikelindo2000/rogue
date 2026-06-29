@@ -52,6 +52,7 @@ export interface ItemView {
   readonly explored: boolean;
   readonly visible: boolean;
   readonly data?: unknown;
+  readonly foodDetectionHighlighted?: boolean;
   readonly inScope: boolean;
 }
 
@@ -96,6 +97,7 @@ export interface CreateMapSnapshotInput {
   readonly gameOver: boolean;
   readonly gameWon: boolean;
   readonly monsterDetectionActive: boolean;
+  readonly foodDetectionHighlights?: { has(item: Item): boolean };
   readonly scope?: MapSnapshotScope;
 }
 
@@ -176,6 +178,7 @@ export function createMapSnapshot(input: CreateMapSnapshotInput): MapSnapshot {
         explored: Boolean(input.explored[item.y]?.[item.x]),
         visible: Boolean(input.visible[item.y]?.[item.x]),
         data: 'data' in item ? cloneValue(item.data) : undefined,
+        foodDetectionHighlighted: item.type === 'food' && Boolean(input.foodDetectionHighlights?.has(item)),
         inScope: true,
       })),
     traps: input.traps.filter(trap => isInScope(scope, trap.x, trap.y)).map((trap): TrapView => ({

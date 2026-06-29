@@ -5,14 +5,15 @@ import { BALANCE } from './config';
 import type { Monster } from './types';
 import { monsterId, tierOf } from './discovery';
 import { createTestPresenter } from './testPresenter';
+import type { GamePresenter } from './presentation/presenter';
 
 const makePresenter = createTestPresenter;
 
 const grid = <T,>(engine: GameEngine, fill: T) =>
   new Array(engine.ROWS).fill(0).map(() => new Array(engine.COLS).fill(fill));
 
-function makeRunner(floor = 1) {
-  const engine = new GameEngine(makePresenter());
+function makeRunner(floor = 1, presenter: GamePresenter = makePresenter()) {
+  const engine = new GameEngine(presenter);
   engine.dungeonFloor = floor;
   engine.map = grid(engine, TILE.VOID);
   engine.explored = grid(engine, false);
@@ -170,6 +171,30 @@ describe('scroll Phase 1 effects', () => {
     engine.useScroll(0);
     expect(engine.explored[8][15]).toBe(true);
     expect(engine.player.inventory.scrolls).not.toContain('gold_detection');
+  });
+
+  it('Food Detection: highlights detected food in the map snapshot', () => {
+    const snapshots: Parameters<GamePresenter['publishMap']>[0][] = [];
+    const engine = makeRunner(1, makePresenter({
+      publishMap: snapshot => snapshots.push(snapshot),
+    }));
+    carve(engine, 2, 1, 4);
+    engine.items = [
+      { type: 'food', symbol: '%', color: '#ff9900', x: 15, y: 8 },
+      { type: 'gold', symbol: '$', color: '#ff0', x: 16, y: 8 },
+    ];
+    engine.player.inventory.scrolls = ['food_detection'];
+
+    engine.useScroll(0);
+
+    const latest = snapshots.at(-1);
+    expect(latest?.items.find(item => item.type === 'food')).toMatchObject({
+      explored: true,
+      foodDetectionHighlighted: true,
+    });
+    expect(latest?.items.find(item => item.type === 'gold')?.foodDetectionHighlighted).toBe(false);
+    expect(engine.explored[8][15]).toBe(true);
+    expect(engine.explored[8][16]).toBe(false);
   });
 
   it('Blank Paper: consumes with no effect', () => {

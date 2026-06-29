@@ -211,6 +211,20 @@ describe('createMapSnapshot', () => {
     expect(snapshot.monsters[1]).toMatchObject({ visible: false, detected: true });
   });
 
+  it('marks only food from the food-detection highlight lookup', () => {
+    const highlightedFood: Item = { type: 'food', x: 0, y: 1, symbol: '%', color: '#ff9900' };
+    const plainFood: Item = { type: 'food', x: 2, y: 1, symbol: '%', color: '#ff9900' };
+    const highlights = new WeakSet<Item>([highlightedFood]);
+
+    const snapshot = createMapSnapshot(baseInput({
+      items: [highlightedFood, plainFood],
+      foodDetectionHighlights: highlights,
+    }));
+
+    expect(snapshot.items[0]).toMatchObject({ type: 'food', foodDetectionHighlighted: true });
+    expect(snapshot.items[1]).toMatchObject({ type: 'food', foodDetectionHighlighted: false });
+  });
+
   it('copies trap and run-end fields', () => {
     const snapshot = createMapSnapshot(baseInput({
       gameOver: true,

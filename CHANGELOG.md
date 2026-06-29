@@ -32,6 +32,9 @@ All notable changes to this project will be documented in this file.
 - Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
 
 ### Fixed
+- Food revealed by Scroll of Food Detection now gets a pulsing yellow canvas
+  glow so the ration glyph is easy to spot against dungeon backgrounds until
+  the player changes floors.
 - Fixed browser memory growth from repeated modal open/close cycles by keeping shared modal subtrees mounted but hidden while closed, eliminating detached dialog-body retention during inventory/settings/bestiary/debug churn.
 - Released canceled asset-readiness image request tokens even after an image reaches the ready state, preventing stale modal-art request closures from accumulating across reopen cycles.
 - The Amulet of Ballard pickup played the level-up chime as a stand-in; it now has its own discovery stinger, distinct from the escape-victory fanfare.

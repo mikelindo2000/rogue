@@ -513,7 +513,9 @@ export class AsciiCanvasRenderer implements MapRenderer {
     // Draw Items (only those not standing in darkness should glow brightly)
     s.items.forEach(i => {
       if (!s.explored[i.y]?.[i.x]) return;
-      this.ctx.globalAlpha = s.visible[i.y]?.[i.x] ? 1 : DIM_ALPHA;
+      const visible = Boolean(s.visible[i.y]?.[i.x]);
+      if (i.foodDetectionHighlighted) this.drawFoodDetectionHighlight(i, t, s.tileSize, visible);
+      this.ctx.globalAlpha = i.foodDetectionHighlighted ? (visible ? 1 : 0.92) : (visible ? 1 : DIM_ALPHA);
       this.ctx.fillStyle = i.color;
       this.drawGlyph(i.glyph, i.x, i.y, s.tileSize, 0.66);
     });
@@ -634,6 +636,25 @@ export class AsciiCanvasRenderer implements MapRenderer {
     this.ctx.globalAlpha = 0.42 + pulse * 0.2;
     this.ctx.fillStyle = color;
     this.drawGlyph(monster.glyph, gx, gy, tileSize, 0.88, { weight: 700, sizeRatio: 0.9, embolden: 0.04 });
+    this.ctx.restore();
+    this.ctx.globalAlpha = 1;
+  }
+
+  private drawFoodDetectionHighlight(item: ItemView, t: number, tileSize: number, visible: boolean) {
+    const m = this.tileMetrics(item.x, item.y, tileSize);
+    const pulse = 0.5 + 0.5 * Math.sin(t / 320 + item.x * 0.6 + item.y * 0.35);
+    const radius = tileSize * (0.42 + pulse * 0.08);
+    const gradient = this.ctx.createRadialGradient(m.cx, m.cy, tileSize * 0.08, m.cx, m.cy, radius);
+    gradient.addColorStop(0, 'rgba(255, 226, 92, 0.82)');
+    gradient.addColorStop(0.58, 'rgba(255, 202, 48, 0.5)');
+    gradient.addColorStop(1, 'rgba(255, 196, 32, 0)');
+
+    this.ctx.save();
+    this.ctx.globalAlpha = visible ? 1 : 0.86;
+    this.ctx.fillStyle = gradient;
+    this.ctx.beginPath();
+    this.ctx.arc(m.cx, m.cy, radius, 0, Math.PI * 2);
+    this.ctx.fill();
     this.ctx.restore();
     this.ctx.globalAlpha = 1;
   }
@@ -790,6 +811,7 @@ export class AsciiCanvasRenderer implements MapRenderer {
     if (this.floorTransition?.isAnimating()) return true;
     if (this.deathTransition?.isAnimating()) return true;
     if (this.scene?.monsterDetectionActive) return true;
+    if (this.scene?.items.some(item => item.foodDetectionHighlighted)) return true;
     // A live telegraph keeps pulsing until its attack resolves.
     const ms = this.scene?.monsters;
     if (ms) for (const m of ms) if (m.ai?.pendingAttack) return true;

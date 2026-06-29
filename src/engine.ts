@@ -170,6 +170,7 @@ export class GameEngine {
   private searchHintShown = false;
   private secretsFoundThisRun = 0;
   private trapdoorGeneratedThisRun = false;
+  private foodDetectionHighlights: WeakSet<Item> = new WeakSet();
 
   private presenter: GamePresenter;
 
@@ -269,6 +270,7 @@ export class GameEngine {
       confusedTurns: 0,
     };
     this.floorStates.clear();
+    this.foodDetectionHighlights = new WeakSet();
     this.searchHintShown = false;
     this.secretsFoundThisRun = 0;
     this.trapdoorGeneratedThisRun = false;
@@ -311,6 +313,7 @@ export class GameEngine {
     this.player.y = levelData.playerY;
     this.monsters = levelData.monsters;
     this.items = levelData.items;
+    this.foodDetectionHighlights = new WeakSet();
     this.mazeDetails = levelData.mazeDetails;
     this.traps = levelData.traps;
     if (this.traps.some(trap => trap.kind === 'trapdoor')) this.trapdoorGeneratedThisRun = true;
@@ -1062,6 +1065,7 @@ export class GameEngine {
     this.saveCurrentFloor();
     this.dungeonFloor = targetFloor;
     this.statusEffects.monsterDetectionTurns = 0;
+    this.foodDetectionHighlights = new WeakSet();
     recordStairs(this.stats, this.dungeonFloor, delta);
     this.sound.emit({ type: 'map.stairs', dir: delta > 0 ? 'down' : 'up' });
 
@@ -1128,6 +1132,7 @@ export class GameEngine {
       this.visible = this.blankBoolGrid();
       this.monsters = structuredClone(saved.monsters);
       this.items = structuredClone(saved.items);
+      this.foodDetectionHighlights = new WeakSet();
       this.mazeDetails = structuredClone(saved.mazeDetails ?? []);
       this.traps = structuredClone(saved.traps ?? []);
     } else {
@@ -1841,6 +1846,7 @@ export class GameEngine {
     for (const it of this.items) {
       if (it.type !== kind) continue;
       if (this.explored[it.y]?.[it.x] !== undefined) this.explored[it.y][it.x] = true;
+      if (kind === 'food') this.foodDetectionHighlights.add(it);
       count++;
     }
     if (count > 0) this.updateUI();
@@ -2873,6 +2879,7 @@ export class GameEngine {
       gameOver: this.gameOver,
       gameWon: this.gameWon,
       monsterDetectionActive: this.statusEffects.monsterDetectionTurns > 0,
+      foodDetectionHighlights: this.foodDetectionHighlights,
     }));
   }
 
@@ -2973,6 +2980,7 @@ export class GameEngine {
       this.rooms = [];
       this.monsters = structuredClone(save.monsters);
       this.items = structuredClone(save.items);
+      this.foodDetectionHighlights = new WeakSet();
       this.mazeDetails = structuredClone(save.mazeDetails ?? []);
       this.traps = structuredClone(save.traps ?? []);
       this.floorStates = new Map(save.floorStates.map(([f, s]) => [f, {
