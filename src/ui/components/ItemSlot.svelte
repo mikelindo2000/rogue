@@ -98,12 +98,15 @@
   .slot-wrap {
     position: relative;
     aspect-ratio: 1;
+    min-width: 0;
+    min-height: 0;
   }
 
   .slot {
     aspect-ratio: 1;
     width: 100%;
     height: 100%;
+    min-width: 0;
     border-radius: var(--r-lg);
     display: flex;
     align-items: center;
@@ -129,6 +132,7 @@
   }
   .empty {
     aspect-ratio: 1;
+    min-width: 0;
     background: var(--surface-page);
     border: 1px dashed var(--border-dashed);
   }

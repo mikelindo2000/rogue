@@ -36,6 +36,9 @@ All notable changes to this project will be documented in this file.
 - Documented the full-stage effect-rendering convention in `src/ui/visualEffects.ts` (with a redirect from the canvas renderer) so future screen-wide effects use the DOM `stage-overlay` layer rather than the map canvas, which clips to the tile rect.
 
 ### Fixed
+- Locked the right-rail inventory grid to the rail's fixed width so repeated
+  pointer hover/focus over inventory cells and tooltips no longer causes the
+  inventory panel to expand.
 - Food revealed by Scroll of Food Detection now gets a pulsing yellow canvas
   glow so the ration glyph is easy to spot against dungeon backgrounds until
   the player changes floors.

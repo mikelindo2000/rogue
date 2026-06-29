@@ -87,6 +87,7 @@
     flex: none;
     display: flex;
     flex-direction: column;
+    min-width: 0;
     min-height: 0;
     background: var(--surface-rail);
   }
@@ -95,16 +96,19 @@
     position: relative;
     z-index: 1;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
   .rail-left {
     width: var(--rail-left-w);
+    max-width: var(--rail-left-w);
     border-right: 1px solid var(--border);
   }
   .rail-right {
     width: var(--rail-right-w);
+    max-width: var(--rail-right-w);
     border-left: 1px solid var(--border);
   }
 

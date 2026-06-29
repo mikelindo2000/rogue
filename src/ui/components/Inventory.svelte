@@ -61,7 +61,11 @@
   .inventory {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 0;
+    overflow: hidden;
   }
   header {
     padding: 14px 14px 6px;
@@ -73,13 +77,17 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 7px;
     padding: 6px 12px 14px;
     border-bottom: 1px solid var(--border-subtle);
     /* min-height:0 lets the grid shrink below its content height so overflow-y
        can take over and scroll the rows that don't fit. */
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    scrollbar-gutter: stable;
+    overflow-x: hidden;
     overflow-y: auto;
   }
 </style>
